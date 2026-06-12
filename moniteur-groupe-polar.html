@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Moniteur de groupe · Polar H10 — Vivien Strudel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2D;
+    --pine:#2F5240;
+    --sand:#F2EDE2;
+    --linen:#FBF8F1;
+    --ink:#22302A;
+    --muted:#6E7B73;
+    --terra:#C26B4A;
+    --line:#DDD4C3;
+    --z0:#9AA69E;  /* repos  <50% */
+    --z1:#94A7B5;  /* 50–60% */
+    --z2:#5C8FA6;  /* 60–70% */
+    --z3:#5F9560;  /* 70–80% */
+    --z4:#D78F3C;  /* 80–90% */
+    --z5:#C14F38;  /* 90%+  */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Source Sans 3',system-ui,sans-serif;
+    background:var(--sand);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Barre supérieure ---------- */
+  header{
+    position:sticky;top:0;z-index:10;
+    background:var(--forest);color:#F4F0E6;
+    display:flex;align-items:center;flex-wrap:wrap;gap:.6rem 1.2rem;
+    padding:.65rem 1rem;
+  }
+  .brand{display:flex;align-items:center;gap:.6rem;min-width:0}
+  .brand svg{flex:none}
+  .brand h1{
+    font-family:'Libre Baskerville',Georgia,serif;
+    font-size:1.05rem;font-weight:700;line-height:1.1;white-space:nowrap;
+  }
+  .brand small{display:block;font-family:'Source Sans 3';font-weight:400;font-size:.72rem;color:#C9D4CC;letter-spacing:.04em}
+  .chrono{
+    font-variant-numeric:tabular-nums;font-weight:700;font-size:1.5rem;
+    letter-spacing:.02em;min-width:5.2ch;text-align:center;
+  }
+  .chrono.idle{color:#8FA396}
+  .grp{font-size:.8rem;color:#C9D4CC;text-align:center;line-height:1.25}
+  .grp b{color:#fff;font-variant-numeric:tabular-nums}
+  .spacer{flex:1}
+  .actions{display:flex;gap:.5rem;flex-wrap:wrap}
+  button{
+    font:inherit;font-weight:600;border:none;border-radius:8px;
+    padding:.6rem .95rem;cursor:pointer;min-height:44px;
+    transition:filter .12s ease, opacity .12s ease;
+  }
+  button:active{filter:brightness(.92)}
+  button:disabled{opacity:.45;cursor:default}
+  .btn-ghost{background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.25)}
+  .btn-rec{background:var(--terra);color:#fff}
+  .btn-stop{background:#fff;color:var(--terra)}
+  .btn-out{background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.25)}
+
+  /* ---------- Bandeau d'avertissement ---------- */
+  #banner{
+    background:#F6E3D3;color:#7A4426;border-bottom:1px solid #E3C4AA;
+    padding:.7rem 1rem;font-size:.9rem;line-height:1.4;
+  }
+
+  /* ---------- Grille ---------- */
+  main{
+    padding:1rem;
+    display:grid;gap:1rem;
+    grid-template-columns:repeat(auto-fill,minmax(265px,1fr));
+    align-items:start;
+  }
+
+  /* ---------- Carte participant ---------- */
+  .card{
+    background:var(--linen);
+    border:1px solid var(--line);
+    border-left:7px solid var(--z0);
+    border-radius:12px;
+    padding:.75rem .9rem .8rem;
+    display:flex;flex-direction:column;gap:.45rem;
+    box-shadow:0 1px 2px rgba(34,48,42,.06);
+  }
+  .row1{display:flex;align-items:center;gap:.5rem}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none;background:#B8B2A4}
+  .dot.on{background:#4E8C5F}
+  .dot.warn{background:#D78F3C}
+  .dot.off{background:#C14F38}
+  .pname{
+    flex:1;min-width:0;font:inherit;font-weight:700;font-size:1.05rem;color:var(--ink);
+    background:transparent;border:none;border-bottom:1px dashed transparent;padding:.1rem 0;
+  }
+  .pname:focus{outline:none;border-bottom-color:var(--pine)}
+  .remove{
+    background:transparent;color:var(--muted);min-height:auto;
+    padding:.2rem .45rem;font-size:1rem;border-radius:6px;
+  }
+  .remove:hover{color:var(--z5)}
+  .sensorid{font-size:.7rem;color:var(--muted);letter-spacing:.03em;margin-top:-.35rem}
+
+  .hr-row{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}
+  .hrval{
+    font-size:3.6rem;font-weight:700;line-height:1;
+    font-variant-numeric:tabular-nums;color:var(--ink);
+  }
+  .unit{font-size:.85rem;color:var(--muted);font-weight:600;margin-left:.25rem}
+  .zone{text-align:right}
+  .zbadge{
+    display:inline-block;font-weight:700;font-size:.95rem;color:#fff;
+    background:var(--z0);border-radius:6px;padding:.15rem .55rem;
+  }
+  .zpct{display:block;font-size:.8rem;color:var(--muted);margin-top:.2rem;font-variant-numeric:tabular-nums}
+
+  .spark{width:100%;height:54px;display:block}
+
+  .meta{
+    display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+    font-size:.8rem;color:var(--muted);flex-wrap:wrap;
+  }
+  .meta label{display:flex;align-items:center;gap:.3rem;font-weight:600}
+  .hrmax{
+    width:4.2ch;font:inherit;font-weight:700;color:var(--ink);text-align:center;
+    border:1px solid var(--line);border-radius:6px;background:#fff;padding:.15rem .1rem;
+  }
+  .rmssd b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .batt{font-variant-numeric:tabular-nums}
+  .batt.low{color:var(--z5);font-weight:700}
+
+  /* ---------- État vide ---------- */
+  #empty{
+    max-width:560px;margin:3rem auto;padding:0 1.2rem;text-align:center;color:var(--muted);
+  }
+  #empty h2{
+    font-family:'Libre Baskerville',Georgia,serif;color:var(--ink);
+    font-size:1.3rem;margin-bottom:.6rem;font-weight:700;
+  }
+  #empty p{font-size:.95rem;line-height:1.55;margin-bottom:.8rem}
+  #empty .tip{
+    background:var(--linen);border:1px solid var(--line);border-radius:10px;
+    padding:.8rem 1rem;font-size:.88rem;text-align:left;line-height:1.5;
+  }
+  #demoLink{
+    background:none;border:none;color:var(--pine);text-decoration:underline;
+    font-size:.85rem;margin-top:1.1rem;min-height:auto;padding:.3rem;
+  }
+
+  /* ---------- Toast ---------- */
+  #toast{
+    position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--forest);color:#F4F0E6;padding:.6rem 1.1rem;border-radius:10px;
+    font-size:.9rem;opacity:0;pointer-events:none;transition:all .25s ease;z-index:50;
+    max-width:88vw;text-align:center;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width:640px){
+    .brand h1{font-size:.95rem}
+    .hrval{font-size:3rem}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <!-- Pin sylvestre — identité Vivien Strudel -->
+    <svg width="26" height="30" viewBox="0 0 26 30" fill="none" aria-hidden="true">
+      <path d="M13 1 L21 12 H17 L23 21 H15 V29 H11 V21 H3 L9 12 H5 Z" fill="#C9D4CC"/>
+    </svg>
+    <h1>Moniteur de groupe<small>Polar H10 · FC &amp; VFC en direct</small></h1>
+  </div>
+  <span class="chrono idle" id="clock">00:00</span>
+  <div class="grp" id="grp">—</div>
+  <div class="spacer"></div>
+  <div class="actions">
+    <button class="btn-ghost" id="btnAdd">+ Capteur</button>
+    <button class="btn-rec"  id="btnStart">● Démarrer la séance</button>
+    <button class="btn-stop" id="btnStop" hidden>■ Arrêter</button>
+    <button class="btn-out"  id="btnRaw" disabled>Export brut</button>
+    <button class="btn-out"  id="btnSum" disabled>Export résumé</button>
+  </div>
+</header>
+
+<div id="banner" hidden></div>
+
+<main id="grid"></main>
+
+<div id="empty">
+  <h2>Aucun capteur connecté</h2>
+  <p>Appuyez sur <strong>+ Capteur</strong> et choisissez un Polar H10 dans la liste.
+     Le navigateur n'autorise qu'une connexion à la fois&nbsp;: répétez l'opération pour chaque ceinture.</p>
+  <div class="tip"><strong>Astuce terrain&nbsp;:</strong> connectez chaque capteur au moment où vous le distribuez,
+     puis renommez la carte avec le prénom du participant. Le numéro de série affiché sous le nom
+     permet de retrouver quelle ceinture est sur qui. Réglez la FCmax individuelle pour des zones justes.</div>
+  <button id="demoLink">Tester l'interface sans capteur (mode démo)</button>
+</div>
+
+<div id="toast" role="status"></div>
+
+<template id="cardTpl">
+  <article class="card">
+    <div class="row1">
+      <span class="dot"></span>
+      <input class="pname" maxlength="24" aria-label="Prénom du participant">
+      <button class="remove" title="Retirer ce capteur" aria-label="Retirer">✕</button>
+    </div>
+    <div class="sensorid"></div>
+    <div class="hr-row">
+      <div><span class="hrval">–</span><span class="unit">bpm</span></div>
+      <div class="zone"><span class="zbadge">—</span><span class="zpct">&nbsp;</span></div>
+    </div>
+    <canvas class="spark" aria-hidden="true"></canvas>
+    <div class="meta">
+      <label>FCmax <input type="number" class="hrmax" value="190" min="120" max="230" inputmode="numeric"></label>
+      <span class="rmssd">RMSSD <b>—</b> ms</span>
+      <span class="batt"></span>
+    </div>
+  </article>
+</template>
+
+<script>
+'use strict';
+
+/* =========================================================
+   Moniteur de groupe Polar H10 — Vivien Strudel
+   FC + intervalles RR (VFC) via Web Bluetooth, multi-capteurs.
+   Fichier autonome : à héberger en HTTPS (ex. Netlify) et à
+   ouvrir dans Chrome (Android/desktop) ou Bluefy (iPad).
+   ========================================================= */
+
+/* ---------- Zones (% FCmax, convention Polar) ---------- */
+const ZONES = [
+  { min:  0, label: '—',  css: 'var(--z0)' },   // repos < 50 %
+  { min: 50, label: 'Z1', css: 'var(--z1)' },
+  { min: 60, label: 'Z2', css: 'var(--z2)' },
+  { min: 70, label: 'Z3', css: 'var(--z3)' },
+  { min: 80, label: 'Z4', css: 'var(--z4)' },
+  { min: 90, label: 'Z5', css: 'var(--z5)' },
+];
+function zoneIndex(hr, hrMax) {
+  const pct = (hr / hrMax) * 100;
+  for (let i = ZONES.length - 1; i >= 0; i--) if (pct >= ZONES[i].min) return i;
+  return 0;
+}
+
+/* ---------- État global ---------- */
+const participants = new Map();          // id interne -> participant
+let nextId = 1;
+const session = { active: false, startedAt: null, stoppedAt: null };
+let wakeLock = null;
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const grid = $('#grid');
+
+/* ---------- Détection Web Bluetooth ---------- */
+if (!navigator.bluetooth) {
+  const b = $('#banner');
+  b.hidden = false;
+  b.innerHTML = 'Le Bluetooth web n\u2019est pas disponible dans cet environnement. ' +
+    'Ouvrez cette page dans <strong>Chrome</strong> (tablette Android ou ordinateur) ' +
+    'ou dans l\u2019app <strong>Bluefy</strong> sur iPad. Le mode démo reste utilisable.';
+}
+
+/* =========================================================
+   Connexion d'un capteur
+   ========================================================= */
+$('#btnAdd').addEventListener('click', addSensor);
+
+async function addSensor() {
+  if (!navigator.bluetooth) { toast('Bluetooth web indisponible ici — voir le bandeau.'); return; }
+  let device;
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: ['heart_rate'] }],
+      optionalServices: ['battery_service'],
+    });
+  } catch (e) {
+    return; // sélection annulée
+  }
+  for (const p of participants.values()) {
+    if (p.device && p.device.id === device.id) { toast('Ce capteur est déjà connecté.'); return; }
+  }
+  const p = createParticipant(device);
+  device.addEventListener('gattserverdisconnected', () => onDisconnected(p));
+  try {
+    await connectGatt(p);
+    toast(p.device.name + ' connecté');
+  } catch (e) {
+    toast('Échec de connexion — réessayez près de la tablette.');
+    removeParticipant(p, true);
+  }
+}
+
+async function connectGatt(p) {
+  setStatus(p, 'connexion');
+  const server = await p.device.gatt.connect();
+  const hrService = await server.getPrimaryService('heart_rate');
+  const hrChar = await hrService.getCharacteristic('heart_rate_measurement');
+  if (p.hrChar && p.hrHandler) {
+    try { p.hrChar.removeEventListener('characteristicvaluechanged', p.hrHandler); } catch (e) {}
+  }
+  p.hrChar = hrChar;
+  p.hrHandler = (ev) => {
+    const { hr, rrs } = parseHeartRate(ev.target.value);
+    feedData(p, hr, rrs);
+  };
+  hrChar.addEventListener('characteristicvaluechanged', p.hrHandler);
+  await hrChar.startNotifications();
+  setStatus(p, 'connecte');
+  readBattery(p).catch(() => {});
+}
+
+/* Trame standard "Heart Rate Measurement" (0x2A37).
+   Le H10 y joint les intervalles RR en unités de 1/1024 s. */
+function parseHeartRate(dv) {
+  const flags = dv.getUint8(0);
+  let i = 1, hr;
+  if (flags & 0x01) { hr = dv.getUint16(i, true); i += 2; }
+  else              { hr = dv.getUint8(i);        i += 1; }
+  if (flags & 0x08) i += 2;                        // énergie (non utilisée)
+  const rrs = [];
+  if (flags & 0x10) {
+    for (; i + 1 < dv.byteLength; i += 2) {
+      rrs.push(dv.getUint16(i, true) * 1000 / 1024); // -> millisecondes
+    }
+  }
+  return { hr, rrs };
+}
+
+async function readBattery(p) {
+  if (!p.device || !p.device.gatt.connected) return;
+  const svc = await p.device.gatt.getPrimaryService('battery_service');
+  const ch = await svc.getCharacteristic('battery_level');
+  const v = await ch.readValue();
+  p.battery = v.getUint8(0);
+  renderMeta(p);
+}
+
+/* ---------- Reconnexion automatique ---------- */
+function onDisconnected(p) {
+  if (p.removed) return;
+  setStatus(p, 'reconnexion');
+  if (p.reconnecting) return;
+  p.reconnecting = true;
+  (async () => {
+    for (let i = 0; i < 40 && !p.removed; i++) {
+      await sleep(Math.min(2000 + i * 800, 8000));
+      if (p.removed || (p.device.gatt && p.device.gatt.connected)) break;
+      try {
+        await connectGatt(p);
+        toast(p.name + ' reconnecté');
+        break;
+      } catch (e) { /* nouvelle tentative */ }
+    }
+    p.reconnecting = false;
+    if (!p.removed && !(p.device.gatt && p.device.gatt.connected)) setStatus(p, 'deconnecte');
+  })();
+}
+
+/* =========================================================
+   Participants & cartes
+   ========================================================= */
+function createParticipant(device, demo = false) {
+  const id = nextId++;
+  const frag = $('#cardTpl').content.cloneNode(true);
+  const el = {
+    card:   frag.querySelector('.card'),
+    dot:    frag.querySelector('.dot'),
+    name:   frag.querySelector('.pname'),
+    remove: frag.querySelector('.remove'),
+    sid:    frag.querySelector('.sensorid'),
+    hr:     frag.querySelector('.hrval'),
+    badge:  frag.querySelector('.zbadge'),
+    pct:    frag.querySelector('.zpct'),
+    spark:  frag.querySelector('.spark'),
+    hrmax:  frag.querySelector('.hrmax'),
+    rmssd:  frag.querySelector('.rmssd b'),
+    batt:   frag.querySelector('.batt'),
+  };
+  const p = {
+    id, device, demo,
+    name: demo ? ('Démo ' + id) : ('Participant ' + id),
+    hrMax: 190,
+    status: 'connexion',
+    hr: null, lastDataAt: 0, battery: null,
+    live: [],        // {t, hr} ~90 s pour le sparkline
+    rrRecent: [],    // {t, rr} ~45 s pour le RMSSD glissant
+    rmssd: null,
+    events: [],      // séance : {t, hr, rrs[]}
+    zoneSec: [0, 0, 0, 0, 0, 0],
+    prevZone: null, lastZoneT: null,
+    stats: { sum: 0, n: 0, max: 0, min: 999 },
+    el, removed: false, reconnecting: false,
+    hrChar: null, hrHandler: null, demoTimer: null,
+  };
+  el.name.value = p.name;
+  el.sid.textContent = demo ? 'capteur simulé' : (device.name || 'Capteur BLE');
+  el.name.addEventListener('change', () => { p.name = el.name.value.trim() || p.name; el.name.value = p.name; });
+  el.hrmax.addEventListener('change', () => {
+    const v = parseInt(el.hrmax.value, 10);
+    if (v >= 120 && v <= 230) p.hrMax = v;
+    el.hrmax.value = p.hrMax;
+    renderCard(p);
+  });
+  el.remove.addEventListener('click', () => {
+    if (confirm('Retirer ' + p.name + ' ?')) removeParticipant(p);
+  });
+  participants.set(id, p);
+  grid.appendChild(frag);
+  $('#empty').style.display = 'none';
+  return p;
+}
+
+function removeParticipant(p, silent = false) {
+  p.removed = true;
+  if (p.demoTimer) clearInterval(p.demoTimer);
+  try { if (p.device && p.device.gatt.connected) p.device.gatt.disconnect(); } catch (e) {}
+  p.el.card.remove();
+  participants.delete(p.id);
+  if (!silent) toast(p.name + ' retiré');
+  if (participants.size === 0) $('#empty').style.display = '';
+  renderGroup();
+}
+
+function setStatus(p, s) {
+  p.status = s;
+  const d = p.el.dot;
+  d.className = 'dot';
+  if (s === 'connecte' || s === 'demo') d.classList.add('on');
+  else if (s === 'connexion' || s === 'reconnexion') d.classList.add('warn');
+  else d.classList.add('off');
+  d.title = s;
+}
+
+/* =========================================================
+   Flux de données (BLE réel et démo passent par ici)
+   ========================================================= */
+function feedData(p, hr, rrs) {
+  const t = Date.now();
+  p.hr = hr;
+  p.lastDataAt = t;
+
+  p.live.push({ t, hr });
+  while (p.live.length && t - p.live[0].t > 90000) p.live.shift();
+
+  for (const rr of rrs) {
+    if (rr >= 300 && rr <= 2000) p.rrRecent.push({ t, rr }); // filtre grossier d'artefacts
+  }
+  while (p.rrRecent.length && t - p.rrRecent[0].t > 45000) p.rrRecent.shift();
+  p.rmssd = rmssdOf(p.rrRecent.map(o => o.rr), 8);
+
+  if (session.active) {
+    p.events.push({ t, hr, rrs });
+    const st = p.stats;
+    st.sum += hr; st.n++;
+    if (hr > st.max) st.max = hr;
+    if (hr < st.min) st.min = hr;
+    const z = zoneIndex(hr, p.hrMax);
+    if (p.lastZoneT !== null) {
+      const dt = Math.min((t - p.lastZoneT) / 1000, 5);
+      p.zoneSec[p.prevZone !== null ? p.prevZone : z] += dt;
+    }
+    p.prevZone = z; p.lastZoneT = t;
+  }
+  renderCard(p);
+}
+
+/* RMSSD : racine de la moyenne des carrés des différences
+   entre intervalles RR successifs. Fenêtre glissante. */
+function rmssdOf(rrList, minBeats) {
+  if (rrList.length < minBeats) return null;
+  let sum = 0, n = 0;
+  for (let i = 1; i < rrList.length; i++) {
+    const d = rrList[i] - rrList[i - 1];
+    if (Math.abs(d) > 250) continue;     // écarte les battements ectopiques évidents
+    sum += d * d; n++;
+  }
+  return n >= minBeats - 1 ? Math.sqrt(sum / n) : null;
+}
+
+/* =========================================================
+   Rendu
+   ========================================================= */
+function renderCard(p) {
+  const e = p.el;
+  e.hr.textContent = p.hr === null ? '–' : p.hr;
+  const z = p.hr === null ? 0 : zoneIndex(p.hr, p.hrMax);
+  const col = ZONES[z].css;
+  e.card.style.borderLeftColor = col;
+  e.badge.style.background = col;
+  e.badge.textContent = ZONES[z].label;
+  e.pct.textContent = p.hr === null ? '\u00a0' : Math.round((p.hr / p.hrMax) * 100) + '\u00a0% FCmax';
+  e.rmssd.textContent = p.rmssd === null ? '—' : p.rmssd.toFixed(0);
+  drawSpark(p);
+  renderGroup();
+}
+
+function renderMeta(p) {
+  if (p.battery === null) { p.el.batt.textContent = ''; return; }
+  p.el.batt.textContent = '🔋 ' + p.battery + ' %';
+  p.el.batt.classList.toggle('low', p.battery <= 20);
+}
+
+function drawSpark(p) {
+  const c = p.el.spark;
+  const dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w) return;
+  if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const pts = p.live;
+  if (pts.length < 2) return;
+  let mn = Infinity, mx = -Infinity;
+  for (const o of pts) { if (o.hr < mn) mn = o.hr; if (o.hr > mx) mx = o.hr; }
+  if (mx - mn < 10) { const mid = (mx + mn) / 2; mn = mid - 5; mx = mid + 5; }
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1;
+  const X = t => 2 + (w - 4) * (t - t0) / Math.max(t1 - t0, 1);
+  const Y = v => h - 3 - (h - 6) * (v - mn) / (mx - mn);
+  ctx.beginPath();
+  pts.forEach((o, i) => i ? ctx.lineTo(X(o.t), Y(o.hr)) : ctx.moveTo(X(o.t), Y(o.hr)));
+  ctx.strokeStyle = '#2F5240';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
+function renderGroup() {
+  const fresh = [...participants.values()].filter(p => p.hr !== null && Date.now() - p.lastDataAt < 8000);
+  const g = $('#grp');
+  if (!fresh.length) { g.textContent = '—'; return; }
+  const avg = Math.round(fresh.reduce((s, p) => s + p.hr, 0) / fresh.length);
+  const hot = fresh.filter(p => zoneIndex(p.hr, p.hrMax) >= 4).length;
+  g.innerHTML = '<b>' + fresh.length + '</b> actifs · FC moy <b>' + avg + '</b>' +
+                (hot ? ' · <b>' + hot + '</b> en Z4+' : '');
+}
+
+/* ---------- Tic 1 s : chrono, fraîcheur des données ---------- */
+setInterval(() => {
+  if (session.active) {
+    $('#clock').textContent = fmtDur((Date.now() - session.startedAt) / 1000);
+  }
+  for (const p of participants.values()) {
+    if (p.status === 'connecte' && p.hr !== null && Date.now() - p.lastDataAt > 8000) {
+      p.el.hr.textContent = '…';
+    }
+  }
+  renderGroup();
+}, 1000);
+
+function fmtDur(s) {
+  s = Math.max(0, Math.floor(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const mm = String(m).padStart(2, '0'), ss = String(sec).padStart(2, '0');
+  return h ? h + ':' + mm + ':' + ss : mm + ':' + ss;
+}
+
+/* =========================================================
+   Séance : démarrer / arrêter
+   ========================================================= */
+$('#btnStart').addEventListener('click', () => {
+  if (!participants.size) { toast('Connectez au moins un capteur (ou lancez la démo).'); return; }
+  const hasData = [...participants.values()].some(p => p.events.length);
+  if (hasData && !confirm('Démarrer une nouvelle séance ? Les données non exportées seront effacées.')) return;
+  for (const p of participants.values()) {
+    p.events = []; p.zoneSec = [0, 0, 0, 0, 0, 0];
+    p.prevZone = null; p.lastZoneT = null;
+    p.stats = { sum: 0, n: 0, max: 0, min: 999 };
+  }
+  session.active = true;
+  session.startedAt = Date.now();
+  session.stoppedAt = null;
+  $('#btnStart').hidden = true;
+  $('#btnStop').hidden = false;
+  $('#btnRaw').disabled = true;
+  $('#btnSum').disabled = true;
+  $('#clock').classList.remove('idle');
+  requestWakeLock();
+  toast('Séance démarrée — enregistrement en cours');
+});
+
+$('#btnStop').addEventListener('click', () => {
+  session.active = false;
+  session.stoppedAt = Date.now();
+  $('#btnStart').hidden = false;
+  $('#btnStop').hidden = true;
+  const hasData = [...participants.values()].some(p => p.events.length);
+  $('#btnRaw').disabled = !hasData;
+  $('#btnSum').disabled = !hasData;
+  $('#clock').classList.add('idle');
+  releaseWakeLock();
+  toast('Séance arrêtée — pensez à exporter les données');
+});
+
+/* ---------- Écran allumé pendant la séance ---------- */
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch (e) { /* non bloquant */ }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && session.active) requestWakeLock();
+});
+
+/* =========================================================
+   Exports CSV (séparateur ; — Excel français, UTF-8 BOM)
+   ========================================================= */
+$('#btnRaw').addEventListener('click', exportRaw);
+$('#btnSum').addEventListener('click', exportSummary);
+
+function csvName(p) { return p.name.replace(/;/g, ','); }
+function fr(num, dec) { return num.toFixed(dec).replace('.', ','); }
+
+function exportRaw() {
+  const t0 = session.startedAt;
+  let csv = 'horodatage;temps_s;participant;capteur;fc_bpm;rr_ms\n';
+  for (const p of participants.values()) {
+    const sensor = p.demo ? 'demo' : (p.device.name || '');
+    for (const ev of p.events) {
+      const base = new Date(ev.t).toISOString() + ';' + fr((ev.t - t0) / 1000, 1) + ';' +
+                   csvName(p) + ';' + sensor + ';' + ev.hr + ';';
+      if (ev.rrs.length) {
+        for (const rr of ev.rrs) csv += base + Math.round(rr) + '\n';
+      } else {
+        csv += base + '\n';
+      }
+    }
+  }
+  download(csv, 'seance_' + stamp() + '_brut.csv');
+}
+
+function exportSummary() {
+  let csv = 'participant;capteur;duree_min;fc_moy;fc_min;fc_max;rmssd_seance_ms;' +
+            'pct_repos;pct_z1;pct_z2;pct_z3;pct_z4;pct_z5\n';
+  for (const p of participants.values()) {
+    if (!p.events.length) continue;
+    const dur = (p.events[p.events.length - 1].t - p.events[0].t) / 60000;
+    const st = p.stats;
+    const allRR = [];
+    for (const ev of p.events) for (const rr of ev.rrs) {
+      if (rr >= 300 && rr <= 2000) allRR.push(rr);
+    }
+    const rm = rmssdOf(allRR, 30);
+    const tot = p.zoneSec.reduce((a, b) => a + b, 0) || 1;
+    const pcts = p.zoneSec.map(s => fr((s / tot) * 100, 1)).join(';');
+    csv += csvName(p) + ';' + (p.demo ? 'demo' : (p.device.name || '')) + ';' +
+           fr(dur, 1) + ';' + (st.n ? Math.round(st.sum / st.n) : '') + ';' +
+           (st.n ? st.min : '') + ';' + (st.n ? st.max : '') + ';' +
+           (rm === null ? '' : fr(rm, 1)) + ';' + pcts + '\n';
+  }
+  download(csv, 'seance_' + stamp() + '_resume.csv');
+}
+
+function stamp() {
+  const d = new Date(session.startedAt || Date.now());
+  const z = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) +
+         '_' + z(d.getHours()) + 'h' + z(d.getMinutes());
+}
+
+function download(text, filename) {
+  const blob = new Blob(['\uFEFF' + text], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  toast(filename + ' téléchargé');
+}
+
+/* =========================================================
+   Mode démo (interface testable sans capteur)
+   ========================================================= */
+$('#demoLink').addEventListener('click', () => {
+  const p = createParticipant(null, true);
+  setStatus(p, 'demo');
+  let phase = Math.random() * 100, base = 95 + Math.random() * 25;
+  p.demoTimer = setInterval(() => {
+    phase += 1;
+    const hr = Math.round(Math.max(62, Math.min(186,
+      base + 42 * Math.sin(phase / 38) + 14 * Math.sin(phase / 9) + (Math.random() - 0.5) * 5)));
+    const beats = Math.max(1, Math.round(hr / 60));
+    const rrs = [];
+    for (let i = 0; i < beats; i++) {
+      rrs.push((60000 / hr) * (1 + (Math.random() - 0.5) * 0.07));
+    }
+    feedData(p, hr, rrs);
+  }, 1000);
+});
+
+/* ---------- Divers ---------- */
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._tm);
+  toast._tm = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+window.addEventListener('beforeunload', (e) => {
+  if (session.active) { e.preventDefault(); e.returnValue = ''; }
+});
+</script>
+</body>
+</html>
