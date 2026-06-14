@@ -141,6 +141,9 @@
   .rmssd b{color:var(--ink);font-variant-numeric:tabular-nums}
   .batt{font-variant-numeric:tabular-nums}
   .batt.low{color:var(--z5);font-weight:700}
+  .sexsel{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;vertical-align:middle}
+  .sexsel .sx{min-height:auto;padding:.15rem .55rem;border-radius:0;background:#fff;color:var(--muted);font-weight:700;font-size:.8rem}
+  .sexsel .sx.on{background:var(--pine);color:#fff}
 
   /* ---------- État vide ---------- */
   #empty{
@@ -300,6 +303,11 @@
     font-family:'Libre Baskerville',Georgia,serif;font-size:1.35rem;color:var(--ink);
     font-weight:700;margin:.5rem 0 .8rem;
   }
+  .chart{margin:.3rem 0 .7rem}
+  .chart-svg{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--line);border-radius:8px}
+  .chart-legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin-top:.3rem}
+  .chart-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:.3rem;vertical-align:-1px}
+  .chart-cap{font-size:.76rem;color:var(--muted);margin:.5rem 0 .15rem;font-weight:600}
   .print-head{display:none}
   .print-head .ph-brand{display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem}
   .print-head .ph-brand strong{font-family:'Libre Baskerville',Georgia,serif;font-size:1.2rem}
@@ -349,10 +357,8 @@
     <button class="btn-ghost" id="btnAdd">+ Capteur</button>
     <button class="btn-rec"  id="btnStart">● Démarrer la séance</button>
     <button class="btn-stop" id="btnStop" hidden>■ Arrêter</button>
-    <button class="btn-out"  id="btnRaw" disabled>Export brut</button>
-    <button class="btn-out"  id="btnSum" disabled>Export résumé</button>
-    <button class="btn-out"  id="btnReports">Rapports</button>
     <button class="btn-out"  id="btnTests">Tests</button>
+    <button class="btn-out"  id="btnReports">Rapports</button>
     <button class="btn-out"  id="btnProfiles">Profils</button>
     <button class="btn-ghost" id="btnBack" hidden>← Direct</button>
   </div>
@@ -376,14 +382,22 @@
   <h2>Rapports de séance</h2>
   <div id="replist"></div>
   <div class="repfoot">
+    <button class="btn-soft" id="btnRepRaw">Export brut (dernière séance)</button>
+    <button class="btn-soft" id="btnRepSum">Export résumé (dernière séance)</button>
     <button class="btn-soft" id="btnBackup">Sauvegarde complète (JSON)</button>
     <label class="btn-soft" for="restoreFile">Restaurer une sauvegarde</label>
     <input type="file" id="restoreFile" accept="application/json,.json" hidden>
   </div>
+  <div id="backupStatus" class="repmsg" style="margin-top:.7rem"></div>
 </section>
 
 <section id="tests" class="wrap" style="display:none">
   <h2>Tests &amp; mesures</h2>
+  <div class="rb-toggles" style="margin-bottom:1.1rem">
+    <button class="rb-t on" id="tabIndiv">Individuel</button>
+    <button class="rb-t" id="tabGroup">Groupe (6–12)</button>
+  </div>
+  <div id="testsIndiv">
   <div class="who">
     <label for="whoName">Participant</label>
     <input id="whoName" list="knownNames" placeholder="Prénom (ex. Marie)" maxlength="24" autocomplete="off">
@@ -431,7 +445,7 @@
     <div class="coggrid" id="cogCards">
       <div class="cogcard">
         <h4>Réactivité (TR simple)</h4>
-        <p>8 stimuli — tapez dès l'apparition du disque. Le plus sensible à la fatigue, idéal avant/après séance. ~1 min.</p>
+        <p>8 stimuli — tapez dès l'apparition du disque. ~1 min.</p>
         <div class="last" id="lastPvt">—</div>
         <button class="btn-go" data-test="pvt">Lancer</button>
       </div>
@@ -448,8 +462,26 @@
         <button class="btn-go" data-test="nback">Lancer</button>
       </div>
     </div>
-    <div id="cogStage" style="display:none"></div>
     <div id="cHist" style="margin-top:.9rem"></div>
+  </div>
+
+  <div class="panel">
+    <h3>VO2max — test du step (Queens College)</h3>
+    <div class="formrow">
+      <div class="field">Sexe
+        <div class="seg" id="vSex">
+          <button type="button" data-s="H" class="sel">Homme</button>
+          <button type="button" data-s="F">Femme</button>
+        </div></div>
+      <div class="field">FC de récupération (bpm)
+        <input type="number" id="vHR" min="60" max="220" step="1" inputmode="numeric"></div>
+      <button class="btn-soft" id="vSave">Enregistrer</button>
+      <button class="btn-go" id="vStart" style="width:auto">Lancer le step guidé (3 min)</button>
+    </div>
+    <div id="vHist"></div>
+    <p class="note" style="margin-top:.6rem">Step de 41 cm, 3 min à 24 pas/min (hommes) / 22 (femmes),
+       puis FC de récupération relevée entre 5 et 20 s (lisible sur le Polar). VO2max estimée par les
+       équations de McArdle (Queens College) — suivi intra-individuel, marge ~±10–15 %.</p>
   </div>
 
   <div class="repfoot">
@@ -459,6 +491,61 @@
      Conditions identiques d'une passation à l'autre (moment de la journée, position assise, consigne) ;
      les deux premières passations des tests cognitifs servent surtout de familiarisation.
      1RM estimée par la formule d'Epley : charge × (1 + reps/30).</p>
+  </div>
+
+  <div id="testsGroup" style="display:none">
+    <div class="panel">
+      <h3>Groupe</h3>
+      <div class="formrow">
+        <div class="field">Groupe
+          <select id="grpSelect"><option value="">— choisir un groupe —</option></select></div>
+        <button class="btn-soft" id="grpNew">Nouveau groupe</button>
+        <button class="btn-soft" id="grpDelete" hidden>Supprimer</button>
+      </div>
+      <div id="grpMeta" class="repmsg" style="margin:.3rem 0 .6rem"></div>
+      <div id="grpRoster" style="margin:.4rem 0"></div>
+      <div class="formrow">
+        <div class="field">Ajouter un participant
+          <input id="grpAddName" list="knownNames" placeholder="Prénom"></div>
+        <button class="btn-soft" id="grpAdd">Ajouter au groupe</button>
+        <button class="btn-soft" id="grpAddSensors">+ capteurs connectés</button>
+      </div>
+    </div>
+
+    <div class="panel" id="grpMeasurePanel" style="display:none">
+      <h3>Séance de groupe — saisie</h3>
+      <div class="formrow">
+        <div class="field">Participant <select id="grpWho"></select></div>
+        <div class="field">Type
+          <div class="seg" id="grpKind">
+            <button type="button" data-k="force" class="sel">Force</button>
+            <button type="button" data-k="grip">Préhension</button>
+          </div></div>
+      </div>
+      <div id="grpForceFields" class="formrow">
+        <div class="field">Exercice <select id="grpExo"></select></div>
+        <div class="field">Charge (kg) <input type="number" id="grpKg" min="1" max="500" step="0.5" inputmode="decimal"></div>
+        <div class="field">Répétitions <input type="number" id="grpReps" min="1" max="20" step="1" inputmode="numeric"></div>
+        <button class="btn-soft" id="grpSaveForce">Enregistrer</button>
+      </div>
+      <div id="grpGripFields" class="formrow" style="display:none">
+        <div class="field">Main
+          <div class="seg" id="grpHand"><button type="button" data-h="G" class="sel">Gauche</button><button type="button" data-h="D">Droite</button></div></div>
+        <div class="field">Mesure (kg) <input type="number" id="grpGripKg" min="1" max="120" step="0.1" inputmode="decimal"></div>
+        <button class="btn-soft" id="grpSaveGrip">Enregistrer</button>
+      </div>
+      <div id="grpSessionLog" style="margin-top:.5rem"></div>
+      <div class="rb-actions">
+        <button class="btn-go" id="grpStart" style="width:auto">Lancer le step VO2max groupé (3 min)</button>
+        <button class="btn-soft" id="grpClose">Clore la séance de groupe</button>
+        <button class="btn-soft" id="grpReport">Rapport du groupe</button>
+      </div>
+      <div id="grpResults" style="margin-top:1rem"></div>
+    </div>
+    <p class="note">Les mesures sont enregistrées au nom de chaque participant : leur profil se met à jour automatiquement
+       (individuel + cours collectif réunis). Step VO2max : 41 cm, 3 min, cadence commune 24 pas/min, FC de récupération
+       lue sur chaque Polar connecté ; pour le protocole femmes strict (22 pas/min), utilisez le test individuel.</p>
+  </div>
 </section>
 
 <section id="detail" class="wrap" style="display:none"></section>
@@ -473,13 +560,14 @@
 
 <section id="report" class="wrap" style="display:none"></section>
 
+<div id="cogStage" style="display:none"></div>
 <div id="toast" role="status"></div>
 
 <template id="cardTpl">
   <article class="card">
     <div class="row1">
       <span class="dot"></span>
-      <input class="pname" maxlength="24" aria-label="Prénom du participant">
+      <input class="pname" list="knownNames" maxlength="24" aria-label="Prénom du participant">
       <button class="remove" title="Retirer ce capteur" aria-label="Retirer">✕</button>
     </div>
     <div class="sensorid"></div>
@@ -490,6 +578,7 @@
     <canvas class="spark" aria-hidden="true"></canvas>
     <div class="meta">
       <label>FCmax <input type="number" class="hrmax" value="190" min="120" max="230" inputmode="numeric"></label>
+      <span class="sexsel" aria-label="Sexe"><button type="button" class="sx on" data-s="H">H</button><button type="button" class="sx" data-s="F">F</button></span>
       <span class="rmssd">RMSSD <b>—</b> ms</span>
       <span class="batt"></span>
     </div>
@@ -553,13 +642,15 @@ function getDB() {
   dbPromise = new Promise((res, rej) => {
     if (!window.indexedDB) { rej(new Error('IndexedDB indisponible')); return; }
     let rq;
-    try { rq = indexedDB.open('vs-moniteur', 2); }
+    try { rq = indexedDB.open('vs-moniteur', 3); }
     catch (e) { rej(e); return; }
     rq.onupgradeneeded = () => {
       const db = rq.result;
       if (!db.objectStoreNames.contains('sessions')) db.createObjectStore('sessions', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('raw'))      db.createObjectStore('raw',      { keyPath: 'id' });
       if (!db.objectStoreNames.contains('measures')) db.createObjectStore('measures', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('groups'))        db.createObjectStore('groups',        { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('groupSessions')) db.createObjectStore('groupSessions', { keyPath: 'id' });
     };
     rq.onsuccess = () => res(rq.result);
     rq.onerror = () => rej(rq.error);
@@ -716,11 +807,12 @@ function createParticipant(device, demo = false) {
     hrmax:  frag.querySelector('.hrmax'),
     rmssd:  frag.querySelector('.rmssd b'),
     batt:   frag.querySelector('.batt'),
+    sex:    frag.querySelector('.sexsel'),
   };
   const p = {
     id, device, demo,
     name: demo ? ('Démo ' + id) : ('Participant ' + id),
-    hrMax: 190,
+    hrMax: 190, sex: 'H',
     status: 'connexion',
     hr: null, lastDataAt: 0, battery: null,
     live: [],        // {t, hr} ~90 s pour le sparkline
@@ -745,6 +837,11 @@ function createParticipant(device, demo = false) {
   el.remove.addEventListener('click', () => {
     if (confirm('Retirer ' + p.name + ' ?')) removeParticipant(p);
   });
+  el.sex.querySelectorAll('.sx').forEach(b => b.addEventListener('click', () => {
+    p.sex = b.dataset.s;
+    el.sex.querySelectorAll('.sx').forEach(x => x.classList.toggle('on', x === b));
+    if (currentView === 'tests') renderGroupRoster();
+  }));
   participants.set(id, p);
   grid.appendChild(frag);
   updateEmpty();
@@ -923,8 +1020,6 @@ $('#btnStart').addEventListener('click', () => {
   session.stoppedAt = null;
   $('#btnStart').hidden = true;
   $('#btnStop').hidden = false;
-  $('#btnRaw').disabled = true;
-  $('#btnSum').disabled = true;
   $('#clock').classList.remove('idle');
   requestWakeLock();
   toast('Séance démarrée — enregistrement en cours');
@@ -940,8 +1035,6 @@ $('#btnStop').addEventListener('click', () => {
 
   lastPack = summarizeSession();
   const has = !!lastPack;
-  $('#btnRaw').disabled = !has;
-  $('#btnSum').disabled = !has;
   if (!has) { toast('Séance arrêtée — aucune donnée enregistrée'); return; }
 
   dbPut('sessions', lastPack.summary)
@@ -1038,8 +1131,6 @@ function showView(v) {
   $('#btnAdd').hidden = !live;
   $('#btnStart').hidden = !live || session.active;
   $('#btnStop').hidden = !live || !session.active;
-  $('#btnRaw').hidden = !live;
-  $('#btnSum').hidden = !live;
   $('#btnReports').hidden = !live;
   $('#btnTests').hidden = !live;
   $('#btnProfiles').hidden = !live;
@@ -1049,8 +1140,31 @@ function showView(v) {
 /* =========================================================
    Vue Rapports : liste des séances archivées
    ========================================================= */
+async function renderBackupStatus() {
+  const el = $('#backupStatus');
+  if (!el) return;
+  let lb = 0;
+  try { lb = parseInt(localStorage.getItem('vs-lastBackup') || '0', 10); } catch (e) {}
+  let sessions = [], measures = [];
+  try { sessions = await dbAll('sessions'); measures = await dbAll('measures'); } catch (e) {}
+  if (!sessions.length && !measures.length) { el.textContent = ''; return; }
+  const lastData = Math.max(0,
+    ...sessions.map(s => s.stoppedAt || s.startedAt || 0),
+    ...measures.map(m => m.t || 0));
+  if (!lb) {
+    el.innerHTML = '<strong style="color:var(--terra)">⚠ Aucune sauvegarde effectuée.</strong> ' +
+      'Vos données ne vivent que sur cet appareil — faites une « Sauvegarde complète (JSON) » et conservez le fichier.';
+  } else if (lastData > lb) {
+    el.innerHTML = '<strong style="color:var(--terra)">⚠ Des données ne sont pas encore sauvegardées.</strong> ' +
+      'Dernière sauvegarde : ' + frDate(lb) + '.';
+  } else {
+    el.innerHTML = 'Sauvegarde à jour — dernière le ' + frDate(lb) + '.';
+  }
+}
+
 async function openReports() {
   showView('reports');
+  renderBackupStatus();
   const list = $('#replist');
   list.innerHTML = '<p class="repmsg">Chargement…</p>';
   let sessions;
@@ -1244,6 +1358,44 @@ function drawCurves(canvas, series, durS) {
    préhension / cognitif. Brique « bilan début/fin de
    programme » de l'offre entreprise.
    ========================================================= */
+/* ---------- Mini-graphiques d'évolution (SVG inline, fidèles à l'impression) ---------- */
+const CHART_PAL = ['#2F5240', '#C26B4A', '#5C8FA6', '#D78F3C', '#5F9560'];
+
+function svgChart(series, opts) {
+  opts = opts || {};
+  const fmt = opts.fmt || (v => String(Math.round(v)));
+  const all = series.reduce((a, s) => a.concat(s.points.map(p => p.v)), []);
+  if (all.length < 2) return '';
+  let mn = Math.min.apply(null, all), mx = Math.max.apply(null, all);
+  if (mx - mn < 1e-9) { mn -= 1; mx += 1; }
+  const W = 600, H = 150, padL = 6, padR = 6, padT = 18, padB = 10;
+  const maxLen = Math.max.apply(null, series.map(s => s.points.length));
+  const X = i => padL + (W - padL - padR) * (maxLen <= 1 ? 0.5 : i / (maxLen - 1));
+  const Y = v => H - padB - (H - padT - padB) * (v - mn) / (mx - mn);
+  let body = '';
+  for (const s of series) {
+    const p = s.points;
+    if (p.length >= 2)
+      body += '<path d="' + p.map((o, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(o.v).toFixed(1)).join(' ') +
+        '" fill="none" stroke="' + s.color + '" stroke-width="2.5" stroke-linejoin="round"/>';
+    body += p.map((o, i) => '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(o.v).toFixed(1) + '" r="3.5" fill="' + s.color + '"/>').join('');
+    if (p.length) {
+      body += '<text x="' + (X(0) + 2).toFixed(1) + '" y="' + (Y(p[0].v) - 7).toFixed(1) + '" font-size="11" fill="#6E7B73">' + esc(fmt(p[0].v)) + '</text>';
+      if (p.length > 1)
+        body += '<text x="' + (X(p.length - 1) - 2).toFixed(1) + '" y="' + (Y(p[p.length - 1].v) - 7).toFixed(1) + '" text-anchor="end" font-size="12" font-weight="700" fill="#22302A">' + esc(fmt(p[p.length - 1].v)) + '</text>';
+    }
+  }
+  const legend = (series.length > 1 || (series[0] && series[0].name))
+    ? '<div class="chart-legend">' + series.map(s => '<span><i style="background:' + s.color + '"></i>' + esc(s.name || '') + '</span>').join('') + '</div>' : '';
+  return '<div class="chart"><svg viewBox="0 0 ' + W + ' ' + H + '" class="chart-svg" preserveAspectRatio="xMidYMid meet" role="img">' + body + '</svg>' + legend + '</div>';
+}
+
+function svgMetricChart(list, getv, fmt, cap, color) {
+  if (!list || list.length < 2) return '';
+  return '<p class="chart-cap">' + cap + '</p>' +
+    svgChart([{ color: color || '#5C8FA6', points: list.map(m => ({ v: getv(m) })) }], { fmt: fmt });
+}
+
 async function gatherProfiles() {
   let sessions = [], measures = [];
   try { sessions = await dbAll('sessions'); } catch (e) {}
@@ -1312,26 +1464,84 @@ async function openProfile(name) {
     '</div>' +
     '<div class="dmeta">' + o.sessions.length + ' séance' + (o.sessions.length > 1 ? 's' : '') +
     ' · ' + o.measures.length + ' mesure' + (o.measures.length > 1 ? 's' : '') + ' archivée(s) sur cet appareil</div>' +
+    profileSynthesisHTML(o) +
     profileSessionsHTML(o) +
     profileMeasuresHTML(o) +
     '<div class="dactions"><button class="btn-soft" id="profCSV">Export bilan CSV</button></div>';
 
   $('#profBack').addEventListener('click', openProfiles);
   $('#profCSV').addEventListener('click', () => exportProfileCSV(o));
+}
 
-  requestAnimationFrame(() => {
-    const cv = $('#profile canvas.profcurve');
-    if (!cv) return;
-    const withAvg = o.sessions.filter(x => x.part.hrAvg !== null);
-    if (withAvg.length < 2) return;
-    drawCurves(cv, [{ pts: withAvg.map((x, i) => [i, x.part.hrAvg]), color: '#2F5240', width: 2 }], withAvg.length - 1);
-  });
+function profileSynthesisHTML(o, flags) {
+  flags = flags || { cardio: true, force: true, cog: true };
+  const rows = [];
+  const r0 = v => String(Math.round(v));
+  const r1 = v => fr(v, 1);
+  const row = (label, first, last, fmt) => {
+    if (first == null && last == null) return;
+    const f = first == null ? '—' : fmt(first);
+    const l = last == null ? '—' : fmt(last);
+    let d = '—';
+    if (first != null && last != null) { const dv = last - first; d = dv === 0 ? '0' : (dv > 0 ? '+' : '') + fmt(dv); }
+    rows.push('<tr><td>' + label + '</td><td>' + f + '</td><td>' + l + '</td><td>' + d + '</td></tr>');
+  };
+  if (flags.cardio && o.sessions.length) {
+    const a = o.sessions[0].part, b = o.sessions[o.sessions.length - 1].part;
+    const z4 = p => { const t = p.zoneSec.reduce((x, y) => x + y, 0) || 1; return (p.zoneSec[4] + p.zoneSec[5]) / t * 100; };
+    row('FC moyenne (bpm)', a.hrAvg, b.hrAvg, r0);
+    row('RMSSD de fin (ms)', a.rmssdEnd, b.rmssdEnd, r0);
+    row('Temps en Z4+ (%)', z4(a), z4(b), r0);
+  }
+  if (flags.cardio) {
+    const v = o.measures.filter(m => m.kind === 'vo2');
+    if (v.length) row('VO2max (ml/kg/min)', v[0].vo2, v[v.length - 1].vo2, r1);
+  }
+  if (flags.force) {
+    for (const x of EXOS) {
+      const l = o.measures.filter(m => m.kind === 'force' && m.exo === x);
+      if (l.length) row('1RM ' + x + ' (kg)', l[0].e1rm, l[l.length - 1].e1rm, r1);
+    }
+    for (const main of ['G', 'D']) {
+      const l = o.measures.filter(m => m.kind === 'grip' && m.main === main);
+      if (l.length) row('Préhension ' + (main === 'G' ? 'gauche' : 'droite') + ' (kg)', l[0].kg, l[l.length - 1].kg, r1);
+    }
+  }
+  if (flags.cog) {
+    const pv = o.measures.filter(m => m.kind === 'cog' && m.test === 'pvt');
+    if (pv.length) row('Réactivité (ms)', pv[0].mean, pv[pv.length - 1].mean, r0);
+    const st = o.measures.filter(m => m.kind === 'cog' && m.test === 'stroop');
+    if (st.length) row('Stroop exactitude (%)', st[0].acc, st[st.length - 1].acc, r0);
+    const nb = o.measures.filter(m => m.kind === 'cog' && m.test === 'nback');
+    if (nb.length) row('N-back cibles', nb[0].hits, nb[nb.length - 1].hits, r0);
+  }
+  if (!rows.length) return '';
+  return '<div class="panel"><h3>Bilan début → fin de programme</h3>' +
+    '<table class="mtable"><tr><th>Indicateur</th><th>Début</th><th>Fin</th><th>Δ</th></tr>' + rows.join('') + '</table>' +
+    '<p class="repmsg" style="font-size:.72rem;margin-top:.4rem">Première vs dernière valeur enregistrée par indicateur. Δ = écart brut, sans interprétation.</p></div>';
+}
+
+function profileVO2HTML(o) {
+  const vo2 = o.measures.filter(m => m.kind === 'vo2');
+  if (!vo2.length) return '';
+  const best = Math.max.apply(null, vo2.map(m => m.vo2));
+  const f = vo2[0].vo2, l = vo2[vo2.length - 1].vo2;
+  const d = vo2.length > 1 ? ' · ' + (l >= f ? '+' : '') + fr(l - f, 1) + ' depuis le 1er test' : '';
+  const chart = vo2.length > 1
+    ? '<p class="chart-cap">Évolution de la VO2max (ml/kg/min)</p>' +
+      svgChart([{ color: '#C14F38', points: vo2.map(m => ({ v: m.vo2 })) }], { fmt: v => fr(v, 1) })
+    : '';
+  return '<div class="panel"><h3>VO2max — endurance cardio-respiratoire</h3>' +
+    '<div class="bests"><div><b>' + fr(best, 1) + '</b>meilleure VO2max (ml/kg/min)' + d + '</div></div>' + chart +
+    '<p class="repmsg" style="font-size:.72rem">Step test Queens College, estimée depuis la FC de récupération. ' +
+    'Suivi intra-individuel, marge ~±10–15 %.</p></div>';
 }
 
 function profileSessionsHTML(o) {
   if (!o.sessions.length) {
-    return '<div class="panel"><h3>Séances — physiologie</h3>' +
-      '<p class="repmsg">Aucune séance archivée pour ' + esc(o.name) + '.</p></div>';
+    return (o.measures.some(m => m.kind === 'vo2') ? '' :
+      '<div class="panel"><h3>Séances — physiologie</h3>' +
+      '<p class="repmsg">Aucune séance archivée pour ' + esc(o.name) + '.</p></div>') + profileVO2HTML(o);
   }
   const rows = o.sessions.slice().reverse().map(({ s, part }) => {
     const tot = part.zoneSec.reduce((a, b) => a + b, 0) || 1;
@@ -1350,16 +1560,17 @@ function profileSessionsHTML(o) {
       parts.push('RMSSD de fin ' + Math.round(f.rmssdEnd) + ' → ' + Math.round(l.rmssdEnd) + ' ms');
     if (parts.length) delta = '<p class="pr-stats">Première → dernière séance : <b>' + parts.join('</b> · <b>') + '</b></p>';
   }
-  const curve = o.sessions.filter(x => x.part.hrAvg !== null).length > 1
-    ? '<canvas class="gcanvas profcurve" data-prof="' + esc(o.name) + '" style="height:150px"></canvas>' +
-      '<p class="repmsg" style="font-size:.75rem">FC moyenne par séance, dans l’ordre chronologique.</p>'
+  const fcPts = o.sessions.filter(x => x.part.hrAvg !== null).map(x => ({ v: x.part.hrAvg }));
+  const curve = fcPts.length > 1
+    ? '<p class="chart-cap">FC moyenne par séance (1ʳᵉ → dernière)</p>' +
+      svgChart([{ color: '#2F5240', points: fcPts }], { fmt: v => Math.round(v) + ' bpm' })
     : '';
   return '<div class="panel"><h3>Séances — physiologie</h3>' + curve + delta +
     '<table class="mtable"><tr><th>Date</th><th>Durée</th><th>FC moy</th><th>Pic</th><th>Z4+</th>' +
     '<th>RMSSD début→fin</th></tr>' + rows + '</table>' +
-    '<p class="repmsg" style="font-size:.75rem;margin-top:.4rem">RMSSD début/fin = 3 premières / 3 dernières minutes de séance, ' +
-    'seules fenêtres calmes exploitables (il s’effondre pendant l’effort). À effort comparable, une FC moyenne plus basse ' +
-    'et un RMSSD de fin plus haut vont dans le bon sens — suivi intra-individuel, pas une norme.</p></div>';
+    '<p class="repmsg" style="font-size:.75rem;margin-top:.4rem">RMSSD début/fin = VFC mesurée sur les ' +
+    '3 premières / 3 dernières minutes de séance (fenêtres calmes ; le RMSSD chute mécaniquement à l’effort).</p></div>' +
+    profileVO2HTML(o);
 }
 
 function profileMeasuresHTML(o, flags) {
@@ -1387,7 +1598,12 @@ function profileMeasuresHTML(o, flags) {
       const delta = list.length > 1 ? ' · ' + (l >= f ? '+' : '') + Math.round(((l - f) / f) * 100) + ' %' : '';
       bests += '<div><b>' + fr(best, 1) + ' kg</b>' + esc(x) + delta + '</div>';
     }
-    html += '<h4 style="font-size:.85rem;margin:.2rem 0 .5rem">Force — 1RM estimée (meilleure · évolution)</h4>' + bests + '</div>';
+    const fseries = EXOS.map((x, i) => ({ name: x, color: CHART_PAL[i % CHART_PAL.length],
+      points: force.filter(m => m.exo === x).map(m => ({ v: m.e1rm })) })).filter(s => s.points.length);
+    html += '<h4 style="font-size:.85rem;margin:.2rem 0 .5rem">Force — 1RM estimée (meilleure · évolution)</h4>' + bests + '</div>' +
+      (fseries.some(s => s.points.length > 1)
+        ? '<p class="chart-cap">Évolution de la 1RM estimée (kg)</p>' + svgChart(fseries, { fmt: v => fr(v, 1) + ' kg' })
+        : '');
   }
 
   if (grip.length) {
@@ -1397,7 +1613,14 @@ function profileMeasuresHTML(o, flags) {
     if (bG !== null) g += '<div><b>' + fr(bG, 1) + ' kg</b>meilleure gauche</div>';
     if (bD !== null) g += '<div><b>' + fr(bD, 1) + ' kg</b>meilleure droite</div>';
     if (bG !== null && bD !== null) g += '<div><b>' + fr(Math.abs(bD - bG) / Math.max(bD, bG) * 100, 0) + ' %</b>asymétrie</div>';
-    html += '<h4 style="font-size:.85rem;margin:.6rem 0 .5rem">Préhension</h4>' + g + '</div>';
+    const gseries = [
+      { name: 'Gauche', color: '#2F5240', points: grip.filter(m => m.main === 'G').map(m => ({ v: m.kg })) },
+      { name: 'Droite', color: '#C26B4A', points: grip.filter(m => m.main === 'D').map(m => ({ v: m.kg })) },
+    ].filter(s => s.points.length);
+    html += '<h4 style="font-size:.85rem;margin:.6rem 0 .5rem">Préhension</h4>' + g + '</div>' +
+      (gseries.some(s => s.points.length > 1)
+        ? '<p class="chart-cap">Évolution de la force de préhension (kg)</p>' + svgChart(gseries, { fmt: v => fr(v, 1) + ' kg' })
+        : '');
   }
 
   if (cog.length) {
@@ -1416,9 +1639,10 @@ function profileMeasuresHTML(o, flags) {
       (nb.length > 1 ? nb[0].hits + ' → ' + nb[nb.length - 1].hits + ' /' + nb[nb.length - 1].targets : '—') + '</td></tr>';
     c += '</table>';
     html += '<h4 style="font-size:.85rem;margin:.6rem 0 .5rem">Cognitif</h4>' + c +
-      '<p class="repmsg" style="font-size:.72rem;margin-top:.4rem">Stroop et N-back ont un fort effet d’apprentissage : ' +
-      'les deux premières passations servent surtout de familiarisation. Outils de suivi intra-individuel, ' +
-      'pas des instruments cliniques normés.</p></div>';
+      svgMetricChart(pv, m => m.mean, v => Math.round(v) + ' ms', 'Réactivité — temps de réaction moyen (ms)', '#C26B4A') +
+      svgMetricChart(st, m => m.acc, v => Math.round(v) + ' %', 'Stroop — exactitude (%)', '#5F9560') +
+      svgMetricChart(nb, m => m.hits, v => Math.round(v) + (nb[0] ? ' /' + nb[0].targets : ''), 'N-back — cibles détectées', '#5C8FA6') +
+      '<p class="repmsg" style="font-size:.72rem;margin-top:.4rem">Outils de suivi intra-individuel, non normés cliniquement.</p></div>';
   }
 
   html += '</div>';
@@ -1446,6 +1670,8 @@ function exportProfileCSV(o) {
       cat = 'force'; item = m.exo; det = 'kg=' + fr(m.kg, 1) + '|reps=' + m.reps + '|e1rm=' + fr(m.e1rm, 1);
     } else if (m.kind === 'grip') {
       cat = 'prehension'; item = m.main === 'G' ? 'Gauche' : 'Droite'; det = 'kg=' + fr(m.kg, 1);
+    } else if (m.kind === 'vo2') {
+      cat = 'vo2max'; item = m.sex === 'H' ? 'Homme' : 'Femme'; det = 'fc_recup=' + m.recHR + '|vo2max=' + fr(m.vo2, 1);
     } else {
       cat = 'cognitif'; item = COG_TESTS[m.test];
       if (m.test === 'pvt') det = 'tr_moy_ms=' + m.mean + '|tr_min_ms=' + m.best + '|lapses=' + m.lapses;
@@ -1458,19 +1684,27 @@ function exportProfileCSV(o) {
 }
 
 /* ---------- Rapport personnalisé : multi-participants, filtrable, imprimable ---------- */
-let reportSel = null;   // { names:Set, cardio, force, cog }
+let reportSel = null;        // { names:Set, cardio, force, cog }
+let reportGroupCtx = null;   // { name } quand on génère un rapport de groupe
 
-async function openReport() {
+async function openReport(opts) {
+  opts = opts || {};
+  reportGroupCtx = opts.groupName ? { name: opts.groupName } : null;
   showView('report');
   const d = $('#report');
   d.innerHTML = '<p class="repmsg">Chargement…</p>';
   let map;
   try { map = await gatherProfiles(); } catch (e) { map = new Map(); }
   const people = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
-  reportSel = { names: new Set(people.map(p => p.name)), cardio: true, force: true, cog: true };
+  let names;
+  if (opts.preselectNames) {
+    const lset = new Set(opts.preselectNames.map(n => String(n).toLowerCase()));
+    names = people.filter(p => lset.has(p.name.toLowerCase())).map(p => p.name);
+  } else names = people.map(p => p.name);
+  reportSel = { names: new Set(names), cardio: true, force: true, cog: true };
   d.innerHTML =
     '<div class="dhead"><button class="btn-soft" id="reportBack">← Profils</button>' +
-    '<div class="dtitle" style="border:none">Composer un rapport</div></div>' +
+    '<div class="dtitle" style="border:none">' + (reportGroupCtx ? 'Rapport — ' + esc(reportGroupCtx.name) : 'Composer un rapport') + '</div></div>' +
     reportBuilderHTML(people) + '<div id="reportOut"></div>';
   $('#reportBack').addEventListener('click', openProfiles);
   document.querySelectorAll('#report .rb-p').forEach(cb => cb.addEventListener('change', () => {
@@ -1482,14 +1716,14 @@ async function openReport() {
     btn.classList.toggle('on', reportSel[btn.dataset.k]);
     renderReport(map);
   }));
-  $('#rPrint').addEventListener('click', () => window.print());
+  $('#rPrint').addEventListener('click', () => exportReport(map));
   $('#rCSV').addEventListener('click', () => exportReportCSV(map));
   renderReport(map);
 }
 
 function reportBuilderHTML(people) {
   const checks = people.length
-    ? people.map(p => '<label><input type="checkbox" class="rb-p" value="' + esc(p.name) + '" checked>' + esc(p.name) + '</label>').join('')
+    ? people.map(p => '<label><input type="checkbox" class="rb-p" value="' + esc(p.name) + '"' + ((reportSel && reportSel.names.has(p.name)) ? ' checked' : '') + '>' + esc(p.name) + '</label>').join('')
     : '<span class="repmsg">Aucun participant pour l’instant.</span>';
   return '<div class="rbuilder">' +
     '<h3>Participants</h3><div class="rb-people">' + checks + '</div>' +
@@ -1505,6 +1739,39 @@ function reportBuilderHTML(people) {
     '</div></div>';
 }
 
+function groupSynthesisHTML(chosen, flags) {
+  flags = flags || { cardio: true, force: true, cog: true };
+  const rows = [];
+  const r0 = v => String(Math.round(v)), r1 = v => fr(v, 1);
+  const lastSess = o => o.sessions.length ? o.sessions[o.sessions.length - 1].part : null;
+  const lastM = (o, pred) => { const l = o.measures.filter(pred); return l.length ? l[l.length - 1] : null; };
+  const agg = (label, vals, fmt) => {
+    const v = vals.filter(x => x != null);
+    if (!v.length) return;
+    const mean = v.reduce((a, b) => a + b, 0) / v.length;
+    rows.push('<tr><td>' + label + '</td><td>' + fmt(mean) + '</td><td>' + fmt(Math.min.apply(null, v)) +
+      '</td><td>' + fmt(Math.max.apply(null, v)) + '</td><td>' + v.length + '</td></tr>');
+  };
+  if (flags.cardio) {
+    agg('FC moyenne (bpm)', chosen.map(o => { const p = lastSess(o); return p ? p.hrAvg : null; }), r0);
+    agg('RMSSD de fin (ms)', chosen.map(o => { const p = lastSess(o); return p ? p.rmssdEnd : null; }), r0);
+    agg('VO2max (ml/kg/min)', chosen.map(o => { const m = lastM(o, x => x.kind === 'vo2'); return m ? m.vo2 : null; }), r1);
+  }
+  if (flags.force) {
+    for (const x of EXOS) agg('1RM ' + x + ' (kg)', chosen.map(o => { const m = lastM(o, y => y.kind === 'force' && y.exo === x); return m ? m.e1rm : null; }), r1);
+    agg('Préhension droite (kg)', chosen.map(o => { const m = lastM(o, y => y.kind === 'grip' && y.main === 'D'); return m ? m.kg : null; }), r1);
+    agg('Préhension gauche (kg)', chosen.map(o => { const m = lastM(o, y => y.kind === 'grip' && y.main === 'G'); return m ? m.kg : null; }), r1);
+  }
+  if (flags.cog) {
+    agg('Réactivité (ms)', chosen.map(o => { const m = lastM(o, y => y.kind === 'cog' && y.test === 'pvt'); return m ? m.mean : null; }), r0);
+    agg('Stroop exactitude (%)', chosen.map(o => { const m = lastM(o, y => y.kind === 'cog' && y.test === 'stroop'); return m ? m.acc : null; }), r0);
+  }
+  if (!rows.length) return '';
+  return '<div class="panel"><h3>Synthèse du groupe' + (reportGroupCtx && reportGroupCtx.name ? ' — ' + esc(reportGroupCtx.name) : '') + '</h3>' +
+    '<table class="mtable"><tr><th>Indicateur</th><th>Moyenne</th><th>Min</th><th>Max</th><th>N</th></tr>' + rows.join('') + '</table>' +
+    '<p class="repmsg" style="font-size:.72rem;margin-top:.4rem">Dernière valeur de chaque participant. Données brutes (moyenne, min, max), sans interprétation.</p></div>';
+}
+
 function renderReport(map) {
   const out = $('#reportOut');
   if (!out) return;
@@ -1516,22 +1783,15 @@ function renderReport(map) {
     return;
   }
   let html = head;
+  if (reportGroupCtx) html += groupSynthesisHTML(chosen, reportSel);
   for (const o of chosen) {
     html += '<div class="rblock"><div class="rbname">' + esc(o.name) + '</div>' +
+      profileSynthesisHTML(o, reportSel) +
       (reportSel.cardio ? profileSessionsHTML(o) : '') +
       ((reportSel.force || reportSel.cog) ? profileMeasuresHTML(o, { force: reportSel.force, cog: reportSel.cog }) : '') +
       '</div>';
   }
   out.innerHTML = html;
-  requestAnimationFrame(() => {
-    out.querySelectorAll('canvas.profcurve').forEach(cv => {
-      const o = map.get(String(cv.dataset.prof).toLowerCase());
-      if (!o) return;
-      const withAvg = o.sessions.filter(x => x.part.hrAvg !== null);
-      if (withAvg.length < 2) return;
-      drawCurves(cv, [{ pts: withAvg.map((x, i) => [i, x.part.hrAvg]), color: '#2F5240', width: 2 }], withAvg.length - 1);
-    });
-  });
 }
 
 function reportHeadHTML(chosen) {
@@ -1544,6 +1804,73 @@ function reportHeadHTML(chosen) {
     '</div>' +
     '<div class="ph-meta">Édité le ' + frDate(Date.now()) + (names ? ' · ' + esc(names) : '') + '</div>' +
     '</div>';
+}
+
+/* Rapport autonome imprimable : document HTML complet (SVG inline, sans dépendance)
+   ouvert dans un nouvel onglet (impression directe sur ordinateur / Safari) ou
+   partagé en fichier via la feuille iOS si l'ouverture d'onglet est bloquée (Bluefy). */
+const REPORT_DOC_CSS =
+  ":root{--forest:#1F3A2D;--pine:#2F5240;--linen:#FBF8F1;--ink:#22302A;--muted:#6E7B73;--terra:#C26B4A;--line:#DDD4C3}" +
+  "*{box-sizing:border-box;margin:0;padding:0}" +
+  "body{font-family:'Source Sans 3',system-ui,sans-serif;color:var(--ink);background:#fff;padding:1.2rem;line-height:1.5}" +
+  ".wrap{max-width:920px;margin:0 auto}" +
+  ".rblock{margin-bottom:1.8rem;padding-top:.6rem;border-top:1px solid var(--line)}.rblock:first-of-type{border-top:none}" +
+  ".rbname{font-family:'Libre Baskerville',Georgia,serif;font-size:1.4rem;font-weight:700;margin:.5rem 0 .8rem}" +
+  ".panel{background:var(--linen);border:1px solid var(--line);border-radius:12px;padding:1rem;margin-bottom:1rem}" +
+  ".panel h3{font-size:.8rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem}" +
+  ".panel h4{font-size:.85rem;margin:.2rem 0 .5rem}" +
+  ".mtable{width:100%;border-collapse:collapse;font-size:.85rem}" +
+  ".mtable th{text-align:left;font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:.3rem .4rem;border-bottom:1px solid var(--line)}" +
+  ".mtable td{padding:.35rem .4rem;border-bottom:1px solid #EFEAE0;font-variant-numeric:tabular-nums}" +
+  ".bests{display:flex;gap:1.4rem;flex-wrap:wrap;margin:.4rem 0 .6rem}.bests div{font-size:.8rem;color:var(--muted)}.bests b{display:block;font-size:1.25rem;color:var(--ink)}" +
+  ".repmsg{color:var(--muted);font-size:.8rem;line-height:1.55}.pr-stats{font-size:.84rem;color:var(--muted);margin:.3rem 0}.pr-stats b{color:var(--ink)}" +
+  ".chart{margin:.3rem 0 .7rem}.chart-svg{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--line);border-radius:8px}" +
+  ".chart-legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin-top:.3rem}.chart-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:.3rem}" +
+  ".chart-cap{font-size:.76rem;color:var(--muted);margin:.5rem 0 .15rem;font-weight:600}" +
+  ".print-head{border-bottom:2px solid var(--forest);margin-bottom:1.1rem;padding-bottom:.6rem}" +
+  ".print-head .ph-brand{display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem}.print-head .ph-brand strong{font-family:'Libre Baskerville',Georgia,serif;font-size:1.2rem}.print-head .ph-brand span{display:block;font-size:.8rem;color:var(--muted)}.print-head .ph-meta{font-size:.82rem;color:var(--muted)}" +
+  ".toolbar{position:sticky;top:0;background:#fff;padding:.4rem 0 1rem;text-align:center}.toolbar button{font:inherit;font-weight:700;background:var(--pine);color:#fff;border:none;border-radius:8px;padding:.7rem 1.4rem;cursor:pointer}" +
+  "@media print{.toolbar{display:none}body{padding:0}.panel,.rblock{break-inside:avoid;page-break-inside:avoid}}";
+
+function reportStandaloneHTML(map) {
+  const chosen = [...reportSel.names].map(n => map.get(String(n).toLowerCase())).filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  let inner = reportHeadHTML(chosen);
+  if (reportGroupCtx) inner += groupSynthesisHTML(chosen, reportSel);
+  for (const o of chosen) {
+    inner += '<div class="rblock"><div class="rbname">' + esc(o.name) + '</div>' +
+      profileSynthesisHTML(o, reportSel) +
+      (reportSel.cardio ? profileSessionsHTML(o) : '') +
+      ((reportSel.force || reportSel.cog) ? profileMeasuresHTML(o, { force: reportSel.force, cog: reportSel.cog }) : '') +
+      '</div>';
+  }
+  return '<!doctype html><html lang="fr"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>Rapport — Vivien Strudel</title>' +
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">' +
+    '<style>' + REPORT_DOC_CSS + '</style></head><body>' +
+    '<div class="toolbar"><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>' +
+    '<div class="wrap">' + inner + '</div>' +
+    '<script>setTimeout(function(){try{window.print()}catch(e){}},500)<\/script>' +
+    '</body></html>';
+}
+
+function exportReport(map) {
+  if (!reportSel.names.size || !(reportSel.cardio || reportSel.force || reportSel.cog)) {
+    toast('Sélectionnez au moins un participant et une catégorie'); return;
+  }
+  const docHtml = reportStandaloneHTML(map);
+  try {
+    const w = window.open('', '_blank');
+    if (w && w.document) {
+      w.document.open(); w.document.write(docHtml); w.document.close();
+      toast('Rapport ouvert — utilisez « Imprimer / Enregistrer en PDF »');
+      return;
+    }
+  } catch (e) { /* ouverture d'onglet bloquée (iOS / Bluefy) */ }
+  download(docHtml, 'rapport_' + stamp(Date.now()) + '.html', 'text/html');
+  toast('Rapport enregistré (HTML) — ouvrez-le, puis « Imprimer / Enregistrer en PDF »');
 }
 
 function exportReportCSV(map) {
@@ -1566,6 +1893,11 @@ function exportReportCSV(map) {
           (part.rmssdStart === null ? '' : fr(part.rmssdStart, 1)) + ';' +
           (part.rmssdEnd === null ? '' : fr(part.rmssdEnd, 1)) + ';' +
           (part.rmssdSession === null ? '' : fr(part.rmssdSession, 1)) + ';' + fr(z4, 1) + '\n';
+      }
+      const v2 = o.measures.filter(m => m.kind === 'vo2');
+      if (v2.length) {
+        csv += 'VO2max;date;sexe;fc_recup;vo2max_ml_kg_min\n';
+        for (const m of v2) csv += ';' + new Date(m.t).toISOString() + ';' + (m.sex === 'H' ? 'H' : 'F') + ';' + m.recHR + ';' + fr(m.vo2, 1) + '\n';
       }
     }
     if (reportSel.force) {
@@ -1602,11 +1934,24 @@ function exportReportCSV(map) {
 /* =========================================================
    Exports CSV (séparateur ; — Excel français, UTF-8 BOM)
    ========================================================= */
-$('#btnRaw').addEventListener('click', () => {
-  if (lastPack) exportRawFrom(lastPack.summary, lastPack.raw);
+async function latestSession() {
+  let ss = [];
+  try { ss = await dbAll('sessions'); } catch (e) {}
+  if (!ss.length) return null;
+  ss.sort((a, b) => b.startedAt - a.startedAt);
+  return ss[0];
+}
+$('#btnRepRaw').addEventListener('click', async () => {
+  const s = await latestSession();
+  if (!s) { toast('Aucune séance archivée'); return; }
+  let raw; try { raw = await dbGet('raw', s.id); } catch (e) {}
+  if (!raw) { toast('Données brutes indisponibles pour cette séance'); return; }
+  exportRawFrom(s, raw);
 });
-$('#btnSum').addEventListener('click', () => {
-  if (lastPack) exportSummaryFrom(lastPack.summary);
+$('#btnRepSum').addEventListener('click', async () => {
+  const s = await latestSession();
+  if (!s) { toast('Aucune séance archivée'); return; }
+  exportSummaryFrom(s);
 });
 
 function csvName(s) { return String(s).replace(/;/g, ','); }
@@ -1686,14 +2031,17 @@ async function download(text, filename, mime) {
    Sauvegarde / restauration complète (JSON)
    ========================================================= */
 $('#btnBackup').addEventListener('click', async () => {
-  let sessions, raw, measures;
+  let sessions, raw, measures, groups, groupSessions;
   try {
     sessions = await dbAll('sessions'); raw = await dbAll('raw'); measures = await dbAll('measures');
+    groups = await dbAll('groups'); groupSessions = await dbAll('groupSessions');
   }
   catch (e) { toast('Stockage local indisponible'); return; }
   if (!sessions.length && !measures.length) { toast('Rien à sauvegarder pour l\u2019instant'); return; }
-  const payload = JSON.stringify({ app: 'vs-moniteur', v: 2, exportedAt: Date.now(), sessions, raw, measures });
+  const payload = JSON.stringify({ app: 'vs-moniteur', v: 3, exportedAt: Date.now(), sessions, raw, measures, groups, groupSessions });
   download(payload, 'sauvegarde_moniteur_' + stamp(Date.now()) + '.json', 'application/json');
+  try { localStorage.setItem('vs-lastBackup', String(Date.now())); } catch (e) {}
+  renderBackupStatus();
 });
 
 $('#restoreFile').addEventListener('change', (e) => {
@@ -1710,7 +2058,10 @@ $('#restoreFile').addEventListener('change', (e) => {
       for (const s of data.sessions) await dbPut('sessions', s);
       for (const r of (data.raw || [])) await dbPut('raw', r);
       for (const m of (data.measures || [])) await dbPut('measures', m);
-      toast(data.sessions.length + ' séance(s) et ' + (data.measures || []).length + ' mesure(s) restaurées');
+      for (const g of (data.groups || [])) await dbPut('groups', g);
+      for (const gs of (data.groupSessions || [])) await dbPut('groupSessions', gs);
+      toast(data.sessions.length + ' séance(s), ' + (data.measures || []).length + ' mesure(s), ' +
+        (data.groups || []).length + ' groupe(s) restaurés');
       refreshReportCount();
       openReports();
     } catch (err) {
@@ -1726,12 +2077,301 @@ $('#restoreFile').addEventListener('change', (e) => {
 const COG_TESTS = { pvt: 'Réactivité', stroop: 'Stroop', nback: 'N-back' };
 const EXOS = ['Squat', 'Développé couché', 'Soulevé de terre roumain', 'Tirage horizontal'];
 let gripHand = 'G';
+let vo2Sex = 'H';
 let cogAbort = null;          // annulation du test cognitif en cours
+function vo2FromHR(sex, hr) { return sex === 'H' ? 111.33 - 0.42 * hr : 65.81 - 0.1847 * hr; }
 
 async function openTests() {
   showView('tests');
+  switchTestTab('indiv');
   fillKnownNames();
   refreshTestPanels();
+}
+
+/* ---------- Tests : bascule Individuel / Groupe ---------- */
+$('#tabIndiv').addEventListener('click', () => switchTestTab('indiv'));
+$('#tabGroup').addEventListener('click', () => switchTestTab('group'));
+function switchTestTab(which) {
+  const g = which === 'group';
+  $('#testsIndiv').style.display = g ? 'none' : '';
+  $('#testsGroup').style.display = g ? '' : 'none';
+  $('#tabIndiv').classList.toggle('on', !g);
+  $('#tabGroup').classList.toggle('on', g);
+  if (g) loadGroups(currentGroup ? currentGroup.id : '');
+}
+
+/* ---------- VO2max en groupe (capteurs connectés en Direct) ---------- */
+/* =========================================================
+   Groupes & séances de groupe (Tests → Groupe)
+   ========================================================= */
+let currentGroup = null;   // groupe sélectionné
+let pendingGS = null;      // séance de groupe en cours : { id, startedAt, names:Set, count }
+let grpKind = 'force', grpGripHand = 'G';
+
+function freshGS() { return { id: 'GS' + Date.now(), startedAt: Date.now(), names: new Set(), count: 0 }; }
+function connectedByName(name) {
+  return [...participants.values()].find(p => !p.removed && String(p.name).toLowerCase() === String(name).toLowerCase());
+}
+async function saveGroup() { if (currentGroup) { try { await dbPut('groups', currentGroup); } catch (e) {} } }
+
+async function loadGroups(selId) {
+  let groups = [];
+  try { groups = await dbAll('groups'); } catch (e) {}
+  groups.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  $('#grpSelect').innerHTML = '<option value="">— choisir un groupe —</option>' +
+    groups.map(g => '<option value="' + g.id + '"' + (g.id === selId ? ' selected' : '') + '>' +
+      esc(g.name) + ' (' + (g.kind === 'entreprise' ? 'entreprise' : 'entraînement') + ')</option>').join('');
+  if (selId) await selectGroup(selId); else renderGroupAll();
+}
+async function selectGroup(id) {
+  if (!id) { currentGroup = null; pendingGS = null; renderGroupAll(); return; }
+  let g; try { g = await dbGet('groups', id); } catch (e) {}
+  currentGroup = g || null;
+  pendingGS = freshGS();
+  renderGroupAll();
+}
+function renderGroupAll() {
+  renderGroupMeta(); renderGroupRoster(); renderGroupWho(); renderGroupLog();
+  $('#grpDelete').hidden = !currentGroup;
+  $('#grpMeasurePanel').style.display = currentGroup ? '' : 'none';
+}
+function renderGroupMeta() {
+  const el = $('#grpMeta'); if (!el) return;
+  if (!currentGroup) { el.innerHTML = 'Choisissez un groupe ou créez-en un pour composer la séance.'; return; }
+  const n = currentGroup.members.length;
+  el.innerHTML = '<strong>' + esc(currentGroup.name) + '</strong> · ' +
+    (currentGroup.kind === 'entreprise' ? 'entreprise' : 'entraînement') + ' · ' + n + ' membre' + (n > 1 ? 's' : '');
+}
+function renderGroupWho() {
+  const sel = $('#grpWho'); if (!sel) return;
+  const mem = currentGroup ? currentGroup.members : [];
+  sel.innerHTML = mem.map(mb => '<option value="' + esc(mb.name) + '">' + esc(mb.name) + '</option>').join('');
+}
+function renderGroupLog() {
+  const el = $('#grpSessionLog'); if (!el) return;
+  el.innerHTML = (pendingGS && pendingGS.count)
+    ? '<p class="repmsg"><strong>Séance en cours :</strong> ' + pendingGS.count + ' mesure(s) pour ' +
+      pendingGS.names.size + ' participant(s).</p>' : '';
+}
+function renderGroupRoster() {
+  const box = $('#grpRoster'); if (!box) return;
+  if (!currentGroup) { box.innerHTML = ''; return; }
+  if (!currentGroup.members.length) {
+    box.innerHTML = '<p class="repmsg">Aucun membre. Ajoutez des participants ci-dessous (ou « + capteurs connectés »).</p>';
+    return;
+  }
+  box.innerHTML = '<table class="mtable"><tr><th>Membre</th><th>Sexe</th><th>FC actuelle</th><th></th></tr>' +
+    currentGroup.members.map((mb, i) => {
+      const p = connectedByName(mb.name);
+      const hr = p && p.hr !== null ? p.hr + ' bpm' : '<span style="color:var(--muted)">—</span>';
+      return '<tr><td>' + esc(mb.name) + '</td>' +
+        '<td><span class="sexsel" data-i="' + i + '">' +
+        '<button type="button" class="sx' + (mb.sex === 'H' ? ' on' : '') + '" data-s="H">H</button>' +
+        '<button type="button" class="sx' + (mb.sex === 'F' ? ' on' : '') + '" data-s="F">F</button></span></td>' +
+        '<td>' + hr + '</td><td><button type="button" class="rowdel" data-i="' + i + '" title="Retirer du groupe">✕</button></td></tr>';
+    }).join('') + '</table>';
+  box.querySelectorAll('.sexsel').forEach(sel => {
+    const mb = currentGroup.members[parseInt(sel.dataset.i, 10)];
+    sel.querySelectorAll('.sx').forEach(b => b.addEventListener('click', async () => {
+      mb.sex = b.dataset.s;
+      sel.querySelectorAll('.sx').forEach(x => x.classList.toggle('on', x === b));
+      await saveGroup();
+    }));
+  });
+  box.querySelectorAll('.rowdel').forEach(b => b.addEventListener('click', async () => {
+    currentGroup.members.splice(parseInt(b.dataset.i, 10), 1);
+    await saveGroup(); renderGroupAll();
+  }));
+}
+
+$('#grpSelect').addEventListener('change', (e) => selectGroup(e.target.value));
+$('#grpNew').addEventListener('click', async () => {
+  const name = (prompt('Nom du groupe (ex. « Atelier lundi », « Entreprise X ») :') || '').trim();
+  if (!name) return;
+  const kind = confirm('Type « entreprise » ? (Annuler = entraînement)') ? 'entreprise' : 'entrainement';
+  const g = { id: 'G' + Date.now(), name, kind, members: [] };
+  try { await dbPut('groups', g); } catch (e) { toast('Stockage local indisponible'); return; }
+  toast('Groupe « ' + name + ' » créé');
+  await loadGroups(g.id);
+});
+$('#grpDelete').addEventListener('click', async () => {
+  if (!currentGroup) return;
+  if (!confirm('Supprimer le groupe « ' + currentGroup.name + ' » ? Les mesures des participants sont conservées.')) return;
+  try { await dbDel('groups', currentGroup.id); } catch (e) {}
+  toast('Groupe supprimé'); currentGroup = null; pendingGS = null;
+  await loadGroups();
+});
+$('#grpAdd').addEventListener('click', async () => {
+  if (!currentGroup) { toast('Choisissez d’abord un groupe'); return; }
+  const name = $('#grpAddName').value.trim();
+  if (!name) return;
+  if (!currentGroup.members.some(m => m.name.toLowerCase() === name.toLowerCase())) {
+    const p = connectedByName(name);
+    currentGroup.members.push({ name, sex: p ? p.sex : 'H' });
+    await saveGroup();
+  }
+  $('#grpAddName').value = '';
+  renderGroupAll();
+});
+$('#grpAddSensors').addEventListener('click', async () => {
+  if (!currentGroup) { toast('Choisissez d’abord un groupe'); return; }
+  let added = 0;
+  for (const p of participants.values()) {
+    if (p.removed) continue;
+    if (!currentGroup.members.some(m => m.name.toLowerCase() === p.name.toLowerCase())) {
+      currentGroup.members.push({ name: p.name, sex: p.sex }); added++;
+    }
+  }
+  await saveGroup(); renderGroupAll();
+  toast(added + ' participant(s) ajouté(s) depuis les capteurs');
+});
+
+$('#grpKind').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  grpKind = b.dataset.k;
+  $('#grpKind').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
+  $('#grpForceFields').style.display = grpKind === 'force' ? '' : 'none';
+  $('#grpGripFields').style.display = grpKind === 'grip' ? '' : 'none';
+});
+$('#grpHand').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  grpGripHand = b.dataset.h;
+  $('#grpHand').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
+});
+
+async function tagAndSaveGroupMeasure(m) {
+  if (currentGroup) m.groupId = currentGroup.id;
+  if (pendingGS) m.groupSessionId = pendingGS.id;
+  const ok = await saveMeasure(m);
+  if (ok && pendingGS) { pendingGS.names.add(m.name); pendingGS.count++; renderGroupLog(); }
+  return ok;
+}
+$('#grpSaveForce').addEventListener('click', async () => {
+  const name = $('#grpWho').value;
+  if (!name) { toast('Sélectionnez un participant'); return; }
+  const kg = parseFloat($('#grpKg').value), reps = parseInt($('#grpReps').value, 10);
+  if (!(kg > 0) || !(reps >= 1)) { toast('Charge ou répétitions invalides'); return; }
+  const exo = $('#grpExo').value;
+  if (await tagAndSaveGroupMeasure({ name, kind: 'force', exo, kg, reps, e1rm: Math.round(e1rm(kg, reps) * 10) / 10 })) {
+    toast(exo + ' enregistré pour ' + name);
+    $('#grpKg').value = ''; $('#grpReps').value = ''; fillKnownNames();
+  }
+});
+$('#grpSaveGrip').addEventListener('click', async () => {
+  const name = $('#grpWho').value;
+  if (!name) { toast('Sélectionnez un participant'); return; }
+  const kg = parseFloat($('#grpGripKg').value);
+  if (!(kg > 0)) { toast('Valeur invalide'); return; }
+  if (await tagAndSaveGroupMeasure({ name, kind: 'grip', main: grpGripHand, kg })) {
+    toast('Préhension ' + (grpGripHand === 'G' ? 'gauche' : 'droite') + ' : ' + fr(kg, 1) + ' kg pour ' + name);
+    $('#grpGripKg').value = ''; fillKnownNames();
+  }
+});
+$('#grpClose').addEventListener('click', async () => {
+  if (!currentGroup) { toast('Aucun groupe sélectionné'); return; }
+  if (!pendingGS || !pendingGS.count) { toast('Aucune mesure enregistrée dans cette séance'); return; }
+  const rec = { id: pendingGS.id, groupId: currentGroup.id, groupName: currentGroup.name,
+    t: Date.now(), startedAt: pendingGS.startedAt, participants: [...pendingGS.names], count: pendingGS.count };
+  try { await dbPut('groupSessions', rec); } catch (e) { toast('Enregistrement impossible'); return; }
+  toast('Séance de groupe enregistrée (' + rec.participants.length + ' participants · ' + rec.count + ' mesures)');
+  pendingGS = freshGS(); renderGroupLog();
+});
+$('#grpReport').addEventListener('click', () => {
+  if (!currentGroup) { toast('Choisissez d’abord un groupe'); return; }
+  openReport({ preselectNames: currentGroup.members.map(m => m.name), groupName: currentGroup.name });
+});
+
+$('#grpStart').addEventListener('click', () => {
+  if (!currentGroup) { toast('Choisissez d’abord un groupe'); return; }
+  const roster = currentGroup.members
+    .map(mb => ({ name: mb.name, sex: mb.sex, p: connectedByName(mb.name) }))
+    .filter(r => r.p);
+  if (!roster.length) { toast('Aucun membre n’a de capteur connecté en Direct'); return; }
+  if (cogAbort) { const f = cogAbort; cogAbort = null; f(); }
+  const stage = $('#cogStage');
+  stage.style.display = 'flex';
+  runGroupVO2(stage, roster);
+});
+
+async function groupVO2Save(roster, hrFor) {
+  const results = [];
+  for (const r of roster) {
+    const recHR = hrFor(r);
+    if (!(recHR >= 60 && recHR <= 220)) { results.push({ name: r.name, sex: r.sex, recHR: null, vo2: null }); continue; }
+    const vo2 = Math.round(vo2FromHR(r.sex, recHR) * 10) / 10;
+    await tagAndSaveGroupMeasure({ name: r.name, kind: 'vo2', sex: r.sex, recHR, vo2 });
+    results.push({ name: r.name, sex: r.sex, recHR, vo2 });
+  }
+  return results;
+}
+
+function groupResultsTable(results) {
+  return '<table class="mtable"><tr><th>Participant</th><th>Sexe</th><th>FC récup</th><th>VO2max</th></tr>' +
+    results.map(r => '<tr><td>' + esc(r.name) + '</td><td>' + (r.recHR === null ? '—' : (r.sex === 'H' ? 'H' : 'F')) +
+      '</td><td>' + (r.recHR === null ? '— (capteur absent)' : r.recHR) + '</td><td>' +
+      (r.vo2 === null ? '—' : fr(r.vo2, 1)) + '</td></tr>').join('') + '</table>';
+}
+
+function runGroupVO2(stage, roster) {
+  const ui = stageShell(stage, 'VO2max en groupe — step guidé (Queens College)');
+  let alive = true, t = 180, actx = null, beepTimer = null, tick = null, sampler = null, beat = 0;
+  const cadence = 96, samples = new Map();
+  cogAbort = () => { alive = false; clearInterval(tick); clearInterval(beepTimer); clearInterval(sampler); try { actx && actx.close(); } catch (e) {} };
+  try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) actx = new AC(); } catch (e) {}
+  function beep() {
+    if (!actx) return;
+    try {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
+      g.gain.setValueAtTime(0.0001, actx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.25, actx.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.09);
+      o.start(); o.stop(actx.currentTime + 0.1);
+    } catch (e) {}
+  }
+  function render() {
+    const m = Math.floor(t / 60), s = t % 60;
+    ui.arena.innerHTML = '<div><span class="big">' + m + ':' + String(s).padStart(2, '0') + '</span>' +
+      '<br><span style="font-size:1.6rem;font-weight:700">' + (['Montez', '↑', 'Descendez', '↓'][beat % 4]) + '</span>' +
+      '<br><small style="color:var(--muted)">' + roster.length + ' participant(s) · cadence 24 pas/min · suivez le bip</small></div>';
+  }
+  ui.pad.innerHTML = '';
+  render(); beep();
+  beepTimer = setInterval(() => { if (!alive) return; beat++; beep(); render(); }, 60000 / cadence);
+  tick = setInterval(() => { if (!alive) return; t--; if (t <= 0) { clearInterval(tick); clearInterval(beepTimer); recovery(); return; } render(); }, 1000);
+
+  function recovery() {
+    let rt = 20;
+    ui.arena.innerHTML = '<div><strong>Effort terminé — restez immobiles, ceinture en place.</strong><br>' +
+      'Lecture automatique de la FC de récupération (5–20 s)…<br><span class="big" id="grc">0:20</span></div>';
+    ui.pad.innerHTML = '';
+    sampler = setInterval(() => {
+      const elapsed = 20 - rt;
+      if (elapsed >= 5 && elapsed <= 20) for (const r of roster) if (r.p && r.p.hr !== null) {
+        if (!samples.has(r.name)) samples.set(r.name, []);
+        samples.get(r.name).push(r.p.hr);
+      }
+      const el = $('#grc'); if (el) el.textContent = '0:' + String(Math.max(0, rt)).padStart(2, '0');
+      rt--;
+      if (rt < 0) { clearInterval(sampler); finish(); }
+    }, 1000);
+  }
+
+  async function finish() {
+    alive = false; cogAbort = null; try { actx && actx.close(); } catch (e) {}
+    const results = await groupVO2Save(roster, r => {
+      const arr = samples.get(r.name) || [];
+      return arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : NaN;
+    });
+    fillKnownNames();
+    const n = results.filter(r => r.vo2 !== null).length;
+    const tbl = groupResultsTable(results);
+    $('#grpResults').innerHTML = '<h4 style="font-size:.9rem;margin:.4rem 0">Derniers résultats groupés</h4>' + tbl;
+    ui.arena.innerHTML = '<div><strong>Terminé — VO2max enregistrée pour ' + n + ' participant(s).</strong><br>' + tbl + '</div>';
+    ui.pad.innerHTML = '<button id="stClose">Fermer</button>';
+    $('#stClose').addEventListener('click', () => { closeStage(); renderGroupRoster(); renderGroupLog(); });
+    toast('VO2max groupé enregistré (' + n + ')');
+  }
 }
 
 async function fillKnownNames() {
@@ -1760,7 +2400,7 @@ $('#whoClose').addEventListener('click', () => {
 
 async function refreshTestPanels() {
   const name = whoName();
-  renderForce(name); renderGrip(name); renderCog(name);
+  renderForce(name); renderGrip(name); renderCog(name); renderVO2(name);
 }
 
 async function saveMeasure(m) {
@@ -2106,8 +2746,137 @@ async function renderCog(name) {
     '<table class="mtable"><tr><th>Date</th><th>Test</th><th>Résultat</th><th></th></tr>' + rows + '</table>' : '';
 }
 
+/* ---------- VO2max : step test guidé (Queens College / McArdle) ---------- */
+$('#vSex').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  vo2Sex = b.dataset.s;
+  $('#vSex').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
+});
+
+$('#vSave').addEventListener('click', async () => {
+  const name = whoName();
+  if (!name) { toast('Indiquez d’abord le participant'); return; }
+  const hr = parseInt($('#vHR').value, 10);
+  if (!(hr >= 60 && hr <= 220)) { toast('FC de récupération invalide (60–220)'); return; }
+  const vo2 = Math.round(vo2FromHR(vo2Sex, hr) * 10) / 10;
+  if (await saveMeasure({ name, kind: 'vo2', sex: vo2Sex, recHR: hr, vo2 })) {
+    toast('VO2max ' + fr(vo2, 1) + ' enregistrée pour ' + name);
+    $('#vHR').value = '';
+    refreshTestPanels(); fillKnownNames();
+  }
+});
+
+$('#vStart').addEventListener('click', () => {
+  const name = whoName();
+  if (!name) { toast('Indiquez d’abord le participant'); return; }
+  if (cogAbort) { const f = cogAbort; cogAbort = null; f(); }
+  const stage = $('#cogStage');
+  stage.style.display = 'flex';
+  runVO2(stage, name, vo2Sex);
+});
+
+function runVO2(stage, name, sex) {
+  const ui = stageShell(stage, 'VO2max — step guidé (Queens College)');
+  const cadence = sex === 'H' ? 96 : 88;          // bips/min (24 / 22 cycles step par min)
+  let alive = true, t = 180, actx = null, beepTimer = null, tick = null, beat = 0;
+  cogAbort = () => { alive = false; clearInterval(tick); clearInterval(beepTimer); try { actx && actx.close(); } catch (e) {} };
+  try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) actx = new AC(); } catch (e) {}
+  function beep() {
+    if (!actx) return;
+    try {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
+      g.gain.setValueAtTime(0.0001, actx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.25, actx.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.09);
+      o.start(); o.stop(actx.currentTime + 0.1);
+    } catch (e) {}
+  }
+  const cues = ['Montez', '↑', 'Descendez', '↓'];
+  function render() {
+    const m = Math.floor(t / 60), s = t % 60;
+    ui.arena.innerHTML = '<div><span class="big">' + m + ':' + String(s).padStart(2, '0') + '</span>' +
+      '<br><span style="font-size:1.8rem;font-weight:700">' + cues[beat % 4] + '</span>' +
+      '<br><small style="color:var(--muted)">Cadence ' + (sex === 'H' ? '24' : '22') + ' pas/min · step 41 cm · suivez le bip</small></div>';
+  }
+  ui.pad.innerHTML = '';
+  render(); beep();
+  beepTimer = setInterval(() => { if (!alive) return; beat++; beep(); render(); }, 60000 / cadence);
+  tick = setInterval(() => {
+    if (!alive) return;
+    t--; if (t <= 0) { clearInterval(tick); clearInterval(beepTimer); recovery(); return; }
+    render();
+  }, 1000);
+
+  function recovery() {
+    const pMatch = [...participants.values()].find(p =>
+      !p.removed && p.hr !== null && String(p.name).toLowerCase() === String(name).toLowerCase());
+    if (pMatch) recoveryAuto(pMatch); else recoveryManual();
+  }
+  function recoveryAuto(p) {
+    let rt = 20; const arr = [];
+    ui.arena.innerHTML = '<div><strong>Effort terminé — restez immobile, ceinture en place.</strong><br>' +
+      'Lecture de la FC de récupération sur le Polar de ' + esc(name) + ' (5–20 s)…<br><span class="big" id="vrc">0:20</span></div>';
+    ui.pad.innerHTML = '';
+    const rc = setInterval(async () => {
+      const elapsed = 20 - rt;
+      if (elapsed >= 5 && elapsed <= 20 && p.hr !== null) arr.push(p.hr);
+      const el = $('#vrc'); if (el) el.textContent = '0:' + String(Math.max(0, rt)).padStart(2, '0');
+      rt--;
+      if (rt < 0) {
+        clearInterval(rc);
+        if (!arr.length) { recoveryManual('Capteur silencieux — saisissez la FC manuellement.'); return; }
+        await done(Math.round(arr.reduce((a, b) => a + b, 0) / arr.length));
+      }
+    }, 1000);
+  }
+  function recoveryManual(msg) {
+    let rt = 20;
+    ui.arena.innerHTML = '<div><strong>' + (msg || 'Effort terminé — restez debout.') + '</strong><br>' +
+      'Relevez la FC sur le Polar entre <b>5 et 20 s</b>, puis saisissez-la.<br>' +
+      '<span class="big" id="vrc">0:20</span></div>';
+    ui.pad.innerHTML = '<input type="number" id="vrHR" min="60" max="220" inputmode="numeric" placeholder="FC récup (bpm)" ' +
+      'style="flex:1;font:inherit;font-size:1.1rem;padding:.6rem;border:1.5px solid var(--line);border-radius:9px">' +
+      '<button id="vrCalc">Calculer la VO2max</button>';
+    const rc = setInterval(() => {
+      rt--; const el = $('#vrc'); if (el) el.textContent = '0:' + String(Math.max(0, rt)).padStart(2, '0');
+      if (rt <= 0) clearInterval(rc);
+    }, 1000);
+    $('#vrCalc').addEventListener('click', async () => {
+      const hr = parseInt($('#vrHR').value, 10);
+      if (!(hr >= 60 && hr <= 220)) { toast('FC de récupération invalide (60–220)'); return; }
+      clearInterval(rc); await done(hr);
+    });
+  }
+  async function done(hr) {
+    alive = false; cogAbort = null;
+    try { actx && actx.close(); } catch (e) {}
+    const vo2 = Math.round(vo2FromHR(sex, hr) * 10) / 10;
+    await saveMeasure({ name, kind: 'vo2', sex, recHR: hr, vo2 });
+    fillKnownNames();
+    stageResults(ui, '<div><span class="big">' + fr(vo2, 1) + '</span><br>ml·kg⁻¹·min⁻¹ — VO2max estimée<br>' +
+      '<small style="color:var(--muted)">' + (sex === 'H' ? 'Homme' : 'Femme') + ' · FC récup ' + hr + ' bpm · Queens College</small></div>',
+      name, 'VO2max');
+  }
+}
+
+async function renderVO2(name) {
+  const box = $('#vHist');
+  if (!name) { box.innerHTML = '<p class="repmsg">Indiquez un participant pour voir son historique.</p>'; return; }
+  const ms = (await measuresFor(name)).filter(m => m.kind === 'vo2');
+  if (!ms.length) { box.innerHTML = '<p class="repmsg">Aucun test VO2max pour ' + esc(name) + '.</p>'; return; }
+  const best = Math.max.apply(null, ms.map(m => m.vo2));
+  const f = ms[0].vo2, l = ms[ms.length - 1].vo2;
+  const delta = ms.length > 1 ? ' · ' + (l >= f ? '+' : '') + fr(l - f, 1) + ' depuis le 1er' : '';
+  const rows = ms.slice(-8).reverse().map(m =>
+    '<tr><td>' + frDate(m.t) + '</td><td>' + (m.sex === 'H' ? 'H' : 'F') + '</td><td>' + m.recHR +
+    '</td><td>' + fr(m.vo2, 1) + '</td><td><button type="button" class="rowdel" data-id="' + m.id + '" title="Supprimer">✕</button></td></tr>').join('');
+  box.innerHTML = '<div class="bests"><div><b>' + fr(best, 1) + '</b>meilleure VO2max (ml/kg/min)' + delta + '</div></div>' +
+    '<table class="mtable"><tr><th>Date</th><th>Sexe</th><th>FC récup</th><th>VO2max</th><th></th></tr>' + rows + '</table>';
+}
+
 /* ---------- Suppression d'une mesure (✕ en bout de ligne) ---------- */
-['#fHist', '#gHist', '#cHist'].forEach(sel => {
+['#fHist', '#gHist', '#cHist', '#vHist'].forEach(sel => {
   $(sel).addEventListener('click', async (e) => {
     const b = e.target.closest('.rowdel');
     if (!b) return;
@@ -2134,6 +2903,9 @@ $('#btnMeasCSV').addEventListener('click', async () => {
     } else if (m.kind === 'grip') {
       cat = 'prehension'; item = m.main === 'G' ? 'Gauche' : 'Droite';
       det = 'kg=' + fr(m.kg, 1);
+    } else if (m.kind === 'vo2') {
+      cat = 'vo2max'; item = m.sex === 'H' ? 'Homme' : 'Femme';
+      det = 'fc_recup=' + m.recHR + '|vo2max=' + fr(m.vo2, 1);
     } else {
       cat = 'cognitif'; item = COG_TESTS[m.test];
       if (m.test === 'pvt') det = 'tr_moy_ms=' + m.mean + '|tr_min_ms=' + m.best +
@@ -2170,6 +2942,13 @@ $('#demoLink').addEventListener('click', () => {
   }, 1000);
 });
 
+/* Auto-démo : ouvrir la page avec #demo lance l'interface de démonstration
+   (vitrine / lien public depuis le site marketing). */
+if (location.hash.toLowerCase() === '#demo') {
+  const _d = $('#demoLink');
+  if (_d) for (let i = 0; i < 4; i++) setTimeout(() => _d.click(), 300 + i * 450);
+}
+
 /* ---------- Divers ---------- */
 function toast(msg) {
   const t = $('#toast');
@@ -2185,6 +2964,8 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 refreshReportCount();
+fillKnownNames();   // alimente les suggestions de noms (cartes Direct + Tests) dès le chargement
+$('#grpExo').innerHTML = EXOS.map(x => '<option>' + esc(x) + '</option>').join('');   // exercices du bloc Groupe
 </script>
 </body>
 </html>
