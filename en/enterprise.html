@@ -219,6 +219,9 @@
     .booking-line{text-align:center;margin-top:2.5rem;}
     .booking-line a{display:inline-flex;align-items:center;gap:.6rem;padding:1rem 2.25rem;background:var(--vert);color:#fff;border-radius:50px;text-decoration:none;font-size:.85rem;font-weight:500;transition:all .3s ease;}
     .booking-line a:hover{background:var(--vert-clair);transform:translateY(-2px);}
+    .booking-line a{margin:.35rem;}
+    .booking-line a.mail-btn{background:transparent;color:var(--noir-doux);border:1px solid var(--gris-border);}
+    .booking-line a.mail-btn:hover{background:transparent;border-color:var(--accent);color:var(--accent);}
     .booking-line .or{display:block;font-size:.8rem;color:var(--gris-clair);margin:1.25rem 0 .25rem;letter-spacing:.05em;}
     .contact-form{margin-top:1.5rem; background: var(--blanc); padding: 4rem; border-radius: 20px; box-shadow:0 20px 60px rgba(0,0,0,.04);}
     .form-row{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-bottom:2rem}
@@ -591,10 +594,10 @@
       <p class="section-intro" style="margin:0 auto;">Describe your context in two lines: I'll get back to you within 48h with an honest read on whether a pilot makes sense for you.</p>
     </div>
 
-    <!-- TODO Vivien: replace the href below with your Calendly / cal.com link to enable direct booking. -->
     <div class="booking-line">
-      <a href="#contact-form" data-cta="booking">Book a 20-min call →</a>
-      <span class="or">or leave me a message</span>
+      <a class="wa-btn" href="https://wa.me/33648918609?text=Hello%20Vivien%2C%20I%27m%20reaching%20out%20about%20the%20enterprise%20programme." target="_blank" rel="noopener" data-cta="whatsapp">Message on WhatsApp</a>
+      <a class="mail-btn" href="mailto:contact@vivienstrudel.com?subject=Enterprise%20programme%20(Pilot%20Cohort%202026)" data-cta="email">Send an email</a>
+      <span class="or">or leave me a message below</span>
     </div>
 
     <form id="contact-form" class="contact-form" action="https://formsubmit.co/contact@vivienstrudel.com" method="POST">
