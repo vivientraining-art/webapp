@@ -3093,6 +3093,13 @@ $('#demoLink').addEventListener('click', () => {
   }, 1000);
 });
 
+/* Auto-démo : ouvrir la page avec #demo lance l'interface de démonstration
+   (vitrine / lien public depuis le site marketing). */
+if (location.hash.toLowerCase() === '#demo') {
+  const _d = $('#demoLink');
+  if (_d) for (let i = 0; i < 4; i++) setTimeout(() => _d.click(), 300 + i * 450);
+}
+
 /* ---------- Divers ---------- */
 function toast(msg) {
   const t = $('#toast');
