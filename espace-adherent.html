@@ -568,16 +568,6 @@ async function onSignedIn(user) {
   $('#loginView').hidden = true;
   $('#appView').hidden = false;
   await loadProfile();
-  {
-    const r = await sb.from('profiles').select('id,email,role').eq('id', me.id);
-    const dbg = document.createElement('div');
-    dbg.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#22302A;color:#fff;' +
-      'font-size:12px;line-height:1.4;padding:8px 10px;white-space:pre-wrap;word-break:break-all';
-    dbg.textContent = 'DIAG  email=' + me.email + '  |  rôle=' + (profile && profile.role) +
-      '  |  rows=' + JSON.stringify(r.data) +
-      '  |  err=' + JSON.stringify(r.error);
-    document.body.appendChild(dbg);
-  }
   $('#whoBox').innerHTML = '<b>' + (profile.prenom || me.email) + '</b><br>' + me.email;
   // pré-remplir le sexe du test VO2max et du profil
   setSeg('#vSex', profile.sexe);
@@ -1139,15 +1129,6 @@ $('#btnDelete').addEventListener('click', async () => {
 /* =====================================================================
    Démarrage
    ===================================================================== */
-/* marqueur de build (diagnostic temporaire) */
-(function () {
-  const bm = document.createElement('div');
-  bm.textContent = 'BUILD v3';
-  bm.style.cssText = 'position:fixed;top:0;right:0;z-index:99999;background:#C14F38;color:#fff;' +
-    'font:600 11px sans-serif;padding:3px 7px';
-  document.body.appendChild(bm);
-})();
-
 initAuth();
 </script>
 </body>
