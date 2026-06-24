@@ -362,10 +362,15 @@
     *{transition:none !important}
   }
   /* ---------- Sélecteur de mode + vue spectateur ---------- */
-  #modeSelect{position:fixed;inset:0;z-index:80;background:var(--forest);color:#F4F0E6;
+  #modeSelect,#authGate{position:fixed;inset:0;z-index:80;background:var(--forest);color:#F4F0E6;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.3rem;text-align:center;padding:1.5rem}
-  #modeSelect h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.5rem}
-  #modeSelect>p{max-width:440px;color:#C9D4CC;line-height:1.55;font-size:.95rem}
+  #modeSelect h2,#authGate h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.5rem}
+  #modeSelect>div>p,#authGate>div>p{max-width:440px;color:#C9D4CC;line-height:1.55;font-size:.95rem}
+  .authbox{width:100%;max-width:360px}
+  .authbox input{width:100%;margin-bottom:.7rem;font:inherit;color:var(--ink);background:#fff;
+    border:1px solid var(--line);border-radius:8px;padding:.65rem;min-height:46px}
+  .authbox button{width:100%}
+  .authbox #gateMsg{color:#F3D9CF;font-size:.85rem;margin-top:.7rem;min-height:1em}
   .modecards{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
   .modecard{background:var(--linen);color:var(--ink);border:1px solid var(--line);border-radius:14px;
     padding:1.3rem;width:250px;cursor:pointer;text-align:left;box-shadow:0 6px 20px rgba(0,0,0,.22)}
@@ -374,10 +379,6 @@
   .modecard p{color:var(--muted);font-size:.85rem;margin:0;line-height:1.45}
   .modecard .ic{font-size:1.7rem}
   #spectator{max-width:1100px;margin:0 auto;padding:1rem}
-  #specLogin{max-width:380px;margin:6vh auto 0;background:var(--linen);border:1px solid var(--line);
-    border-radius:14px;padding:1.5rem;text-align:center}
-  #specLogin input{width:100%;margin-bottom:.7rem;font:inherit;color:var(--ink);background:#fff;
-    border:1px solid var(--line);border-radius:8px;padding:.6rem;min-height:44px}
   #specGrid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));margin-bottom:1.4rem}
   .speccard{background:var(--linen);border:1px solid var(--line);border-left:7px solid var(--z0);
     border-radius:12px;padding:.8rem .9rem;transition:opacity .2s ease}
@@ -396,7 +397,20 @@
 </head>
 <body>
 
-<div id="modeSelect">
+<div id="authGate">
+  <div>
+    <h2>Espace coach</h2>
+    <p>Connectez-vous avec votre compte coach pour accéder au moniteur.</p>
+  </div>
+  <div class="authbox">
+    <input type="email" id="gateEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
+    <input type="password" id="gatePassword" placeholder="Mot de passe" autocomplete="current-password">
+    <button class="btn-rec" id="gateBtn">Se connecter</button>
+    <p id="gateMsg"></p>
+  </div>
+</div>
+
+<div id="modeSelect" style="display:none">
   <div>
     <h2>Moniteur de groupe</h2>
     <p>Choisissez votre mode pour cette session.</p>
@@ -452,14 +466,6 @@
 </div>
 
 <section id="spectator" style="display:none">
-  <div id="specLogin" style="display:none">
-    <h2 style="font-family:'Libre Baskerville',Georgia,serif;margin-bottom:.5rem">Connexion coach</h2>
-    <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">Connectez-vous avec votre compte coach pour voir les adhérents en direct.</p>
-    <input type="email" id="specEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
-    <input type="password" id="specPassword" placeholder="Mot de passe" autocomplete="current-password">
-    <button class="btn-rec" id="specLoginBtn" style="width:100%">Se connecter</button>
-    <p id="specMsg" style="color:var(--muted);font-size:.85rem;margin-top:.6rem"></p>
-  </div>
   <div id="specLive" style="display:none">
     <div style="display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin:.2rem 0 1rem">
       <button class="btn-soft" id="specBack">← Changer de mode</button>
@@ -3204,6 +3210,45 @@ const SPEC_URL = 'https://mxdsvbrxeospfohgvzbz.supabase.co';
 const SPEC_KEY = 'sb_publishable_MIO9ShdnMK1-mQm0T1J5YA_UPkAJ80_';
 let specSb = null, specChannel = null, specPruneTimer = null;
 const specCards = new Map();   // user_id -> { el, lastAt }
+let gateBusy = false, gateDone = false;
+
+/* --- Portail : l'app entière (créateur ET spectateur) exige le compte coach --- */
+(function initCoachGate() {
+  if (typeof supabase === 'undefined') {
+    $('#authGate').innerHTML = '<div><h2>Hors connexion</h2>' +
+      '<p style="max-width:440px;color:#C9D4CC;line-height:1.55">Connexion au service impossible. ' +
+      'Le moniteur nécessite une connexion internet pour vérifier votre compte coach.</p></div>';
+    return;
+  }
+  specSb = supabase.createClient(SPEC_URL, SPEC_KEY);
+  specSb.auth.getSession().then(({ data }) => { if (data.session) gateCheckCoach(data.session.user); });
+  specSb.auth.onAuthStateChange((_e, s) => { if (s) gateCheckCoach(s.user); });
+})();
+
+$('#gateBtn').addEventListener('click', async () => {
+  const email = $('#gateEmail').value.trim(), password = $('#gatePassword').value;
+  if (!email || !password) { $('#gateMsg').textContent = 'E-mail et mot de passe requis.'; return; }
+  if (!specSb) { $('#gateMsg').textContent = 'Service indisponible.'; return; }
+  $('#gateBtn').disabled = true;
+  const { error } = await specSb.auth.signInWithPassword({ email, password });
+  $('#gateBtn').disabled = false;
+  if (error) $('#gateMsg').textContent = 'Connexion impossible : ' + (error.message || 'erreur');
+});
+$('#gatePassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#gateBtn').click(); });
+
+async function gateCheckCoach(user) {
+  if (gateDone || gateBusy) return;
+  gateBusy = true;
+  const { data: prof } = await specSb.from('profiles').select('role').eq('id', user.id).single();
+  gateBusy = false;
+  if (!prof || prof.role !== 'coach') {
+    $('#gateMsg').textContent = 'Le compte ' + (user.email || '') + ' n’est pas coach. Connectez-vous avec le compte coach.';
+    return;
+  }
+  gateDone = true;
+  $('#authGate').style.display = 'none';
+  $('#modeSelect').style.display = '';
+}
 
 function chooseCreator() { $('#modeSelect').style.display = 'none'; }
 $('#modeCreator').addEventListener('click', chooseCreator);
@@ -3221,36 +3266,6 @@ function enterSpectator() {
   const acts = document.querySelector('header .actions'); if (acts) acts.style.display = 'none';
   $('#clock').style.display = 'none';
   $('#grp').style.display = 'none';
-  if (typeof supabase === 'undefined') {
-    $('#spectator').innerHTML = '<p style="padding:1rem;color:var(--muted)">Service en ligne inaccessible (hors connexion ?).</p>';
-    return;
-  }
-  specSb = supabase.createClient(SPEC_URL, SPEC_KEY);
-  specSb.auth.getSession().then(({ data }) => {
-    if (data.session) specCheckCoach(data.session.user);
-    else $('#specLogin').style.display = '';
-  });
-  specSb.auth.onAuthStateChange((_e, s) => { if (s) specCheckCoach(s.user); });
-}
-
-$('#specLoginBtn').addEventListener('click', async () => {
-  const email = $('#specEmail').value.trim(), password = $('#specPassword').value;
-  if (!email || !password) { $('#specMsg').textContent = 'E-mail et mot de passe requis.'; return; }
-  $('#specLoginBtn').disabled = true;
-  const { error } = await specSb.auth.signInWithPassword({ email, password });
-  $('#specLoginBtn').disabled = false;
-  if (error) $('#specMsg').textContent = 'Connexion impossible : ' + (error.message || 'erreur');
-});
-$('#specPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#specLoginBtn').click(); });
-
-async function specCheckCoach(user) {
-  const { data: prof } = await specSb.from('profiles').select('role').eq('id', user.id).single();
-  if (!prof || prof.role !== 'coach') {
-    $('#specLogin').style.display = '';
-    $('#specMsg').textContent = 'Ce compte n’a pas le rôle « coach ».';
-    return;
-  }
-  $('#specLogin').style.display = 'none';
   $('#specLive').style.display = '';
   specSubscribe();
 }
