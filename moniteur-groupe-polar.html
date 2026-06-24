@@ -370,6 +370,7 @@
   .authbox input{width:100%;margin-bottom:.7rem;font:inherit;color:var(--ink);background:#fff;
     border:1px solid var(--line);border-radius:8px;padding:.65rem;min-height:46px}
   .authbox button{width:100%}
+  .authbox #gateBack{margin-top:.5rem;background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.3)}
   .authbox #gateMsg{color:#F3D9CF;font-size:.85rem;margin-top:.7rem;min-height:1em}
   .modecards{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
   .modecard{background:var(--linen);color:var(--ink);border:1px solid var(--line);border-radius:14px;
@@ -397,20 +398,22 @@
 </head>
 <body>
 
-<div id="authGate">
+<div id="authGate" style="display:none">
   <div>
     <h2>Espace coach</h2>
-    <p>Connectez-vous avec votre compte coach pour accéder au moniteur.</p>
+    <p>Connectez-vous avec votre compte coach pour accéder à ce mode.</p>
   </div>
   <div class="authbox">
     <input type="email" id="gateEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
     <input type="password" id="gatePassword" placeholder="Mot de passe" autocomplete="current-password">
     <button class="btn-rec" id="gateBtn">Se connecter</button>
+    <button class="btn-soft" id="gateBack">← Retour au menu</button>
+    <p style="margin-top:.7rem"><a href="#" id="gateForgot" style="color:#E9CFC4;font-size:.85rem">Mot de passe oublié ?</a></p>
     <p id="gateMsg"></p>
   </div>
 </div>
 
-<div id="modeSelect" style="display:none">
+<div id="modeSelect">
   <div>
     <h2>Moniteur de groupe</h2>
     <p>Choisissez votre mode pour cette session.</p>
@@ -3210,25 +3213,58 @@ const SPEC_URL = 'https://mxdsvbrxeospfohgvzbz.supabase.co';
 const SPEC_KEY = 'sb_publishable_MIO9ShdnMK1-mQm0T1J5YA_UPkAJ80_';
 let specSb = null, specChannel = null, specPruneTimer = null;
 const specCards = new Map();   // user_id -> { el, lastAt }
-let gateBusy = false, gateDone = false;
+let gateBusy = false, coachReady = false, pendingMode = null;
 
-/* --- Portail : l'app entière (créateur ET spectateur) exige le compte coach --- */
-(function initCoachGate() {
-  if (typeof supabase === 'undefined') {
-    $('#authGate').innerHTML = '<div><h2>Hors connexion</h2>' +
-      '<p style="max-width:440px;color:#C9D4CC;line-height:1.55">Connexion au service impossible. ' +
-      'Le moniteur nécessite une connexion internet pour vérifier votre compte coach.</p></div>';
+/* --- On choisit le mode d'abord, puis on se connecte (compte coach exigé) ;
+       retour au menu possible. Si déjà connecté coach, la connexion est sautée. --- */
+(function initCoachAuth() {
+  if (typeof supabase === 'undefined') return;
+  specSb = supabase.createClient(SPEC_URL, SPEC_KEY);
+  specSb.auth.getSession().then(({ data }) => { if (data.session) onAuthCoach(data.session.user); });
+  specSb.auth.onAuthStateChange((_e, s) => { if (s && s.user) onAuthCoach(s.user); });
+})();
+
+async function onAuthCoach(user) {
+  if (gateBusy) return;
+  gateBusy = true;
+  const { data: prof } = await specSb.from('profiles').select('role').eq('id', user.id).single();
+  gateBusy = false;
+  if (!prof || prof.role !== 'coach') {
+    coachReady = false;
+    if ($('#authGate').style.display !== 'none')
+      $('#gateMsg').textContent = 'Le compte ' + (user.email || '') + ' n’est pas coach. Connectez-vous avec le compte coach.';
     return;
   }
-  specSb = supabase.createClient(SPEC_URL, SPEC_KEY);
-  specSb.auth.getSession().then(({ data }) => { if (data.session) gateCheckCoach(data.session.user); });
-  specSb.auth.onAuthStateChange((_e, s) => { if (s) gateCheckCoach(s.user); });
-})();
+  coachReady = true;
+  if (pendingMode) { const m = pendingMode; pendingMode = null; routeMode(m); }
+}
+
+function pickMode(mode) {
+  if (coachReady) { routeMode(mode); return; }
+  pendingMode = mode;
+  $('#modeSelect').style.display = 'none';
+  $('#authGate').style.display = '';
+  if (typeof supabase === 'undefined')
+    $('#gateMsg').textContent = 'Connexion au service impossible (hors ligne ?).';
+  $('#gateEmail').focus();
+}
+$('#modeCreator').addEventListener('click', () => pickMode('creator'));
+$('#modeSpectator').addEventListener('click', () => pickMode('spectator'));
+[$('#modeCreator'), $('#modeSpectator')].forEach(c => c.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); }
+}));
+
+$('#gateBack').addEventListener('click', () => {
+  pendingMode = null;
+  $('#authGate').style.display = 'none';
+  $('#modeSelect').style.display = '';
+  $('#gateMsg').textContent = '';
+});
 
 $('#gateBtn').addEventListener('click', async () => {
   const email = $('#gateEmail').value.trim(), password = $('#gatePassword').value;
   if (!email || !password) { $('#gateMsg').textContent = 'E-mail et mot de passe requis.'; return; }
-  if (!specSb) { $('#gateMsg').textContent = 'Service indisponible.'; return; }
+  if (!specSb) { $('#gateMsg').textContent = 'Service indisponible (hors ligne ?).'; return; }
   $('#gateBtn').disabled = true;
   const { error } = await specSb.auth.signInWithPassword({ email, password });
   $('#gateBtn').disabled = false;
@@ -3236,26 +3272,26 @@ $('#gateBtn').addEventListener('click', async () => {
 });
 $('#gatePassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#gateBtn').click(); });
 
-async function gateCheckCoach(user) {
-  if (gateDone || gateBusy) return;
-  gateBusy = true;
-  const { data: prof } = await specSb.from('profiles').select('role').eq('id', user.id).single();
-  gateBusy = false;
-  if (!prof || prof.role !== 'coach') {
-    $('#gateMsg').textContent = 'Le compte ' + (user.email || '') + ' n’est pas coach. Connectez-vous avec le compte coach.';
-    return;
-  }
-  gateDone = true;
+$('#gateForgot').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const email = $('#gateEmail').value.trim();
+  if (!email || !email.includes('@')) { $('#gateMsg').textContent = 'Entrez d’abord votre e-mail dans le champ ci-dessus.'; return; }
+  if (!specSb) { $('#gateMsg').textContent = 'Service indisponible (hors ligne ?).'; return; }
+  const redirect = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '') + 'espace-adherent.html';
+  const { error } = await specSb.auth.resetPasswordForEmail(email, { redirectTo: redirect });
+  $('#gateMsg').textContent = error
+    ? 'Erreur : ' + (error.message || 'envoi impossible')
+    : 'E-mail de réinitialisation envoyé ! Cliquez le lien reçu pour choisir un nouveau mot de passe, puis revenez vous connecter ici.';
+});
+
+function routeMode(mode) {
   $('#authGate').style.display = 'none';
-  $('#modeSelect').style.display = '';
+  $('#modeSelect').style.display = 'none';
+  $('#gateMsg').textContent = '';
+  if (mode === 'spectator') enterSpectator();
+  // créateur : l'app locale est déjà en place sous les overlays
 }
 
-function chooseCreator() { $('#modeSelect').style.display = 'none'; }
-$('#modeCreator').addEventListener('click', chooseCreator);
-$('#modeSpectator').addEventListener('click', enterSpectator);
-[$('#modeCreator'), $('#modeSpectator')].forEach(c => c.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); }
-}));
 $('#specBack').addEventListener('click', () => location.reload());
 
 function enterSpectator() {
