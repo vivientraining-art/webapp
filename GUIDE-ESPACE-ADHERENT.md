@@ -49,14 +49,19 @@ par tes vraies valeurs.
 
 > 👉 Donne-moi simplement ces deux valeurs et je les insère pour toi.
 
-## Étape 5 — Régler la connexion par e-mail
+## Étape 5 — Régler la connexion (e-mail + mot de passe)
 
 1. Supabase → **Authentication** → **Providers** → vérifie que **Email** est activé.
-2. **Authentication** → **URL Configuration** → ajoute l'URL où le fichier sera publié
-   dans **Site URL** et **Redirect URLs** (ex. `https://vivientraining-art.github.io/...`).
-   Pour tester en local, ajoute aussi `http://localhost`.
-3. (Recommandé) **Authentication → Providers → Email** : laisse « Confirm email » activé.
-   Les adhérents recevront un **lien magique** — pas de mot de passe à gérer.
+2. **Authentication** → **URL Configuration** → renseigne l'URL où le fichier est publié
+   dans **Site URL** et **Redirect URLs**
+   (ex. `https://vivientraining-art.github.io/webapp/espace-adherent.html`).
+3. **Confirmation d'e-mail** — deux choix :
+   - **Confirm email DÉSACTIVÉ** (le plus simple) : l'adhérent crée son compte avec
+     e-mail + mot de passe et est connecté **immédiatement**, sans aucun e-mail.
+     → **Authentication → Providers → Email → décocher « Confirm email » → Save**.
+   - **Confirm email ACTIVÉ** (plus sûr) : après création du compte, l'adhérent doit
+     cliquer un lien de confirmation reçu par mail **une seule fois**, puis il se
+     connecte ensuite avec son mot de passe.
 
 ## Étape 6 — Te désigner comme coach
 

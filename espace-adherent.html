@@ -83,10 +83,16 @@
 <div id="loginView" class="login" hidden>
   <div class="card">
     <h2>Espace adhérent</h2>
-    <p>Entrez votre adresse e-mail : vous recevrez un lien de connexion sécurisé, sans mot de passe.</p>
+    <p id="loginIntro">Connectez-vous avec votre e-mail et votre mot de passe.</p>
+    <input type="text" id="loginPrenom" placeholder="Votre prénom" autocomplete="given-name" hidden>
     <input type="email" id="loginEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
-    <button class="btn-primary" id="loginBtn">Recevoir mon lien</button>
-    <p id="loginMsg" class="note" style="margin-top:.9rem"></p>
+    <input type="password" id="loginPassword" placeholder="Mot de passe (6 caractères min.)" autocomplete="current-password">
+    <button class="btn-primary" id="loginBtn">Se connecter</button>
+    <p class="note" style="margin-top:.9rem">
+      <span id="switchPrompt">Pas encore de compte ?</span>
+      <a href="#" id="switchMode" style="color:var(--terra);font-weight:600">Créer un compte</a>
+    </p>
+    <p id="loginMsg" class="note" style="margin-top:.4rem"></p>
   </div>
 </div>
 
@@ -327,20 +333,60 @@ function showLogin() {
   $('#appView').hidden = true;
 }
 
+let authMode = 'signin'; // 'signin' | 'signup'
+$('#switchMode').addEventListener('click', (e) => {
+  e.preventDefault();
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  const signup = authMode === 'signup';
+  $('#loginPrenom').hidden = !signup;
+  $('#loginBtn').textContent = signup ? 'Créer mon compte' : 'Se connecter';
+  $('#loginIntro').textContent = signup
+    ? 'Créez votre compte avec votre e-mail et un mot de passe.'
+    : 'Connectez-vous avec votre e-mail et votre mot de passe.';
+  $('#switchPrompt').textContent = signup ? 'Déjà un compte ?' : 'Pas encore de compte ?';
+  $('#switchMode').textContent = signup ? 'Se connecter' : 'Créer un compte';
+  $('#loginPassword').setAttribute('autocomplete', signup ? 'new-password' : 'current-password');
+  $('#loginMsg').textContent = '';
+});
+
+function traduireErreur(msg) {
+  if (/Invalid login credentials/i.test(msg)) return 'E-mail ou mot de passe incorrect.';
+  if (/already registered|already exists|User already/i.test(msg)) return 'Un compte existe déjà avec cet e-mail — connectez-vous plutôt.';
+  if (/Password should be/i.test(msg)) return 'Mot de passe trop court (6 caractères minimum).';
+  if (/Email not confirmed/i.test(msg)) return 'E-mail pas encore confirmé — vérifiez votre boîte mail.';
+  return msg;
+}
+
 $('#loginBtn').addEventListener('click', async () => {
   const email = $('#loginEmail').value.trim();
+  const password = $('#loginPassword').value;
   if (!email || !email.includes('@')) { toast('Entrez une adresse e-mail valide.'); return; }
+  if (password.length < 6) { toast('Mot de passe : 6 caractères minimum.'); return; }
   if (!sb) { toast('Configuration Supabase manquante.'); return; }
   $('#loginBtn').disabled = true;
-  const { error } = await sb.auth.signInWithOtp({
-    email, options: { emailRedirectTo: location.href.split('#')[0] }
-  });
-  $('#loginBtn').disabled = false;
-  $('#loginMsg').textContent = error
-    ? 'Erreur : ' + error.message
-    : 'Lien envoyé ! Vérifiez votre boîte mail (et les spams) puis cliquez sur le lien.';
+  $('#loginMsg').textContent = '';
+  try {
+    if (authMode === 'signup') {
+      const prenom = $('#loginPrenom').value.trim();
+      const { data, error } = await sb.auth.signUp({
+        email, password,
+        options: { data: { prenom }, emailRedirectTo: location.href.split('#')[0] }
+      });
+      if (error) { $('#loginMsg').textContent = 'Erreur : ' + traduireErreur(error.message); return; }
+      if (!data.session) {
+        $('#loginMsg').textContent = 'Compte créé ! Confirmez votre e-mail (lien reçu par mail), puis connectez-vous.';
+      } // si une session est renvoyée, onAuthStateChange connecte automatiquement
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) { $('#loginMsg').textContent = 'Erreur : ' + traduireErreur(error.message); return; }
+    }
+  } finally {
+    $('#loginBtn').disabled = false;
+  }
 });
-$('#loginEmail').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#loginBtn').click(); });
+
+[$('#loginEmail'), $('#loginPassword')].forEach(el =>
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#loginBtn').click(); }));
 
 $('#logoutBtn').addEventListener('click', async () => { if (sb) await sb.auth.signOut(); });
 
