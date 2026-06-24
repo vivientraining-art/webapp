@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Espace adhérent · Vivien Strudel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2D; --pine:#2F5240; --sand:#F2EDE2; --linen:#FBF8F1;
+    --ink:#22302A; --muted:#6E7B73; --terra:#C26B4A; --line:#DDD4C3;
+    --z0:#9AA69E; --z1:#94A7B5; --z2:#5C8FA6; --z3:#5F9560; --z4:#D78F3C; --z5:#C14F38;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Source Sans 3',system-ui,sans-serif;background:var(--sand);color:var(--ink);-webkit-font-smoothing:antialiased}
+  header{position:sticky;top:0;z-index:10;background:var(--forest);color:#F4F0E6;display:flex;align-items:center;flex-wrap:wrap;gap:.6rem 1.2rem;padding:.65rem 1rem}
+  .brand{display:flex;align-items:center;gap:.6rem;min-width:0}
+  .brand h1{font-family:'Libre Baskerville',Georgia,serif;font-size:1.05rem;font-weight:700;line-height:1.1;white-space:nowrap}
+  .brand small{display:block;font-weight:400;font-size:.72rem;color:#C9D4CC;letter-spacing:.04em}
+  .spacer{flex:1}
+  .who{font-size:.85rem;color:#C9D4CC;text-align:right;line-height:1.25}
+  .who b{color:#fff}
+  button{font:inherit;font-weight:600;border:none;border-radius:8px;padding:.6rem .95rem;cursor:pointer;min-height:44px;transition:filter .12s ease,opacity .12s ease}
+  button:active{filter:brightness(.92)}
+  button:disabled{opacity:.45;cursor:default}
+  .btn-ghost{background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.25)}
+  .btn-rec{background:var(--terra);color:#fff}
+  .btn-stop{background:#fff;color:var(--terra)}
+  .btn-soft{background:var(--linen);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:.6rem .95rem;border-radius:8px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--terra);color:#fff}
+  .wrap{max-width:760px;margin:0 auto;padding:1.1rem 1rem 4rem}
+  h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.25rem;margin-bottom:.9rem}
+  h3{font-size:1rem;margin-bottom:.7rem}
+  .panel{background:var(--linen);border:1px solid var(--line);border-radius:12px;padding:1rem;margin-bottom:1.1rem;box-shadow:0 1px 2px rgba(34,48,42,.06)}
+  .formrow{display:flex;flex-wrap:wrap;gap:.7rem;align-items:flex-end}
+  .field{display:flex;flex-direction:column;gap:.25rem;font-size:.82rem;color:var(--muted);font-weight:600}
+  input,select{font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:8px;padding:.55rem .6rem;min-height:44px;min-width:120px}
+  input[type=number]{max-width:140px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:#fff;color:var(--muted);border:none;border-radius:0;min-height:44px;padding:.5rem .9rem;font-weight:600}
+  .seg button.sel{background:var(--pine);color:#fff}
+  .note{font-size:.8rem;color:var(--muted);line-height:1.5;margin-top:.6rem}
+  .tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.1rem}
+  .tab{background:var(--linen);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:.55rem 1rem;min-height:44px}
+  .tab.on{background:var(--forest);color:#F4F0E6;border-color:var(--forest)}
+  .hist{margin-top:.7rem;font-size:.9rem}
+  .hist .item{display:flex;justify-content:space-between;gap:.6rem;padding:.5rem 0;border-top:1px solid var(--line)}
+  .hist .item:first-child{border-top:none}
+  .hist b{font-variant-numeric:tabular-nums}
+  .muted{color:var(--muted)}
+  /* Login */
+  .login{max-width:420px;margin:8vh auto 0;padding:0 1rem}
+  .login .card{background:var(--linen);border:1px solid var(--line);border-radius:14px;padding:1.6rem;text-align:center;box-shadow:0 4px 16px rgba(34,48,42,.08)}
+  .login h2{margin-bottom:.4rem}
+  .login p{color:var(--muted);font-size:.9rem;line-height:1.5;margin-bottom:1.1rem}
+  .login input{width:100%;max-width:none;margin-bottom:.8rem}
+  .login button{width:100%}
+  /* Live HR */
+  .hrbig{font-variant-numeric:tabular-nums;font-size:3.4rem;font-weight:700;line-height:1}
+  .hrunit{font-size:1rem;color:var(--muted);font-weight:600}
+  .zbadge{display:inline-block;color:#fff;font-weight:700;border-radius:999px;padding:.2rem .8rem;font-size:.9rem;background:var(--z0)}
+  .livebox{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+  .chrono{font-variant-numeric:tabular-nums;font-weight:700;font-size:1.4rem}
+  .zonebars{display:flex;gap:3px;margin-top:.8rem;height:14px;border-radius:7px;overflow:hidden}
+  .zonebars span{display:block}
+  #banner{background:#F6E3D3;color:#7A4426;border-bottom:1px solid #E3C4AA;padding:.7rem 1rem;font-size:.9rem;line-height:1.4}
+  #toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);background:var(--forest);color:#F4F0E6;padding:.7rem 1.1rem;border-radius:10px;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:50;max-width:90vw;text-align:center}
+  #toast.show{opacity:1}
+  .coachrow{display:flex;justify-content:space-between;gap:.6rem;padding:.7rem 0;border-top:1px solid var(--line);flex-wrap:wrap}
+  .coachrow:first-child{border-top:none}
+  .config-warn{background:#FBE3E0;border:1px solid #E0A89F;color:#8A3024;border-radius:12px;padding:1rem;margin:1rem;font-size:.9rem;line-height:1.5}
+  code{background:#0001;padding:.1rem .3rem;border-radius:4px;font-size:.85em}
+</style>
+</head>
+<body>
+
+<div id="banner" hidden></div>
+
+<!-- ===================== Écran de connexion ===================== -->
+<div id="loginView" class="login" hidden>
+  <div class="card">
+    <h2>Espace adhérent</h2>
+    <p>Entrez votre adresse e-mail : vous recevrez un lien de connexion sécurisé, sans mot de passe.</p>
+    <input type="email" id="loginEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
+    <button class="btn-primary" id="loginBtn">Recevoir mon lien</button>
+    <p id="loginMsg" class="note" style="margin-top:.9rem"></p>
+  </div>
+</div>
+
+<!-- ===================== Application ===================== -->
+<div id="appView" hidden>
+  <header>
+    <div class="brand">
+      <div>
+        <h1>Espace adhérent</h1>
+        <small>Vivien Strudel · suivi personnel</small>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="who" id="whoBox"></div>
+    <button class="btn-ghost" id="logoutBtn">Déconnexion</button>
+  </header>
+
+  <main class="wrap">
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-tab="saisie">Mes mesures</button>
+      <button class="tab" data-tab="polar">Capteur Polar</button>
+      <button class="tab" data-tab="histo">Historique</button>
+      <button class="tab" data-tab="profil">Mon profil</button>
+      <button class="tab" data-tab="coach" id="tabCoach" hidden>Vue coach</button>
+    </div>
+
+    <!-- ---- Saisie manuelle ---- -->
+    <section data-panel="saisie">
+      <h2>Saisie de mes mesures</h2>
+
+      <div class="panel">
+        <h3>Force — charge × répétitions</h3>
+        <div class="formrow">
+          <div class="field">Exercice
+            <select id="fExo">
+              <option>Squat</option>
+              <option>Développé couché</option>
+              <option>Soulevé de terre roumain</option>
+              <option>Tirage horizontal</option>
+            </select></div>
+          <div class="field">Charge (kg)
+            <input type="number" id="fKg" min="1" max="500" step="0.5" inputmode="decimal"></div>
+          <div class="field">Répétitions
+            <input type="number" id="fReps" min="1" max="20" step="1" inputmode="numeric"></div>
+          <button class="btn-soft" id="fSave">Enregistrer</button>
+        </div>
+        <p class="note">1RM estimée par la formule d'Epley : charge × (1 + reps/30).</p>
+      </div>
+
+      <div class="panel">
+        <h3>Force de préhension — dynamomètre</h3>
+        <div class="formrow">
+          <div class="field">Main
+            <div class="seg" id="gHand">
+              <button type="button" data-h="G" class="sel">Gauche</button>
+              <button type="button" data-h="D">Droite</button>
+            </div></div>
+          <div class="field">Mesure (kg)
+            <input type="number" id="gKg" min="1" max="120" step="0.1" inputmode="decimal"></div>
+          <button class="btn-soft" id="gSave">Enregistrer</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>VO2max — test du step (Queens College)</h3>
+        <div class="formrow">
+          <div class="field">Sexe
+            <div class="seg" id="vSex">
+              <button type="button" data-s="H" class="sel">Homme</button>
+              <button type="button" data-s="F">Femme</button>
+            </div></div>
+          <div class="field">FC de récupération (bpm)
+            <input type="number" id="vHR" min="60" max="220" step="1" inputmode="numeric"></div>
+          <button class="btn-soft" id="vSave">Enregistrer</button>
+        </div>
+        <p class="note">Step de 41 cm, 3 min à 24 pas/min (hommes) / 22 (femmes), FC de récupération relevée
+          entre 5 et 20 s. VO2max estimée (Queens College, McArdle) — suivi intra-individuel, marge ~±10–15 %.</p>
+      </div>
+    </section>
+
+    <!-- ---- Capteur Polar ---- -->
+    <section data-panel="polar" hidden>
+      <h2>Capteur Polar H10</h2>
+      <div class="panel">
+        <div class="livebox">
+          <div>
+            <span class="hrbig" id="hrBig">–</span> <span class="hrunit">bpm</span>
+          </div>
+          <div>
+            <span class="zbadge" id="zBadge">—</span>
+            <div class="muted" id="zPct" style="font-size:.82rem;margin-top:.3rem">&nbsp;</div>
+          </div>
+          <div class="spacer"></div>
+          <div style="text-align:right">
+            <div class="chrono" id="hrChrono">00:00</div>
+            <div class="muted" style="font-size:.8rem">RMSSD <b id="hrRmssd">—</b> ms</div>
+          </div>
+        </div>
+        <div class="zonebars" id="zoneBars" hidden></div>
+        <div class="formrow" style="margin-top:1rem">
+          <button class="btn-soft" id="btnConnect">Connecter mon capteur</button>
+          <button class="btn-rec" id="btnStart" disabled>Démarrer une séance</button>
+          <button class="btn-stop" id="btnStop" hidden>Arrêter &amp; enregistrer</button>
+        </div>
+        <p class="note">Votre fréquence cardiaque reste sur votre téléphone pendant la séance ; seul le résumé
+          (FC moy/min/pic, RMSSD, temps par zone) est enregistré dans votre compte à l'arrêt.</p>
+      </div>
+    </section>
+
+    <!-- ---- Historique ---- -->
+    <section data-panel="histo" hidden>
+      <h2>Mon historique</h2>
+      <div class="panel">
+        <h3>Séances Polar</h3>
+        <div class="hist" id="histHr"><p class="muted">Chargement…</p></div>
+      </div>
+      <div class="panel">
+        <h3>Mesures</h3>
+        <div class="hist" id="histMeas"><p class="muted">Chargement…</p></div>
+      </div>
+    </section>
+
+    <!-- ---- Profil ---- -->
+    <section data-panel="profil" hidden>
+      <h2>Mon profil</h2>
+      <div class="panel">
+        <div class="formrow">
+          <div class="field">Prénom
+            <input type="text" id="pPrenom" maxlength="24"></div>
+          <div class="field">FC max (bpm)
+            <input type="number" id="pFcMax" min="120" max="230" step="1" inputmode="numeric"></div>
+          <div class="field">Sexe
+            <div class="seg" id="pSexe">
+              <button type="button" data-s="H" class="sel">Homme</button>
+              <button type="button" data-s="F">Femme</button>
+            </div></div>
+          <button class="btn-soft" id="pSave">Enregistrer</button>
+        </div>
+        <p class="note">La FC max sert à calculer vos zones d'effort pendant les séances Polar.</p>
+      </div>
+    </section>
+
+    <!-- ---- Vue coach ---- -->
+    <section data-panel="coach" hidden>
+      <h2>Vue coach — tous les adhérents</h2>
+      <div class="panel">
+        <div id="coachList"><p class="muted">Chargement…</p></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+'use strict';
+
+/* =====================================================================
+   ⚙️  CONFIGURATION — À REMPLIR
+   Récupérez ces deux valeurs dans Supabase :
+     Dashboard → Project Settings → API
+       • Project URL        → SUPABASE_URL
+       • Project API keys → anon public → SUPABASE_ANON_KEY
+   La clé "anon" est PUBLIQUE : elle peut figurer dans ce fichier sans risque,
+   car la sécurité repose sur le Row Level Security activé par le schéma SQL.
+   ===================================================================== */
+const SUPABASE_URL      = 'https://mxdsvbrxeospfohgvzbz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_MIO9ShdnMK1-mQm0T1J5YA_UPkAJ80_';
+/* ===================================================================== */
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+let toastT;
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+/* ---- Garde-fou : config non remplie ---- */
+const CONFIGURED = !SUPABASE_URL.includes('VOTRE-PROJET') && !SUPABASE_ANON_KEY.includes('VOTRE_CLE');
+if (!CONFIGURED) {
+  document.body.insertAdjacentHTML('afterbegin',
+    '<div class="config-warn"><strong>Configuration requise.</strong> Ouvrez <code>espace-adherent.html</code> ' +
+    'et renseignez <code>SUPABASE_URL</code> et <code>SUPABASE_ANON_KEY</code> en haut du script ' +
+    '(voir le guide <code>GUIDE-ESPACE-ADHERENT.md</code>).</div>');
+}
+
+const sb = CONFIGURED ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/* =====================================================================
+   Zones de FC (identiques à l'app coach)
+   ===================================================================== */
+const ZONES = [
+  { min:  0, label: 'Repos', hex: '#9AA69E' },
+  { min: 50, label: 'Z1',    hex: '#94A7B5' },
+  { min: 60, label: 'Z2',    hex: '#5C8FA6' },
+  { min: 70, label: 'Z3',    hex: '#5F9560' },
+  { min: 80, label: 'Z4',    hex: '#D78F3C' },
+  { min: 90, label: 'Z5',    hex: '#C14F38' },
+];
+function zoneIndex(hr, hrMax) {
+  const pct = (hr / hrMax) * 100;
+  for (let i = ZONES.length - 1; i >= 0; i--) if (pct >= ZONES[i].min) return i;
+  return 0;
+}
+function e1rmEpley(kg, reps) { return Math.round(kg * (1 + reps / 30)); }
+function vo2QueensCollege(sexe, hr) {
+  return sexe === 'F' ? 65.81 - 0.1847 * hr : 111.33 - 0.42 * hr;
+}
+const frDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+const mmss = (s) => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+
+/* =====================================================================
+   État utilisateur
+   ===================================================================== */
+let me = null;        // { id, email }
+let profile = null;   // ligne profiles
+
+/* =====================================================================
+   Authentification (lien magique)
+   ===================================================================== */
+async function initAuth() {
+  if (!sb) { showLogin(); return; }
+  const { data } = await sb.auth.getSession();
+  if (data.session) { await onSignedIn(data.session.user); }
+  else { showLogin(); }
+  sb.auth.onAuthStateChange((_e, session) => {
+    if (session && (!me || me.id !== session.user.id)) onSignedIn(session.user);
+    if (!session && me) location.reload();
+  });
+}
+
+function showLogin() {
+  $('#loginView').hidden = false;
+  $('#appView').hidden = true;
+}
+
+$('#loginBtn').addEventListener('click', async () => {
+  const email = $('#loginEmail').value.trim();
+  if (!email || !email.includes('@')) { toast('Entrez une adresse e-mail valide.'); return; }
+  if (!sb) { toast('Configuration Supabase manquante.'); return; }
+  $('#loginBtn').disabled = true;
+  const { error } = await sb.auth.signInWithOtp({
+    email, options: { emailRedirectTo: location.href.split('#')[0] }
+  });
+  $('#loginBtn').disabled = false;
+  $('#loginMsg').textContent = error
+    ? 'Erreur : ' + error.message
+    : 'Lien envoyé ! Vérifiez votre boîte mail (et les spams) puis cliquez sur le lien.';
+});
+$('#loginEmail').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#loginBtn').click(); });
+
+$('#logoutBtn').addEventListener('click', async () => { if (sb) await sb.auth.signOut(); });
+
+async function onSignedIn(user) {
+  me = { id: user.id, email: user.email };
+  $('#loginView').hidden = true;
+  $('#appView').hidden = false;
+  await loadProfile();
+  $('#whoBox').innerHTML = '<b>' + (profile.prenom || me.email) + '</b><br>' + me.email;
+  // pré-remplir le sexe du test VO2max et du profil
+  setSeg('#vSex', profile.sexe);
+  setSeg('#pSexe', profile.sexe);
+  $('#pPrenom').value = profile.prenom || '';
+  $('#pFcMax').value = profile.fc_max || 190;
+  if (profile.role === 'coach') $('#tabCoach').hidden = false;
+  loadHistory();
+}
+
+async function loadProfile() {
+  const { data, error } = await sb.from('profiles').select('*').eq('id', me.id).single();
+  if (error || !data) {
+    // au cas où le trigger n'a pas encore créé le profil
+    await sb.from('profiles').upsert({ id: me.id, email: me.email }).select();
+    const r = await sb.from('profiles').select('*').eq('id', me.id).single();
+    profile = r.data || { id: me.id, email: me.email, prenom: '', fc_max: 190, sexe: 'H', role: 'member' };
+  } else {
+    profile = data;
+  }
+}
+
+/* =====================================================================
+   Onglets
+   ===================================================================== */
+$('#tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('.tab'); if (!b) return;
+  $$('.tab').forEach(t => t.classList.toggle('on', t === b));
+  const tab = b.dataset.tab;
+  $$('section[data-panel]').forEach(s => s.hidden = s.dataset.panel !== tab);
+  if (tab === 'histo') loadHistory();
+  if (tab === 'coach') loadCoach();
+});
+
+/* =====================================================================
+   Boutons segmentés (Main / Sexe)
+   ===================================================================== */
+function setSeg(sel, val) {
+  $$(sel + ' button').forEach(b => b.classList.toggle('sel', (b.dataset.h || b.dataset.s) === val));
+}
+function getSeg(sel) {
+  const b = $(sel + ' button.sel'); return b ? (b.dataset.h || b.dataset.s) : null;
+}
+$$('.seg').forEach(seg => seg.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  $$('button', seg).forEach(x => x.classList.toggle('sel', x === b));
+}));
+
+/* =====================================================================
+   Saisie manuelle → enregistrement
+   ===================================================================== */
+async function saveMeasurement(type, data) {
+  if (!sb) { toast('Configuration Supabase manquante.'); return false; }
+  const { error } = await sb.from('measurements').insert({ user_id: me.id, type, data });
+  if (error) { toast('Erreur : ' + error.message); return false; }
+  toast('Enregistré ✔');
+  return true;
+}
+
+$('#fSave').addEventListener('click', async () => {
+  const exo = $('#fExo').value;
+  const kg = parseFloat($('#fKg').value), reps = parseInt($('#fReps').value, 10);
+  if (!(kg > 0) || !(reps > 0)) { toast('Renseignez charge et répétitions.'); return; }
+  if (await saveMeasurement('force', { exercice: exo, kg, reps, e1rm: e1rmEpley(kg, reps) })) {
+    $('#fKg').value = ''; $('#fReps').value = '';
+  }
+});
+
+$('#gSave').addEventListener('click', async () => {
+  const main = getSeg('#gHand') || 'G';
+  const kg = parseFloat($('#gKg').value);
+  if (!(kg > 0)) { toast('Renseignez la mesure.'); return; }
+  if (await saveMeasurement('grip', { main, kg })) $('#gKg').value = '';
+});
+
+$('#vSave').addEventListener('click', async () => {
+  const sexe = getSeg('#vSex') || 'H';
+  const hr = parseInt($('#vHR').value, 10);
+  if (!(hr >= 60)) { toast('Renseignez la FC de récupération.'); return; }
+  const vo2 = Math.round(vo2QueensCollege(sexe, hr) * 10) / 10;
+  if (await saveMeasurement('vo2max', { sexe, fc_reco: hr, vo2max: vo2 })) {
+    $('#vHR').value = ''; toast('VO2max estimée : ' + vo2 + ' ml/kg/min');
+  }
+});
+
+/* =====================================================================
+   Profil → enregistrement
+   ===================================================================== */
+$('#pSave').addEventListener('click', async () => {
+  const prenom = $('#pPrenom').value.trim();
+  const fc_max = parseInt($('#pFcMax').value, 10) || 190;
+  const sexe = getSeg('#pSexe') || 'H';
+  const { error } = await sb.from('profiles').update({ prenom, fc_max, sexe }).eq('id', me.id);
+  if (error) { toast('Erreur : ' + error.message); return; }
+  profile.prenom = prenom; profile.fc_max = fc_max; profile.sexe = sexe;
+  $('#whoBox').innerHTML = '<b>' + (prenom || me.email) + '</b><br>' + me.email;
+  toast('Profil enregistré ✔');
+});
+
+/* =====================================================================
+   Capteur Polar H10 (Web Bluetooth) — repris de l'app coach
+   ===================================================================== */
+if (!navigator.bluetooth) {
+  const b = $('#banner'); b.hidden = false;
+  b.innerHTML = 'Le Bluetooth web n’est pas disponible dans ce navigateur. ' +
+    'Utilisez <strong>Chrome</strong> ou <strong>Edge</strong> sur Android / ordinateur ' +
+    '(non disponible sur iPhone). La saisie manuelle reste possible.';
+}
+
+const live = {
+  device: null, hrChar: null, hrHandler: null,
+  hr: null, rrRecent: [], rmssd: null,
+  session: null, // { startedAt, sum, n, max, min, zoneSec[], prevZone, lastZoneT, fcMax }
+  tick: null,
+};
+
+function parseHeartRate(dv) {
+  const flags = dv.getUint8(0);
+  let i = 1, hr;
+  if (flags & 0x01) { hr = dv.getUint16(i, true); i += 2; }
+  else              { hr = dv.getUint8(i);        i += 1; }
+  if (flags & 0x08) i += 2;
+  const rrs = [];
+  if (flags & 0x10) {
+    for (; i + 1 < dv.byteLength; i += 2) rrs.push(dv.getUint16(i, true) * 1000 / 1024);
+  }
+  return { hr, rrs };
+}
+function rmssdOf(rrList, minBeats) {
+  if (rrList.length < minBeats) return null;
+  let sum = 0, n = 0;
+  for (let i = 1; i < rrList.length; i++) {
+    const d = rrList[i] - rrList[i - 1];
+    if (Math.abs(d) > 250) continue;
+    sum += d * d; n++;
+  }
+  return n >= minBeats - 1 ? Math.sqrt(sum / n) : null;
+}
+
+$('#btnConnect').addEventListener('click', async () => {
+  if (!navigator.bluetooth) { toast('Bluetooth web indisponible ici.'); return; }
+  let device;
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: ['heart_rate'] }],
+      optionalServices: ['battery_service'],
+    });
+  } catch (e) { return; }
+  live.device = device;
+  device.addEventListener('gattserverdisconnected', () => { toast('Capteur déconnecté.'); });
+  try {
+    await connectGatt();
+    toast((device.name || 'Capteur') + ' connecté');
+    $('#btnStart').disabled = false;
+    $('#btnConnect').textContent = 'Reconnecter';
+  } catch (e) { toast('Échec de connexion — réessayez près du capteur.'); }
+});
+
+async function connectGatt() {
+  const server = await live.device.gatt.connect();
+  const svc = await server.getPrimaryService('heart_rate');
+  const ch = await svc.getCharacteristic('heart_rate_measurement');
+  if (live.hrChar && live.hrHandler) {
+    try { live.hrChar.removeEventListener('characteristicvaluechanged', live.hrHandler); } catch (e) {}
+  }
+  live.hrChar = ch;
+  live.hrHandler = (ev) => {
+    const { hr, rrs } = parseHeartRate(ev.target.value);
+    feedData(hr, rrs);
+  };
+  ch.addEventListener('characteristicvaluechanged', live.hrHandler);
+  await ch.startNotifications();
+}
+
+function feedData(hr, rrs) {
+  const t = Date.now();
+  live.hr = hr;
+  for (const rr of rrs) if (rr >= 300 && rr <= 2000) live.rrRecent.push({ t, rr });
+  while (live.rrRecent.length && t - live.rrRecent[0].t > 45000) live.rrRecent.shift();
+  live.rmssd = rmssdOf(live.rrRecent.map(o => o.rr), 8);
+
+  const s = live.session;
+  if (s) {
+    s.sum += hr; s.n++;
+    if (hr > s.max) s.max = hr;
+    if (hr < s.min) s.min = hr;
+    const z = zoneIndex(hr, s.fcMax);
+    if (s.lastZoneT !== null) {
+      const dt = Math.min((t - s.lastZoneT) / 1000, 5);
+      s.zoneSec[s.prevZone !== null ? s.prevZone : z] += dt;
+    }
+    s.prevZone = z; s.lastZoneT = t;
+  }
+  renderLive();
+}
+
+function renderLive() {
+  const fcMax = live.session ? live.session.fcMax : (profile ? profile.fc_max : 190);
+  $('#hrBig').textContent = live.hr === null ? '–' : live.hr;
+  const z = live.hr === null ? 0 : zoneIndex(live.hr, fcMax);
+  $('#zBadge').textContent = z === 0 ? '—' : ZONES[z].label;
+  $('#zBadge').style.background = ZONES[z].hex;
+  $('#zPct').innerHTML = live.hr === null ? '&nbsp;' : Math.round((live.hr / fcMax) * 100) + ' % FCmax';
+  $('#hrRmssd').textContent = live.rmssd === null ? '—' : live.rmssd.toFixed(0);
+  if (live.session) renderZoneBars();
+}
+
+function renderZoneBars() {
+  const s = live.session; const total = s.zoneSec.reduce((a, b) => a + b, 0) || 1;
+  const bars = $('#zoneBars'); bars.hidden = false; bars.innerHTML = '';
+  s.zoneSec.forEach((sec, i) => {
+    if (sec <= 0) return;
+    const span = document.createElement('span');
+    span.style.flex = sec; span.style.background = ZONES[i].hex;
+    bars.appendChild(span);
+  });
+}
+
+$('#btnStart').addEventListener('click', () => {
+  live.session = {
+    startedAt: Date.now(), sum: 0, n: 0, max: 0, min: 999,
+    zoneSec: [0, 0, 0, 0, 0, 0], prevZone: null, lastZoneT: null,
+    fcMax: profile ? profile.fc_max : 190,
+  };
+  $('#btnStart').hidden = true;
+  $('#btnStop').hidden = false;
+  $('#btnConnect').disabled = true;
+  live.tick = setInterval(() => {
+    $('#hrChrono').textContent = mmss((Date.now() - live.session.startedAt) / 1000);
+  }, 1000);
+  toast('Séance démarrée — enregistrement en cours');
+});
+
+$('#btnStop').addEventListener('click', async () => {
+  const s = live.session;
+  clearInterval(live.tick);
+  live.session = null;
+  $('#btnStop').hidden = true;
+  $('#btnStart').hidden = false;
+  $('#btnConnect').disabled = false;
+  $('#hrChrono').textContent = '00:00';
+  if (!s || s.n === 0) { toast('Séance arrêtée — aucune donnée enregistrée.'); return; }
+  const zoneObj = {}; s.zoneSec.forEach((v, i) => { if (v > 0) zoneObj[i] = Math.round(v); });
+  const row = {
+    user_id: me.id,
+    started_at: new Date(s.startedAt).toISOString(),
+    stopped_at: new Date().toISOString(),
+    duration_s: Math.round((Date.now() - s.startedAt) / 1000),
+    fc_max: s.fcMax,
+    hr_avg: Math.round(s.sum / s.n),
+    hr_min: s.min === 999 ? null : s.min,
+    hr_peak: s.max || null,
+    rmssd: live.rmssd === null ? null : Math.round(live.rmssd),
+    zone_seconds: zoneObj,
+  };
+  const { error } = await sb.from('hr_sessions').insert(row);
+  if (error) { toast('Erreur d’enregistrement : ' + error.message); return; }
+  toast('Séance enregistrée ✔  FC moy ' + row.hr_avg + ' bpm');
+  $('#zoneBars').hidden = true;
+});
+
+/* =====================================================================
+   Historique
+   ===================================================================== */
+async function loadHistory() {
+  if (!sb || !me) return;
+  const [hr, meas] = await Promise.all([
+    sb.from('hr_sessions').select('*').eq('user_id', me.id).order('started_at', { ascending: false }).limit(30),
+    sb.from('measurements').select('*').eq('user_id', me.id).order('recorded_at', { ascending: false }).limit(50),
+  ]);
+  renderHrHist(hr.data || []);
+  renderMeasHist(meas.data || []);
+}
+
+function renderHrHist(rows) {
+  const el = $('#histHr');
+  if (!rows.length) { el.innerHTML = '<p class="muted">Aucune séance enregistrée pour l’instant.</p>'; return; }
+  el.innerHTML = rows.map(r =>
+    '<div class="item"><span>' + frDate(r.started_at) + ' · ' + mmss(r.duration_s) +
+    '</span><span class="muted">FC moy <b>' + (r.hr_avg ?? '—') + '</b> · pic <b>' + (r.hr_peak ?? '—') +
+    '</b> · RMSSD <b>' + (r.rmssd ?? '—') + '</b></span></div>'
+  ).join('');
+}
+
+function renderMeasHist(rows) {
+  const el = $('#histMeas');
+  if (!rows.length) { el.innerHTML = '<p class="muted">Aucune mesure enregistrée pour l’instant.</p>'; return; }
+  el.innerHTML = rows.map(r => {
+    const d = r.data || {};
+    let desc = '';
+    if (r.type === 'force') desc = d.exercice + ' — <b>' + d.kg + ' kg × ' + d.reps + '</b> (1RM ≈ ' + d.e1rm + ' kg)';
+    else if (r.type === 'grip') desc = 'Préhension ' + (d.main === 'D' ? 'droite' : 'gauche') + ' — <b>' + d.kg + ' kg</b>';
+    else if (r.type === 'vo2max') desc = 'VO2max — <b>' + d.vo2max + '</b> ml/kg/min (FC réc. ' + d.fc_reco + ')';
+    else if (r.type === 'cognitif') desc = 'Test ' + d.test + ' — <b>' + (d.ms ?? d.score ?? '—') + '</b>';
+    return '<div class="item"><span>' + desc + '</span><span class="muted">' + frDate(r.recorded_at) + '</span></div>';
+  }).join('');
+}
+
+/* =====================================================================
+   Vue coach
+   ===================================================================== */
+async function loadCoach() {
+  if (!sb || !me || profile.role !== 'coach') return;
+  const el = $('#coachList');
+  const { data: members, error } = await sb.from('profiles').select('*').order('prenom');
+  if (error) { el.innerHTML = '<p class="muted">Erreur : ' + error.message + '</p>'; return; }
+  const [hr, meas] = await Promise.all([
+    sb.from('hr_sessions').select('user_id,started_at,hr_avg,hr_peak,duration_s').order('started_at', { ascending: false }),
+    sb.from('measurements').select('user_id,type,data,recorded_at').order('recorded_at', { ascending: false }),
+  ]);
+  const lastHr = {}, lastMeas = {};
+  (hr.data || []).forEach(r => { if (!lastHr[r.user_id]) lastHr[r.user_id] = r; });
+  (meas.data || []).forEach(r => { if (!lastMeas[r.user_id]) lastMeas[r.user_id] = r; });
+
+  el.innerHTML = members.map(m => {
+    const h = lastHr[m.id], me2 = lastMeas[m.id];
+    let bits = [];
+    if (h) bits.push('Dernière séance ' + frDate(h.started_at) + ' (FC moy ' + (h.hr_avg ?? '—') + ')');
+    if (me2) bits.push('Dernière mesure ' + frDate(me2.recorded_at) + ' (' + me2.type + ')');
+    if (!bits.length) bits.push('Aucune donnée');
+    return '<div class="coachrow"><span><b>' + (m.prenom || m.email) +
+      '</b>' + (m.role === 'coach' ? ' <span class="muted">(coach)</span>' : '') +
+      '<br><span class="muted" style="font-size:.82rem">' + m.email + '</span></span>' +
+      '<span class="muted" style="font-size:.85rem;text-align:right">' + bits.join('<br>') + '</span></div>';
+  }).join('');
+}
+
+/* =====================================================================
+   Démarrage
+   ===================================================================== */
+initAuth();
+</script>
+</body>
+</html>
