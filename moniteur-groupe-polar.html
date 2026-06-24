@@ -361,9 +361,59 @@
   @media (prefers-reduced-motion:reduce){
     *{transition:none !important}
   }
+  /* ---------- Sélecteur de mode + vue spectateur ---------- */
+  #modeSelect{position:fixed;inset:0;z-index:80;background:var(--forest);color:#F4F0E6;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.3rem;text-align:center;padding:1.5rem}
+  #modeSelect h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.5rem}
+  #modeSelect>p{max-width:440px;color:#C9D4CC;line-height:1.55;font-size:.95rem}
+  .modecards{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
+  .modecard{background:var(--linen);color:var(--ink);border:1px solid var(--line);border-radius:14px;
+    padding:1.3rem;width:250px;cursor:pointer;text-align:left;box-shadow:0 6px 20px rgba(0,0,0,.22)}
+  .modecard:active{filter:brightness(.97)}
+  .modecard h3{font-size:1.1rem;margin:.2rem 0 .4rem}
+  .modecard p{color:var(--muted);font-size:.85rem;margin:0;line-height:1.45}
+  .modecard .ic{font-size:1.7rem}
+  #spectator{max-width:1100px;margin:0 auto;padding:1rem}
+  #specLogin{max-width:380px;margin:6vh auto 0;background:var(--linen);border:1px solid var(--line);
+    border-radius:14px;padding:1.5rem;text-align:center}
+  #specLogin input{width:100%;margin-bottom:.7rem;font:inherit;color:var(--ink);background:#fff;
+    border:1px solid var(--line);border-radius:8px;padding:.6rem;min-height:44px}
+  #specGrid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));margin-bottom:1.4rem}
+  .speccard{background:var(--linen);border:1px solid var(--line);border-left:7px solid var(--z0);
+    border-radius:12px;padding:.8rem .9rem;transition:opacity .2s ease}
+  .speccard.stale{opacity:.4}
+  .speccard .nm{font-weight:700;font-size:1rem;margin-bottom:.35rem}
+  .speccard .bpm{font-variant-numeric:tabular-nums;font-size:2.2rem;font-weight:700;line-height:1}
+  .speccard .u{font-size:.85rem;color:var(--muted)}
+  .speccard .zb{display:inline-block;color:#fff;font-weight:700;border-radius:999px;
+    padding:.15rem .7rem;font-size:.8rem;margin-top:.35rem}
+  .specfeed{background:var(--linen);border:1px solid var(--line);border-radius:12px;padding:.9rem}
+  .specfeed h3{font-size:1rem;margin-bottom:.5rem}
+  .specfeed .f{font-size:.88rem;padding:.42rem 0;border-top:1px solid var(--line)}
+  .specfeed .f:first-child{border-top:none}
+  .specempty{color:var(--muted);font-size:.9rem;padding:.6rem 0}
 </style>
 </head>
 <body>
+
+<div id="modeSelect">
+  <div>
+    <h2>Moniteur de groupe</h2>
+    <p>Choisissez votre mode pour cette session.</p>
+  </div>
+  <div class="modecards">
+    <div class="modecard" id="modeCreator" role="button" tabindex="0">
+      <div class="ic">🎛️</div>
+      <h3>Mode créateur</h3>
+      <p>J'apparie les capteurs à cet appareil et j'enregistre moi-même les données (fonctionnement actuel).</p>
+    </div>
+    <div class="modecard" id="modeSpectator" role="button" tabindex="0">
+      <div class="ic">👁️</div>
+      <h3>Mode spectateur</h3>
+      <p>Je regarde en direct les adhérents qui diffusent depuis leur téléphone, et leurs stats au fil de l'eau.</p>
+    </div>
+  </div>
+</div>
 
 <header>
   <div class="brand">
@@ -400,6 +450,28 @@
      À l'arrêt du chrono, la séance est archivée automatiquement dans <strong>Rapports</strong>.</div>
   <button id="demoLink">Tester l'interface sans capteur (mode démo)</button>
 </div>
+
+<section id="spectator" style="display:none">
+  <div id="specLogin" style="display:none">
+    <h2 style="font-family:'Libre Baskerville',Georgia,serif;margin-bottom:.5rem">Connexion coach</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">Connectez-vous avec votre compte coach pour voir les adhérents en direct.</p>
+    <input type="email" id="specEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
+    <input type="password" id="specPassword" placeholder="Mot de passe" autocomplete="current-password">
+    <button class="btn-rec" id="specLoginBtn" style="width:100%">Se connecter</button>
+    <p id="specMsg" style="color:var(--muted);font-size:.85rem;margin-top:.6rem"></p>
+  </div>
+  <div id="specLive" style="display:none">
+    <div style="display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin:.2rem 0 1rem">
+      <button class="btn-soft" id="specBack">← Changer de mode</button>
+      <span style="color:var(--muted);font-size:.88rem">En direct — un adhérent apparaît dès qu'il démarre une séance avec son capteur. <b id="specCount"></b></span>
+    </div>
+    <div id="specGrid"></div>
+    <div class="specfeed">
+      <h3>Stats enregistrées en direct</h3>
+      <div id="specFeed"><div class="specempty">En attente…</div></div>
+    </div>
+  </div>
+</section>
 
 <section id="reports" class="wrap" style="display:none">
   <h2>Rapports de séance</h2>
@@ -609,6 +681,7 @@
   </article>
 </template>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 'use strict';
 
@@ -3123,6 +3196,135 @@ $('#grpExoGrid').addEventListener('click', (e) => {
   grpExoSel = b.dataset.exo;
   $('#grpExoGrid').querySelectorAll('.exobtn').forEach(x => x.classList.toggle('sel', x === b));
 });
+
+/* =========================================================
+   Modes : créateur (local, ci-dessus) / spectateur (Supabase Realtime)
+   ========================================================= */
+const SPEC_URL = 'https://mxdsvbrxeospfohgvzbz.supabase.co';
+const SPEC_KEY = 'sb_publishable_MIO9ShdnMK1-mQm0T1J5YA_UPkAJ80_';
+let specSb = null, specChannel = null, specPruneTimer = null;
+const specCards = new Map();   // user_id -> { el, lastAt }
+
+function chooseCreator() { $('#modeSelect').style.display = 'none'; }
+$('#modeCreator').addEventListener('click', chooseCreator);
+$('#modeSpectator').addEventListener('click', enterSpectator);
+[$('#modeCreator'), $('#modeSpectator')].forEach(c => c.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); }
+}));
+$('#specBack').addEventListener('click', () => location.reload());
+
+function enterSpectator() {
+  $('#modeSelect').style.display = 'none';
+  $('#spectator').style.display = '';
+  $('#grid').style.display = 'none';
+  $('#empty').style.display = 'none';
+  const acts = document.querySelector('header .actions'); if (acts) acts.style.display = 'none';
+  $('#clock').style.display = 'none';
+  $('#grp').style.display = 'none';
+  if (typeof supabase === 'undefined') {
+    $('#spectator').innerHTML = '<p style="padding:1rem;color:var(--muted)">Service en ligne inaccessible (hors connexion ?).</p>';
+    return;
+  }
+  specSb = supabase.createClient(SPEC_URL, SPEC_KEY);
+  specSb.auth.getSession().then(({ data }) => {
+    if (data.session) specCheckCoach(data.session.user);
+    else $('#specLogin').style.display = '';
+  });
+  specSb.auth.onAuthStateChange((_e, s) => { if (s) specCheckCoach(s.user); });
+}
+
+$('#specLoginBtn').addEventListener('click', async () => {
+  const email = $('#specEmail').value.trim(), password = $('#specPassword').value;
+  if (!email || !password) { $('#specMsg').textContent = 'E-mail et mot de passe requis.'; return; }
+  $('#specLoginBtn').disabled = true;
+  const { error } = await specSb.auth.signInWithPassword({ email, password });
+  $('#specLoginBtn').disabled = false;
+  if (error) $('#specMsg').textContent = 'Connexion impossible : ' + (error.message || 'erreur');
+});
+$('#specPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#specLoginBtn').click(); });
+
+async function specCheckCoach(user) {
+  const { data: prof } = await specSb.from('profiles').select('role').eq('id', user.id).single();
+  if (!prof || prof.role !== 'coach') {
+    $('#specLogin').style.display = '';
+    $('#specMsg').textContent = 'Ce compte n’a pas le rôle « coach ».';
+    return;
+  }
+  $('#specLogin').style.display = 'none';
+  $('#specLive').style.display = '';
+  specSubscribe();
+}
+
+function specSubscribe() {
+  if (specChannel) return;
+  specChannel = specSb.channel('live-coach');
+  specChannel.on('broadcast', { event: 'hr' }, ({ payload }) => specHr(payload));
+  specChannel.on('broadcast', { event: 'stop' }, ({ payload }) => specStop(payload));
+  specChannel.on('broadcast', { event: 'stat' }, ({ payload }) => specStat(payload));
+  specChannel.subscribe();
+  specPruneTimer = setInterval(specPrune, 4000);
+}
+
+function specHr(p) {
+  if (!p || !p.user_id) return;
+  let c = specCards.get(p.user_id);
+  if (!c) {
+    const el = document.createElement('article');
+    el.className = 'speccard';
+    el.innerHTML = '<div class="nm"></div><div><span class="bpm">–</span> <span class="u">bpm</span></div>' +
+      '<div><span class="zb">—</span> <span class="u zpct"></span></div>';
+    $('#specGrid').appendChild(el);
+    c = { el }; specCards.set(p.user_id, c);
+  }
+  c.lastAt = Date.now(); c.el.classList.remove('stale');
+  const fcMax = p.fcMax || 190, z = zoneIndex(p.hr, fcMax);
+  c.el.querySelector('.nm').textContent = p.prenom || 'Adhérent';
+  c.el.querySelector('.bpm').textContent = p.hr;
+  c.el.style.borderLeftColor = ZONES[z].hex;
+  const zb = c.el.querySelector('.zb');
+  zb.textContent = z === 0 ? 'repos' : ZONES[z].label;
+  zb.style.background = ZONES[z].hex;
+  c.el.querySelector('.zpct').textContent = Math.round(p.hr / fcMax * 100) + ' % FCmax' +
+    (p.rmssd ? ' · RMSSD ' + p.rmssd : '');
+  specCount();
+}
+function specStop(p) {
+  const c = p && specCards.get(p.user_id);
+  if (c) { c.el.remove(); specCards.delete(p.user_id); specCount(); }
+}
+function specPrune() {
+  const now = Date.now();
+  specCards.forEach((c, id) => {
+    if (now - c.lastAt > 20000) { c.el.remove(); specCards.delete(id); }
+    else if (now - c.lastAt > 8000) c.el.classList.add('stale');
+  });
+  specCount();
+}
+function specCount() {
+  const n = specCards.size;
+  $('#specCount').textContent = n ? '· ' + n + ' en direct' : '';
+}
+function specStat(p) {
+  if (!p) return;
+  const feed = $('#specFeed');
+  const empty = feed.querySelector('.specempty'); if (empty) feed.innerHTML = '';
+  const d = p.data || {}, t = p.type;
+  let txt = t;
+  if (t === 'force') txt = (d.exercice || 'Force') + ' ' + d.kg + ' kg × ' + d.reps + ' (1RM ' + d.e1rm + ')';
+  else if (t === 'grip') txt = 'Préhension ' + (d.main === 'D' ? 'droite' : 'gauche') + ' ' + d.kg + ' kg';
+  else if (t === 'vo2max') txt = 'VO2max ' + d.vo2max + ' ml/kg/min';
+  else if (t === 'hrr') txt = 'Récupération −' + d.hrr60 + ' bpm en 60 s';
+  else if (t === 'cognitif') txt = 'Cognitif ' + (d.test || '') + ' ' +
+    (d.ms != null ? d.ms + ' ms' : (d.accuracy != null ? d.accuracy + ' %' : ''));
+  else if (t === 'session') txt = 'Séance terminée — FC moy ' + (d.hr_avg || '—') + ' bpm';
+  const time = new Date(p.t || Date.now()).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const row = document.createElement('div');
+  row.className = 'f';
+  row.innerHTML = '<b>' + esc(p.prenom || 'Adhérent') + '</b> · ' + esc(txt) +
+    ' <span style="color:var(--muted)">· ' + time + '</span>';
+  feed.insertBefore(row, feed.firstChild);
+  while (feed.children.length > 30) feed.removeChild(feed.lastChild);
+}
 </script>
 </body>
 </html>

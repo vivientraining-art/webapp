@@ -386,6 +386,22 @@ if (!CONFIGURED) {
 
 const sb = CONFIGURED ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
+/* ---- Diffusion en direct vers l'app coach (Realtime Broadcast) ---- */
+let liveChannel = null;
+function ensureChannel() {
+  if (liveChannel || !sb) return liveChannel;
+  liveChannel = sb.channel('live-coach', { config: { broadcast: { self: false } } });
+  liveChannel.subscribe();
+  return liveChannel;
+}
+function castStat(type, data) {
+  if (!sb || !me) return;
+  try {
+    ensureChannel().send({ type: 'broadcast', event: 'stat',
+      payload: { user_id: me.id, prenom: (profile && profile.prenom) || me.email, type, data, t: Date.now() } });
+  } catch (e) {}
+}
+
 /* =====================================================================
    Zones de FC (identiques à l'app coach)
    ===================================================================== */
@@ -559,6 +575,7 @@ async function onSignedIn(user) {
   $('#pPrenom').value = profile.prenom || '';
   $('#pFcMax').value = profile.fc_max || 190;
   if (profile.role === 'coach') $('#tabCoach').hidden = false;
+  ensureChannel();
   loadHistory();
   refreshCogLast();
 }
@@ -611,6 +628,7 @@ async function saveMeasurement(type, data) {
   const { error } = await sb.from('measurements').insert({ user_id: me.id, type, data });
   if (error) { toast('Erreur : ' + error.message); return false; }
   toast('Enregistré ✔');
+  castStat(type, data);
   return true;
 }
 
@@ -668,7 +686,7 @@ const live = {
   device: null, hrChar: null, hrHandler: null,
   hr: null, rrRecent: [], rmssd: null,
   session: null, // { startedAt, sum, n, max, min, zoneSec[], prevZone, lastZoneT, fcMax }
-  tick: null,
+  tick: null, lastCast: 0, broadcast: false,
 };
 
 function parseHeartRate(dv) {
@@ -749,6 +767,15 @@ function feedData(hr, rrs) {
     }
     s.prevZone = z; s.lastZoneT = t;
   }
+  if (live.session && live.broadcast && sb && me && t - live.lastCast > 1500) {
+    live.lastCast = t;
+    try {
+      ensureChannel().send({ type: 'broadcast', event: 'hr', payload: {
+        user_id: me.id, prenom: (profile && profile.prenom) || me.email,
+        hr, fcMax: live.session.fcMax, rmssd: live.rmssd ? Math.round(live.rmssd) : null, t,
+      } });
+    } catch (e) {}
+  }
   renderLive();
 }
 
@@ -780,6 +807,7 @@ $('#btnStart').addEventListener('click', () => {
     zoneSec: [0, 0, 0, 0, 0, 0], prevZone: null, lastZoneT: null,
     fcMax: profile ? profile.fc_max : 190,
   };
+  live.broadcast = true;
   $('#btnStart').hidden = true;
   $('#btnStop').hidden = false;
   $('#btnConnect').disabled = true;
@@ -793,6 +821,8 @@ $('#btnStop').addEventListener('click', async () => {
   const s = live.session;
   clearInterval(live.tick);
   live.session = null;
+  live.broadcast = false;
+  try { if (liveChannel && me) liveChannel.send({ type: 'broadcast', event: 'stop', payload: { user_id: me.id } }); } catch (e) {}
   $('#btnStop').hidden = true;
   $('#btnStart').hidden = false;
   $('#btnConnect').disabled = false;
@@ -814,6 +844,7 @@ $('#btnStop').addEventListener('click', async () => {
   const { error } = await sb.from('hr_sessions').insert(row);
   if (error) { toast('Erreur d’enregistrement : ' + error.message); return; }
   toast('Séance enregistrée ✔  FC moy ' + row.hr_avg + ' bpm');
+  castStat('session', { hr_avg: row.hr_avg, hr_peak: row.hr_peak, duration_s: row.duration_s });
   $('#zoneBars').hidden = true;
 });
 
