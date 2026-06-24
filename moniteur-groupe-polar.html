@@ -449,6 +449,7 @@
     <button class="btn-out"  id="btnReports">Rapports</button>
     <button class="btn-out"  id="btnProfiles">Profils &amp; Groupes</button>
     <button class="btn-ghost" id="btnBack" hidden>← Direct</button>
+    <button class="btn-out" id="btnMode" title="Changer de mode">⇄ Mode</button>
   </div>
 </header>
 
@@ -3264,14 +3265,33 @@ async function gateCheckCoach(user) {
   $('#modeSelect').style.display = '';
 }
 
-function chooseCreator() { $('#modeSelect').style.display = 'none'; }
+function showModeMenu() { $('#modeSelect').style.display = ''; }
+if ($('#btnMode')) $('#btnMode').addEventListener('click', showModeMenu);
+
+function leaveSpectator() {
+  if (specChannel) { try { specSb.removeChannel(specChannel); } catch (e) {} specChannel = null; }
+  if (specPruneTimer) { clearInterval(specPruneTimer); specPruneTimer = null; }
+  specCards.forEach(c => c.el.remove()); specCards.clear();
+  $('#specGrid').innerHTML = '';
+  $('#specLive').style.display = 'none';
+  $('#spectator').style.display = 'none';
+}
+
+function chooseCreator() {
+  $('#modeSelect').style.display = 'none';
+  leaveSpectator();
+  const acts = document.querySelector('header .actions'); if (acts) acts.style.display = '';
+  $('#clock').style.display = '';
+  $('#grp').style.display = '';
+  showView('live');
+}
 $('#modeCreator').addEventListener('click', chooseCreator);
 $('#modeSpectator').addEventListener('click', enterSpectator);
 [$('#modeCreator'), $('#modeSpectator')].forEach(c => c.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); }
 }));
 
-$('#specBack').addEventListener('click', () => location.reload());
+$('#specBack').addEventListener('click', showModeMenu);
 
 function enterSpectator() {
   $('#modeSelect').style.display = 'none';
