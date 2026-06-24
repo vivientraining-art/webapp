@@ -109,6 +109,24 @@ Supabase → **SQL Editor** → **New query** → colle le fichier → **Run**.
 Sans cette migration, l'enregistrement de la récupération cardiaque et le bouton
 « supprimer mon compte » renverront une erreur (le reste fonctionne).
 
+## Deux modes dans l'app coach (spectateur / créateur)
+
+L'app coach (`moniteur-groupe-polar.html`) propose un **choix de mode au lancement** :
+
+- **Mode créateur** : fonctionnement habituel — tu apparies les capteurs à ta tablette
+  et tu enregistres toi-même. Rien à configurer.
+- **Mode spectateur** : tu te connectes avec ton **compte coach**, et tu vois **en direct**
+  les adhérents qui ont démarré une séance avec leur capteur dans l'espace adhérent,
+  ainsi que leurs stats au fil de l'eau.
+
+Côté adhérent, la **diffusion est automatique** : dès qu'il appuie sur « Démarrer une séance »
+(onglet Capteur), son téléphone diffuse sa FC. Il reste visible tant que son téléphone est
+ouvert sur l'app (le navigateur ne diffuse pas écran éteint / en arrière-plan).
+
+Côté technique, cela repose sur **Supabase Realtime (Broadcast)**, **actif par défaut** :
+aucune configuration supplémentaire n'est nécessaire. (Ne touche pas au réglage
+« Realtime Authorization » : s'il est activé, il faudrait ajouter des politiques.)
+
 ## Ce qu'on peut encore ajouter
 - Export CSV côté adhérent et côté coach.
 - Fiche détaillée d'un adhérent au clic dans la vue coach.
