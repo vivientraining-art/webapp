@@ -73,6 +73,26 @@
   .coachrow:first-child{border-top:none}
   .config-warn{background:#FBE3E0;border:1px solid #E0A89F;color:#8A3024;border-radius:12px;padding:1rem;margin:1rem;font-size:.9rem;line-height:1.5}
   code{background:#0001;padding:.1rem .3rem;border-radius:4px;font-size:.85em}
+  .btn-danger{background:#fff;color:var(--z5);border:1px solid var(--z5)}
+  .checkrow{display:flex;gap:.55rem;align-items:flex-start;text-align:left;font-size:.8rem;color:var(--muted);line-height:1.45;margin-bottom:.9rem}
+  .checkrow input{width:auto;min-width:0;margin:.15rem 0 0;flex:none}
+  .cogcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:.9rem;margin-bottom:.8rem}
+  .cogcard .last{font-size:.85rem;color:var(--muted);margin:.3rem 0 .6rem;font-variant-numeric:tabular-nums}
+  .cogstage{position:fixed;inset:0;z-index:60;background:var(--forest);color:#F4F0E6;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:1.2rem;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  .cogstage.on{display:flex}
+  .cogstage .instr{max-width:520px;font-size:1.05rem;line-height:1.65;margin-bottom:1.3rem}
+  .cogstage .big{font-size:clamp(2.5rem,16vw,6rem);font-weight:700;line-height:1}
+  .cog-disc{width:46vw;max-width:230px;height:46vw;max-height:230px;border-radius:50%}
+  .cog-word{font-size:clamp(2rem,12vw,4.5rem);font-weight:800}
+  .cog-tap{margin-top:1.5rem;font-size:.9rem;color:#C9D4CC}
+  .cogstage .formrow{justify-content:center}
+  .cogstage .btn-soft{background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.3)}
+  .chartcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:.9rem;margin-bottom:.9rem}
+  .chartcard h4{font-size:.92rem;margin-bottom:.5rem}
+  .chartcard svg{width:100%;height:120px;display:block}
+  .chart-empty{font-size:.85rem;color:var(--muted)}
+  .hrr-box{text-align:center;padding:.4rem 0 .2rem}
+  .hrr-count{font-size:3rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
 </style>
 </head>
 <body>
@@ -87,6 +107,12 @@
     <input type="text" id="loginPrenom" placeholder="Votre prénom" autocomplete="given-name" hidden>
     <input type="email" id="loginEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
     <input type="password" id="loginPassword" placeholder="Mot de passe (6 caractères min.)" autocomplete="current-password">
+    <div class="checkrow" id="consentRow" hidden>
+      <input type="checkbox" id="consentCheck">
+      <label for="consentCheck">J'accepte que mes données de suivi sportif, <strong>y compris des données de santé</strong>
+        (fréquence cardiaque, VO2max…), soient enregistrées par Vivien Strudel pour assurer mon suivi.
+        Je peux les consulter à tout moment et supprimer mon compte et mes données quand je le souhaite.</label>
+    </div>
     <button class="btn-primary" id="loginBtn">Se connecter</button>
     <p class="note" style="margin-top:.9rem">
       <span id="switchPrompt">Pas encore de compte ?</span>
@@ -128,7 +154,9 @@
     <div class="tabs" id="tabs">
       <button class="tab on" data-tab="saisie">Mes mesures</button>
       <button class="tab" data-tab="polar">Capteur Polar</button>
+      <button class="tab" data-tab="cognitif">Tests cognitifs</button>
       <button class="tab" data-tab="histo">Historique</button>
+      <button class="tab" data-tab="progression">Progression</button>
       <button class="tab" data-tab="profil">Mon profil</button>
       <button class="tab" data-tab="coach" id="tabCoach" hidden>Vue coach</button>
     </div>
@@ -214,6 +242,57 @@
         <p class="note">Votre fréquence cardiaque reste sur votre téléphone pendant la séance ; seul le résumé
           (FC moy/min/pic, RMSSD, temps par zone) est enregistré dans votre compte à l'arrêt.</p>
       </div>
+
+      <div class="panel">
+        <h3>Récupération cardiaque (HRR)</h3>
+        <p class="note" style="margin-top:0">Juste à la <strong>fin d'un effort intense</strong> : appuie sur « Démarrer la récup ».
+          L'app relève ta FC de pic, décompte 60 s pendant que tu restes immobile, puis mesure la baisse de FC.
+          Plus la chute en 1 min est grande, meilleure est ta récupération (marqueur de forme).</p>
+        <div class="hrr-box">
+          <div class="hrr-count" id="hrrCount">60</div>
+          <div class="muted" id="hrrInfo" style="font-size:.84rem;margin-top:.3rem">Capteur requis · FC de pic relevée au départ</div>
+        </div>
+        <div class="formrow" style="justify-content:center;margin-top:.6rem">
+          <button class="btn-rec" id="btnHrr" disabled>Démarrer la récup (60 s)</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---- Tests cognitifs ---- -->
+    <section data-panel="cognitif" hidden>
+      <h2>Tests cognitifs</h2>
+      <p class="note" style="margin-top:0">Trois tests courts. Fais-les au calme, dans les mêmes conditions à chaque fois
+        (moment de la journée, assis, même consigne). Les deux premières passations servent surtout à te familiariser.</p>
+
+      <div class="cogcard">
+        <h3>Go / No-Go — inhibition</h3>
+        <p class="note" style="margin-top:0">Tape l'écran quand le disque est <strong>vert</strong> (Go),
+          <strong>ne tape pas</strong> quand il est <strong>rouge</strong> (No-Go). Mesure la vitesse ET la maîtrise. ~2 min.</p>
+        <div class="last" id="lastGng">—</div>
+        <button class="btn-soft" data-cog="gng">Lancer</button>
+      </div>
+
+      <div class="cogcard">
+        <h3>Stroop — interférence</h3>
+        <p class="note" style="margin-top:0">Réponds à la <strong>couleur de l'encre</strong>, pas au mot lu.
+          Inhibition et contrôle attentionnel. ~2 min.</p>
+        <div class="last" id="lastStroop">—</div>
+        <button class="btn-soft" data-cog="stroop">Lancer</button>
+      </div>
+
+      <div class="cogcard">
+        <h3>N-back (2-back) — mémoire de travail</h3>
+        <p class="note" style="margin-top:0">Tape « Identique » quand la lettre est la même que <strong>2 lettres avant</strong>. ~1 min.</p>
+        <div class="last" id="lastNback">—</div>
+        <button class="btn-soft" data-cog="nback">Lancer</button>
+      </div>
+    </section>
+
+    <!-- ---- Progression ---- -->
+    <section data-panel="progression" hidden>
+      <h2>Ma progression</h2>
+      <p class="note" style="margin-top:0">Évolution de tes mesures dans le temps. Les courbes apparaissent dès que tu as au moins deux passations.</p>
+      <div id="charts"><p class="muted">Chargement…</p></div>
     </section>
 
     <!-- ---- Historique ---- -->
@@ -247,6 +326,13 @@
         </div>
         <p class="note">La FC max sert à calculer vos zones d'effort pendant les séances Polar.</p>
       </div>
+
+      <div class="panel">
+        <h3>Confidentialité &amp; données</h3>
+        <p class="note" style="margin-top:0">Conformément au RGPD, tu peux supprimer définitivement ton compte
+          et l'ensemble de tes mesures (séances, tests, profil). Cette action est <strong>irréversible</strong>.</p>
+        <button class="btn-danger" id="btnDelete">Supprimer mon compte et mes données</button>
+      </div>
     </section>
 
     <!-- ---- Vue coach ---- -->
@@ -259,6 +345,7 @@
   </main>
 </div>
 
+<div id="cogStage" class="cogstage"></div>
 <div id="toast" role="status"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -392,6 +479,7 @@ $('#switchMode').addEventListener('click', (e) => {
   authMode = authMode === 'signin' ? 'signup' : 'signin';
   const signup = authMode === 'signup';
   $('#loginPrenom').hidden = !signup;
+  $('#consentRow').hidden = !signup;
   $('#loginBtn').textContent = signup ? 'Créer mon compte' : 'Se connecter';
   $('#loginIntro').textContent = signup
     ? 'Créez votre compte avec votre e-mail et un mot de passe.'
@@ -431,10 +519,11 @@ $('#loginBtn').addEventListener('click', async () => {
   $('#loginMsg').textContent = '';
   try {
     if (authMode === 'signup') {
+      if (!$('#consentCheck').checked) { toast('Cochez la case de consentement pour créer le compte.'); return; }
       const prenom = $('#loginPrenom').value.trim();
       const { data, error } = await sb.auth.signUp({
         email, password,
-        options: { data: { prenom }, emailRedirectTo: location.href.split('#')[0] }
+        options: { data: { prenom, consent_at: new Date().toISOString() }, emailRedirectTo: location.href.split('#')[0] }
       });
       if (error) { console.error('signUp', error); $('#loginMsg').textContent = 'Erreur : ' + describeError(error); return; }
       if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
@@ -471,6 +560,7 @@ async function onSignedIn(user) {
   $('#pFcMax').value = profile.fc_max || 190;
   if (profile.role === 'coach') $('#tabCoach').hidden = false;
   loadHistory();
+  refreshCogLast();
 }
 
 async function loadProfile() {
@@ -494,6 +584,8 @@ $('#tabs').addEventListener('click', (e) => {
   const tab = b.dataset.tab;
   $$('section[data-panel]').forEach(s => s.hidden = s.dataset.panel !== tab);
   if (tab === 'histo') loadHistory();
+  if (tab === 'cognitif') refreshCogLast();
+  if (tab === 'progression') loadCharts();
   if (tab === 'coach') loadCoach();
 });
 
@@ -617,6 +709,7 @@ $('#btnConnect').addEventListener('click', async () => {
     await connectGatt();
     toast((device.name || 'Capteur') + ' connecté');
     $('#btnStart').disabled = false;
+    $('#btnHrr').disabled = false;
     $('#btnConnect').textContent = 'Reconnecter';
   } catch (e) { toast('Échec de connexion — réessayez près du capteur.'); }
 });
@@ -756,7 +849,12 @@ function renderMeasHist(rows) {
     if (r.type === 'force') desc = d.exercice + ' — <b>' + d.kg + ' kg × ' + d.reps + '</b> (1RM ≈ ' + d.e1rm + ' kg)';
     else if (r.type === 'grip') desc = 'Préhension ' + (d.main === 'D' ? 'droite' : 'gauche') + ' — <b>' + d.kg + ' kg</b>';
     else if (r.type === 'vo2max') desc = 'VO2max — <b>' + d.vo2max + '</b> ml/kg/min (FC réc. ' + d.fc_reco + ')';
-    else if (r.type === 'cognitif') desc = 'Test ' + d.test + ' — <b>' + (d.ms ?? d.score ?? '—') + '</b>';
+    else if (r.type === 'hrr') desc = 'Récup. cardiaque — <b>−' + d.hrr60 + ' bpm</b> en 60 s (pic ' + d.peak + ' → ' + d.hr60 + ')';
+    else if (r.type === 'cognitif') {
+      const lbl = { gng: 'Go/No-Go', stroop: 'Stroop', nback: 'N-back' }[d.test] || d.test;
+      const val = d.ms != null ? d.ms + ' ms' : (d.accuracy != null ? d.accuracy + ' %' : (d.score ?? '—'));
+      desc = 'Cognitif (' + lbl + ') — <b>' + val + '</b>';
+    }
     return '<div class="item"><span>' + desc + '</span><span class="muted">' + frDate(r.recorded_at) + '</span></div>';
   }).join('');
 }
@@ -770,25 +868,232 @@ async function loadCoach() {
   const { data: members, error } = await sb.from('profiles').select('*').order('prenom');
   if (error) { el.innerHTML = '<p class="muted">Erreur : ' + error.message + '</p>'; return; }
   const [hr, meas] = await Promise.all([
-    sb.from('hr_sessions').select('user_id,started_at,hr_avg,hr_peak,duration_s').order('started_at', { ascending: false }),
+    sb.from('hr_sessions').select('user_id,started_at,hr_avg,rmssd').order('started_at', { ascending: false }),
     sb.from('measurements').select('user_id,type,data,recorded_at').order('recorded_at', { ascending: false }),
   ]);
-  const lastHr = {}, lastMeas = {};
-  (hr.data || []).forEach(r => { if (!lastHr[r.user_id]) lastHr[r.user_id] = r; });
-  (meas.data || []).forEach(r => { if (!lastMeas[r.user_id]) lastMeas[r.user_id] = r; });
+  const sessBy = {}, measBy = {};
+  (hr.data || []).forEach(r => { (sessBy[r.user_id] = sessBy[r.user_id] || []).push(r); });
+  (meas.data || []).forEach(r => { (measBy[r.user_id] = measBy[r.user_id] || []).push(r); });
+  const lastT = (arr, type) => (arr || []).find(r => r.type === type);
 
   el.innerHTML = members.map(m => {
-    const h = lastHr[m.id], me2 = lastMeas[m.id];
-    let bits = [];
-    if (h) bits.push('Dernière séance ' + frDate(h.started_at) + ' (FC moy ' + (h.hr_avg ?? '—') + ')');
-    if (me2) bits.push('Dernière mesure ' + frDate(me2.recorded_at) + ' (' + me2.type + ')');
-    if (!bits.length) bits.push('Aucune donnée');
+    const sess = sessBy[m.id] || [], mm = measBy[m.id] || [];
+    const vo2 = lastT(mm, 'vo2max'), hrr = lastT(mm, 'hrr'), force = lastT(mm, 'force'), cog = lastT(mm, 'cognitif');
+    const lines = [];
+    lines.push('<b>' + sess.length + '</b> séance' + (sess.length > 1 ? 's' : '') + (sess[0] ? ' · dernière ' + frDate(sess[0].started_at) : ''));
+    if (vo2) lines.push('VO2max ' + vo2.data.vo2max + ' · ' + frDate(vo2.recorded_at));
+    if (hrr) lines.push('HRR −' + hrr.data.hrr60 + ' bpm · ' + frDate(hrr.recorded_at));
+    if (force) lines.push('Force ' + force.data.exercice + ' 1RM ' + force.data.e1rm + ' kg');
+    if (cog) lines.push('Cognitif ' + ({ gng: 'Go/No-Go', stroop: 'Stroop', nback: 'N-back' }[cog.data.test] || cog.data.test) +
+      ' ' + (cog.data.ms != null ? cog.data.ms + ' ms' : (cog.data.accuracy ?? '') + '%'));
+    if (!sess.length && !mm.length) lines.length = 0, lines.push('Aucune donnée');
     return '<div class="coachrow"><span><b>' + (m.prenom || m.email) +
       '</b>' + (m.role === 'coach' ? ' <span class="muted">(coach)</span>' : '') +
-      '<br><span class="muted" style="font-size:.82rem">' + m.email + '</span></span>' +
-      '<span class="muted" style="font-size:.85rem;text-align:right">' + bits.join('<br>') + '</span></div>';
+      '<br><span class="muted" style="font-size:.8rem">' + m.email + '</span></span>' +
+      '<span class="muted" style="font-size:.83rem;text-align:right;max-width:62%">' + lines.join('<br>') + '</span></div>';
   }).join('');
 }
+
+/* =====================================================================
+   Récupération cardiaque (HRR)
+   ===================================================================== */
+let hrr = null;
+$('#btnHrr').addEventListener('click', () => {
+  if (hrr) return;
+  if (live.hr === null) { toast('Capteur non actif — connecte ton Polar et attends une FC.'); return; }
+  hrr = { peak: live.hr, t0: Date.now() };
+  $('#hrrCount').textContent = '60';
+  $('#hrrInfo').textContent = 'FC de pic : ' + hrr.peak + ' bpm — reste immobile…';
+  $('#btnHrr').disabled = true;
+  hrr.timer = setInterval(async () => {
+    if (live.hr !== null && live.hr > hrr.peak) hrr.peak = live.hr; // le pic peut monter juste après l'appui
+    const left = 60 - Math.floor((Date.now() - hrr.t0) / 1000);
+    $('#hrrCount').textContent = Math.max(left, 0);
+    if (left > 0) return;
+    clearInterval(hrr.timer);
+    const hr60 = live.hr, drop = hrr.peak - hr60;
+    await saveMeasurement('hrr', { peak: hrr.peak, hr60, hrr60: drop });
+    $('#hrrCount').textContent = '−' + drop;
+    $('#hrrInfo').textContent = 'Récupération : −' + drop + ' bpm en 60 s (pic ' + hrr.peak + ' → ' + hr60 + ')';
+    toast('HRR enregistrée : −' + drop + ' bpm');
+    hrr = null;
+    $('#btnHrr').disabled = false;
+  }, 250);
+});
+
+/* =====================================================================
+   Tests cognitifs (Go/No-Go, Stroop, N-back)
+   ===================================================================== */
+const stage = $('#cogStage');
+function stageHTML(html) { stage.innerHTML = html; stage.classList.add('on'); }
+function stageClose() { stage.classList.remove('on'); stage.innerHTML = ''; }
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const onceClick = (sel) => new Promise(res => $(sel).addEventListener('click', res, { once: true }));
+
+$$('[data-cog]').forEach(b => b.addEventListener('click', () => {
+  const k = b.dataset.cog;
+  if (k === 'gng') runGoNoGo();
+  else if (k === 'stroop') runStroop();
+  else if (k === 'nback') runNback();
+}));
+
+async function runGoNoGo() {
+  const N = 30, seq = [];
+  for (let i = 0; i < N; i++) seq.push(Math.random() < 0.72 ? 'go' : 'nogo');
+  stageHTML('<div class="instr">Go / No-Go<br><br>Tape l\'écran quand le disque est <b style="color:#7BD389">VERT</b>.<br>' +
+    'NE tape PAS quand il est <b style="color:#F08A7A">ROUGE</b>.<br>Sois rapide mais précis.</div>' +
+    '<button class="btn-soft" id="cogGo">Commencer</button>');
+  await onceClick('#cogGo');
+  const rts = []; let commission = 0, omission = 0, correct = 0;
+  for (const type of seq) {
+    stageHTML('<div class="big">+</div>');
+    await wait(700 + Math.random() * 600);
+    const tap = { done: false, rt: null };
+    const onTap = () => { if (!tap.done) { tap.done = true; tap.rt = performance.now() - t0; } };
+    stageHTML('<div class="cog-disc" style="background:' + (type === 'go' ? '#7BD389' : '#F08A7A') + '"></div>' +
+      '<div class="cog-tap">tape si vert</div>');
+    const t0 = performance.now();
+    stage.addEventListener('pointerdown', onTap);
+    await wait(1000);
+    stage.removeEventListener('pointerdown', onTap);
+    if (type === 'go') { if (tap.done) { rts.push(tap.rt); correct++; } else omission++; }
+    else { if (tap.done) commission++; else correct++; }
+  }
+  const mrt = mean(rts), acc = Math.round(100 * correct / N);
+  await saveMeasurement('cognitif', { test: 'gng', ms: mrt ? Math.round(mrt) : null, commission, omission, accuracy: acc, n: N });
+  stageHTML('<div class="instr">Terminé !<br><br>Temps de réaction : <b>' + (mrt ? Math.round(mrt) : '—') + ' ms</b><br>' +
+    'Erreurs (taper sur rouge) : <b>' + commission + '</b><br>Oublis (rater le vert) : <b>' + omission + '</b><br>' +
+    'Précision : <b>' + acc + ' %</b></div><button class="btn-soft" id="cogDone">Fermer</button>');
+  await onceClick('#cogDone'); stageClose(); refreshCogLast();
+}
+
+async function runStroop() {
+  const words = [['ROUGE', '#C14F38'], ['VERT', '#5F9560'], ['BLEU', '#5C8FA6'], ['JAUNE', '#D9A441']];
+  const N = 28;
+  stageHTML('<div class="instr">Stroop<br><br>Un mot coloré apparaît. Touche le bouton correspondant à la ' +
+    '<b>COULEUR DE L\'ENCRE</b>, pas au mot écrit.</div><button class="btn-soft" id="cogGo">Commencer</button>');
+  await onceClick('#cogGo');
+  const rts = []; let correct = 0;
+  for (let i = 0; i < N; i++) {
+    const wi = Math.floor(Math.random() * 4);
+    let ci = Math.floor(Math.random() * 4);
+    if (Math.random() < 0.7 && ci === wi) ci = (ci + 1) % 4; // souvent incongruent
+    const btns = words.map((w, idx) => '<button class="btn-soft cstroop" data-i="' + idx + '" ' +
+      'style="border-color:' + w[1] + ';color:' + w[1] + '">' + w[0] + '</button>').join('');
+    stageHTML('<div class="cog-word" style="color:' + words[ci][1] + '">' + words[wi][0] + '</div>' +
+      '<div class="formrow" style="margin-top:2rem">' + btns + '</div>');
+    const t0 = performance.now();
+    const choice = await new Promise(res =>
+      $$('.cstroop').forEach(bb => bb.addEventListener('pointerdown', () => res(parseInt(bb.dataset.i, 10)), { once: true })));
+    if (choice === ci) { correct++; rts.push(performance.now() - t0); }
+  }
+  const mrt = mean(rts), acc = Math.round(100 * correct / N);
+  await saveMeasurement('cognitif', { test: 'stroop', ms: mrt ? Math.round(mrt) : null, accuracy: acc, n: N });
+  stageHTML('<div class="instr">Terminé !<br><br>Temps de réaction (bonnes réponses) : <b>' + (mrt ? Math.round(mrt) : '—') +
+    ' ms</b><br>Précision : <b>' + acc + ' %</b></div><button class="btn-soft" id="cogDone">Fermer</button>');
+  await onceClick('#cogDone'); stageClose(); refreshCogLast();
+}
+
+async function runNback() {
+  const letters = 'BCDFGHKLMNPQRSTVZ'.split(''), N = 24, back = 2, seq = [];
+  for (let i = 0; i < N; i++) {
+    if (i >= back && Math.random() < 0.3) seq.push(seq[i - back]);
+    else { let c; do { c = letters[Math.floor(Math.random() * letters.length)]; } while (i >= back && c === seq[i - back]); seq.push(c); }
+  }
+  stageHTML('<div class="instr">N-back (2-back)<br><br>Des lettres défilent. Touche <b>« Identique »</b> ' +
+    'quand la lettre est la même que <b>2 lettres avant</b>.</div><button class="btn-soft" id="cogGo">Commencer</button>');
+  await onceClick('#cogGo');
+  let hits = 0, falseAlarms = 0, misses = 0, targets = 0;
+  for (let i = 0; i < N; i++) {
+    const isTarget = i >= back && seq[i] === seq[i - back];
+    if (isTarget) targets++;
+    const tap = { done: false };
+    stageHTML('<div class="big">' + seq[i] + '</div><button class="btn-soft" id="nbBtn" style="margin-top:2rem">Identique</button>');
+    $('#nbBtn').addEventListener('pointerdown', () => { tap.done = true; }, { once: true });
+    await wait(2000);
+    if (isTarget && tap.done) hits++;
+    else if (isTarget) misses++;
+    else if (tap.done) falseAlarms++;
+  }
+  const acc = targets ? Math.round(100 * hits / targets) : 0;
+  await saveMeasurement('cognitif', { test: 'nback', score: hits, hits, falseAlarms, misses, targets, accuracy: acc });
+  stageHTML('<div class="instr">Terminé !<br><br>Bonnes détections : <b>' + hits + '/' + targets + '</b><br>' +
+    'Fausses alarmes : <b>' + falseAlarms + '</b><br>Réussite : <b>' + acc + ' %</b></div>' +
+    '<button class="btn-soft" id="cogDone">Fermer</button>');
+  await onceClick('#cogDone'); stageClose(); refreshCogLast();
+}
+
+async function refreshCogLast() {
+  if (!sb || !me) return;
+  const { data } = await sb.from('measurements').select('data,recorded_at')
+    .eq('user_id', me.id).eq('type', 'cognitif').order('recorded_at', { ascending: false }).limit(60);
+  const last = {};
+  (data || []).forEach(r => { const t = r.data && r.data.test; if (t && !last[t]) last[t] = r; });
+  const fmt = (r, f) => r ? f(r.data) + ' · ' + frDate(r.recorded_at) : '—';
+  $('#lastGng').textContent = fmt(last.gng, d => 'TR ' + (d.ms ?? '—') + ' ms · ' + d.commission + ' err · ' + d.accuracy + '%');
+  $('#lastStroop').textContent = fmt(last.stroop, d => 'TR ' + (d.ms ?? '—') + ' ms · ' + d.accuracy + '%');
+  $('#lastNback').textContent = fmt(last.nback, d => (d.hits ?? d.score) + '/' + (d.targets ?? '—') + ' · ' + d.accuracy + '%');
+}
+
+/* =====================================================================
+   Graphiques de progression (SVG, sans dépendance)
+   ===================================================================== */
+function lineChartSVG(series, color) {
+  if (series.length < 1) return '<p class="chart-empty">Pas encore de donnée.</p>';
+  const W = 600, H = 120, pad = 22;
+  const xs = series.map(p => p.x), ys = series.map(p => p.y);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs), ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const sx = x => xmax === xmin ? W / 2 : pad + (x - xmin) / (xmax - xmin) * (W - 2 * pad);
+  const sy = y => ymax === ymin ? H / 2 : H - pad - (y - ymin) / (ymax - ymin) * (H - 2 * pad);
+  const d = series.map((p, i) => (i ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ');
+  const dots = series.map(p => '<circle cx="' + sx(p.x).toFixed(1) + '" cy="' + sy(p.y).toFixed(1) + '" r="3.5" fill="' + color + '"/>').join('');
+  const a = series[0], b = series[series.length - 1];
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
+    '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2.5"/>' + dots + '</svg>' +
+    '<div class="muted" style="font-size:.78rem;display:flex;justify-content:space-between;margin-top:.2rem">' +
+    '<span>' + frDate(a.x) + ' · ' + a.y + '</span><span>' + frDate(b.x) + ' · ' + b.y + '</span></div>';
+}
+
+async function loadCharts() {
+  if (!sb || !me) return;
+  const el = $('#charts'); el.innerHTML = '<p class="muted">Chargement…</p>';
+  const [meas, hrs] = await Promise.all([
+    sb.from('measurements').select('type,data,recorded_at').eq('user_id', me.id).order('recorded_at', { ascending: true }),
+    sb.from('hr_sessions').select('rmssd,started_at').eq('user_id', me.id).order('started_at', { ascending: true }),
+  ]);
+  const M = meas.data || [], S = hrs.data || [];
+  const card = (title, svg) => '<div class="chartcard"><h4>' + title + '</h4>' + svg + '</div>';
+  const ser = (arr, fy, fx) => arr.map(r => ({ x: +new Date(fx(r)), y: fy(r) }));
+  let html = '';
+  html += card('VO2max estimée (ml/kg/min)',
+    lineChartSVG(ser(M.filter(r => r.type === 'vo2max'), r => r.data.vo2max, r => r.recorded_at), '#5C8FA6'));
+  html += card('Récupération cardiaque — baisse FC en 60 s (bpm)',
+    lineChartSVG(ser(M.filter(r => r.type === 'hrr'), r => r.data.hrr60, r => r.recorded_at), '#C26B4A'));
+  html += card('VFC des séances — RMSSD (ms)',
+    lineChartSVG(ser(S.filter(r => r.rmssd != null), r => Math.round(r.rmssd), r => r.started_at), '#5F9560'));
+  const byExo = {};
+  M.filter(r => r.type === 'force').forEach(r => {
+    const e = r.data.exercice || 'Force'; (byExo[e] = byExo[e] || []).push({ x: +new Date(r.recorded_at), y: r.data.e1rm });
+  });
+  Object.keys(byExo).forEach(e => { html += card('Force — 1RM estimée · ' + e + ' (kg)', lineChartSVG(byExo[e], '#2F5240')); });
+  html += card('Go/No-Go — temps de réaction (ms)',
+    lineChartSVG(ser(M.filter(r => r.type === 'cognitif' && r.data.test === 'gng' && r.data.ms != null), r => r.data.ms, r => r.recorded_at), '#7A4426'));
+  el.innerHTML = html;
+}
+
+/* =====================================================================
+   Suppression de compte (droit RGPD à l'effacement)
+   ===================================================================== */
+$('#btnDelete').addEventListener('click', async () => {
+  if (!sb) return;
+  if (!confirm('Supprimer définitivement ton compte et TOUTES tes données ?\nCette action est irréversible.')) return;
+  const { error } = await sb.rpc('delete_own_account');
+  if (error) { toast('Erreur : ' + describeError(error)); return; }
+  try { await sb.auth.signOut(); } catch (e) {}
+  toast('Compte supprimé.');
+  setTimeout(() => location.reload(), 1200);
+});
 
 /* =====================================================================
    Démarrage

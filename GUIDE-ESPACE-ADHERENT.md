@@ -97,8 +97,19 @@ Je peux ajouter l'écran de consentement et le bouton de suppression quand tu ve
 
 ---
 
-## Ce qu'on peut ajouter ensuite
-- Graphiques de progression (1RM, VO2max dans le temps).
+## Mise à jour — migration 2 (à exécuter une fois)
+
+De nouvelles fonctions ont été ajoutées : **récupération cardiaque (HRR)**, **tests cognitifs**
+(Go/No-Go, Stroop, N-back), **graphiques de progression**, **consentement RGPD** et
+**suppression de compte** par l'adhérent.
+
+➡️ Pour les activer, exécute **une fois** le script `supabase-migration-2.sql` :
+Supabase → **SQL Editor** → **New query** → colle le fichier → **Run**.
+
+Sans cette migration, l'enregistrement de la récupération cardiaque et le bouton
+« supprimer mon compte » renverront une erreur (le reste fonctionne).
+
+## Ce qu'on peut encore ajouter
 - Export CSV côté adhérent et côté coach.
-- Tests cognitifs (réactivité, Stroop, N-back) repris de l'app coach.
+- Fiche détaillée d'un adhérent au clic dans la vue coach.
 - Rattacher automatiquement les séances enregistrées sur **ta** tablette au compte de l'adhérent.
