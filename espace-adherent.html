@@ -93,6 +93,20 @@
   .chart-empty{font-size:.85rem;color:var(--muted)}
   .hrr-box{text-align:center;padding:.4rem 0 .2rem}
   .hrr-count{font-size:3rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  #sessionBadge{position:fixed;left:10px;bottom:10px;z-index:55;background:var(--terra);color:#fff;
+    font-size:.8rem;font-weight:700;border-radius:999px;padding:.4rem .85rem;box-shadow:0 2px 8px rgba(0,0,0,.2);
+    display:none;align-items:center;gap:.45rem}
+  #sessionBadge.on{display:inline-flex}
+  #sessionBadge .dot{width:9px;height:9px;border-radius:50%;background:#fff;animation:vspulse 1.4s infinite}
+  @keyframes vspulse{0%,100%{opacity:1}50%{opacity:.25}}
+  #consentGate{position:fixed;inset:0;z-index:70;background:rgba(31,58,45,.96);display:none;
+    align-items:center;justify-content:center;padding:1.2rem}
+  #consentGate .card{background:var(--linen);border:1px solid var(--line);border-radius:14px;
+    padding:1.6rem;max-width:460px;text-align:left;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  #consentGate h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.2rem;margin-bottom:.6rem}
+  #consentGate p{color:var(--muted);font-size:.9rem;line-height:1.55;margin-bottom:1rem}
+  #consentGate .row{display:flex;gap:.6rem;flex-wrap:wrap}
+  #consentGate .row button{flex:1;min-width:140px}
 </style>
 </head>
 <body>
@@ -345,6 +359,20 @@
   </main>
 </div>
 
+<div id="consentGate">
+  <div class="card">
+    <h2>Consentement — données de santé</h2>
+    <p>Pour utiliser ton espace, tu dois accepter une fois que tes données de suivi sportif,
+      <strong>y compris des données de santé</strong> (fréquence cardiaque, VO2max…), soient
+      enregistrées par Vivien Strudel pour assurer ton suivi. Tu peux les consulter à tout moment
+      et supprimer ton compte et tes données depuis l'onglet « Mon profil ».</p>
+    <div class="row">
+      <button class="btn-primary" id="consentAccept">J'accepte</button>
+      <button class="btn-soft" id="consentDecline">Refuser et se déconnecter</button>
+    </div>
+  </div>
+</div>
+<div id="sessionBadge"><span class="dot"></span>Séance en cours</div>
 <div id="cogStage" class="cogstage"></div>
 <div id="toast" role="status"></div>
 
@@ -568,6 +596,7 @@ async function onSignedIn(user) {
   $('#loginView').hidden = true;
   $('#appView').hidden = false;
   await loadProfile();
+  if (consentNeeded()) $('#consentGate').style.display = 'flex';
   $('#whoBox').innerHTML = '<b>' + (profile.prenom || me.email) + '</b><br>' + me.email;
   // pré-remplir le sexe du test VO2max et du profil
   setSeg('#vSex', profile.sexe);
@@ -578,7 +607,22 @@ async function onSignedIn(user) {
   ensureChannel();
   loadHistory();
   refreshCogLast();
+  restoreLiveSession();
 }
+
+function consentNeeded() {
+  if (profile && profile.consent_at) return false;
+  try { if (me && localStorage.getItem('vs-consent-' + me.id)) return false; } catch (e) {}
+  return true;
+}
+$('#consentAccept').addEventListener('click', async () => {
+  const now = new Date().toISOString();
+  try { if (me) localStorage.setItem('vs-consent-' + me.id, now); } catch (e) {}
+  try { await sb.from('profiles').update({ consent_at: now }).eq('id', me.id); if (profile) profile.consent_at = now; } catch (e) {}
+  $('#consentGate').style.display = 'none';
+  toast('Merci, consentement enregistré.');
+});
+$('#consentDecline').addEventListener('click', async () => { if (sb) await sb.auth.signOut(); });
 
 async function loadProfile() {
   const { data, error } = await sb.from('profiles').select('*').eq('id', me.id).single();
@@ -776,6 +820,7 @@ function feedData(hr, rrs) {
       } });
     } catch (e) {}
   }
+  if (live.session && t - (live.lastSnap || 0) > 3000) { live.lastSnap = t; saveLiveSnapshot(); }
   renderLive();
 }
 
@@ -801,6 +846,54 @@ function renderZoneBars() {
   });
 }
 
+/* ---- Robustesse de séance : écran allumé, sauvegarde, reprise après rechargement ---- */
+let wakeLock = null;
+async function requestWakeLock() {
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+function releaseWakeLock() { if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; } }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && live.session) requestWakeLock();
+});
+
+function saveLiveSnapshot() {
+  const s = live.session; if (!s) return;
+  try {
+    localStorage.setItem('vs-live-session', JSON.stringify({
+      uid: me ? me.id : null, startedAt: s.startedAt, sum: s.sum, n: s.n,
+      max: s.max, min: s.min, zoneSec: s.zoneSec, fcMax: s.fcMax, lastUpdate: Date.now(),
+    }));
+  } catch (e) {}
+}
+function clearLiveSnapshot() { try { localStorage.removeItem('vs-live-session'); } catch (e) {} }
+
+function enterSessionUI() {
+  $('#btnStart').hidden = true;
+  $('#btnStop').hidden = false;
+  clearInterval(live.tick);
+  const upd = () => { $('#hrChrono').textContent = mmss((Date.now() - live.session.startedAt) / 1000); };
+  upd(); live.tick = setInterval(upd, 1000);
+  $('#sessionBadge').classList.add('on');
+  requestWakeLock();
+}
+
+function restoreLiveSession() {
+  let snap = null;
+  try { snap = JSON.parse(localStorage.getItem('vs-live-session') || 'null'); } catch (e) {}
+  if (!snap || !snap.startedAt) return;
+  if (me && snap.uid && snap.uid !== me.id) return;                                   // séance d'un autre compte
+  if (Date.now() - (snap.lastUpdate || snap.startedAt) > 6 * 3600 * 1000) { clearLiveSnapshot(); return; }
+  live.session = {
+    startedAt: snap.startedAt, sum: snap.sum || 0, n: snap.n || 0,
+    max: snap.max || 0, min: snap.min == null ? 999 : snap.min,
+    zoneSec: Array.isArray(snap.zoneSec) ? snap.zoneSec.slice(0, 6) : [0, 0, 0, 0, 0, 0],
+    prevZone: null, lastZoneT: null, fcMax: snap.fcMax || (profile ? profile.fc_max : 190),
+  };
+  live.broadcast = true;
+  enterSessionUI();
+  toast('Séance reprise après rechargement — reconnecte ton capteur pour continuer.');
+}
+
 $('#btnStart').addEventListener('click', () => {
   live.session = {
     startedAt: Date.now(), sum: 0, n: 0, max: 0, min: 999,
@@ -808,12 +901,8 @@ $('#btnStart').addEventListener('click', () => {
     fcMax: profile ? profile.fc_max : 190,
   };
   live.broadcast = true;
-  $('#btnStart').hidden = true;
-  $('#btnStop').hidden = false;
-  $('#btnConnect').disabled = true;
-  live.tick = setInterval(() => {
-    $('#hrChrono').textContent = mmss((Date.now() - live.session.startedAt) / 1000);
-  }, 1000);
+  enterSessionUI();
+  saveLiveSnapshot();
   toast('Séance démarrée — enregistrement en cours');
 });
 
@@ -822,6 +911,9 @@ $('#btnStop').addEventListener('click', async () => {
   clearInterval(live.tick);
   live.session = null;
   live.broadcast = false;
+  $('#sessionBadge').classList.remove('on');
+  releaseWakeLock();
+  clearLiveSnapshot();
   try { if (liveChannel && me) liveChannel.send({ type: 'broadcast', event: 'stop', payload: { user_id: me.id } }); } catch (e) {}
   $('#btnStop').hidden = true;
   $('#btnStart').hidden = false;
@@ -957,7 +1049,30 @@ $('#btnHrr').addEventListener('click', () => {
    ===================================================================== */
 const stage = $('#cogStage');
 function stageHTML(html) { stage.innerHTML = html; stage.classList.add('on'); }
-function stageClose() { stage.classList.remove('on'); stage.innerHTML = ''; }
+function stageClose() { stage.classList.remove('on'); stage.innerHTML = ''; cogProgressHide(); }
+
+let cogBar = null, cogBarFill = null, cogBarTxt = null;
+function cogProgress(done, total) {
+  if (!cogBar) {
+    cogBar = document.createElement('div');
+    cogBar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:61;display:flex;align-items:center;' +
+      'gap:8px;padding:7px 12px;background:rgba(0,0,0,.22)';
+    const track = document.createElement('div');
+    track.style.cssText = 'flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden';
+    cogBarFill = document.createElement('div');
+    cogBarFill.style.cssText = 'height:100%;width:0;background:#F4F0E6;transition:width .25s ease';
+    track.appendChild(cogBarFill);
+    cogBarTxt = document.createElement('span');
+    cogBarTxt.style.cssText = 'color:#F4F0E6;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;' +
+      'min-width:48px;text-align:right';
+    cogBar.appendChild(track); cogBar.appendChild(cogBarTxt);
+    document.body.appendChild(cogBar);
+  }
+  cogBar.style.display = 'flex';
+  cogBarFill.style.width = Math.round(100 * done / total) + '%';
+  cogBarTxt.textContent = done + ' / ' + total;
+}
+function cogProgressHide() { if (cogBar) cogBar.style.display = 'none'; }
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
 const onceClick = (sel) => new Promise(res => $(sel).addEventListener('click', res, { once: true }));
@@ -977,7 +1092,9 @@ async function runGoNoGo() {
     '<button class="btn-soft" id="cogGo">Commencer</button>');
   await onceClick('#cogGo');
   const rts = []; let commission = 0, omission = 0, correct = 0;
-  for (const type of seq) {
+  for (let i = 0; i < seq.length; i++) {
+    const type = seq[i];
+    cogProgress(i + 1, N);
     stageHTML('<div class="big">+</div>');
     await wait(700 + Math.random() * 600);
     const tap = { done: false, rt: null };
@@ -991,6 +1108,7 @@ async function runGoNoGo() {
     if (type === 'go') { if (tap.done) { rts.push(tap.rt); correct++; } else omission++; }
     else { if (tap.done) commission++; else correct++; }
   }
+  cogProgressHide();
   const mrt = mean(rts), acc = Math.round(100 * correct / N);
   await saveMeasurement('cognitif', { test: 'gng', ms: mrt ? Math.round(mrt) : null, commission, omission, accuracy: acc, n: N });
   stageHTML('<div class="instr">Terminé !<br><br>Temps de réaction : <b>' + (mrt ? Math.round(mrt) : '—') + ' ms</b><br>' +
@@ -1007,6 +1125,7 @@ async function runStroop() {
   await onceClick('#cogGo');
   const rts = []; let correct = 0;
   for (let i = 0; i < N; i++) {
+    cogProgress(i + 1, N);
     const wi = Math.floor(Math.random() * 4);
     let ci = Math.floor(Math.random() * 4);
     if (Math.random() < 0.7 && ci === wi) ci = (ci + 1) % 4; // souvent incongruent
@@ -1019,6 +1138,7 @@ async function runStroop() {
       $$('.cstroop').forEach(bb => bb.addEventListener('pointerdown', () => res(parseInt(bb.dataset.i, 10)), { once: true })));
     if (choice === ci) { correct++; rts.push(performance.now() - t0); }
   }
+  cogProgressHide();
   const mrt = mean(rts), acc = Math.round(100 * correct / N);
   await saveMeasurement('cognitif', { test: 'stroop', ms: mrt ? Math.round(mrt) : null, accuracy: acc, n: N });
   stageHTML('<div class="instr">Terminé !<br><br>Temps de réaction (bonnes réponses) : <b>' + (mrt ? Math.round(mrt) : '—') +
@@ -1037,6 +1157,7 @@ async function runNback() {
   await onceClick('#cogGo');
   let hits = 0, falseAlarms = 0, misses = 0, targets = 0;
   for (let i = 0; i < N; i++) {
+    cogProgress(i + 1, N);
     const isTarget = i >= back && seq[i] === seq[i - back];
     if (isTarget) targets++;
     const tap = { done: false };
@@ -1047,6 +1168,7 @@ async function runNback() {
     else if (isTarget) misses++;
     else if (tap.done) falseAlarms++;
   }
+  cogProgressHide();
   const acc = targets ? Math.round(100 * hits / targets) : 0;
   await saveMeasurement('cognitif', { test: 'nback', score: hits, hits, falseAlarms, misses, targets, accuracy: acc });
   stageHTML('<div class="instr">Terminé !<br><br>Bonnes détections : <b>' + hits + '/' + targets + '</b><br>' +
