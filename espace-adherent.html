@@ -99,6 +99,14 @@
   #sessionBadge.on{display:inline-flex}
   #sessionBadge .dot{width:9px;height:9px;border-radius:50%;background:#fff;animation:vspulse 1.4s infinite}
   @keyframes vspulse{0%,100%{opacity:1}50%{opacity:.25}}
+  #consentGate{position:fixed;inset:0;z-index:70;background:rgba(31,58,45,.96);display:none;
+    align-items:center;justify-content:center;padding:1.2rem}
+  #consentGate .card{background:var(--linen);border:1px solid var(--line);border-radius:14px;
+    padding:1.6rem;max-width:460px;text-align:left;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  #consentGate h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.2rem;margin-bottom:.6rem}
+  #consentGate p{color:var(--muted);font-size:.9rem;line-height:1.55;margin-bottom:1rem}
+  #consentGate .row{display:flex;gap:.6rem;flex-wrap:wrap}
+  #consentGate .row button{flex:1;min-width:140px}
 </style>
 </head>
 <body>
@@ -351,6 +359,19 @@
   </main>
 </div>
 
+<div id="consentGate">
+  <div class="card">
+    <h2>Consentement — données de santé</h2>
+    <p>Pour utiliser ton espace, tu dois accepter une fois que tes données de suivi sportif,
+      <strong>y compris des données de santé</strong> (fréquence cardiaque, VO2max…), soient
+      enregistrées par Vivien Strudel pour assurer ton suivi. Tu peux les consulter à tout moment
+      et supprimer ton compte et tes données depuis l'onglet « Mon profil ».</p>
+    <div class="row">
+      <button class="btn-primary" id="consentAccept">J'accepte</button>
+      <button class="btn-soft" id="consentDecline">Refuser et se déconnecter</button>
+    </div>
+  </div>
+</div>
 <div id="sessionBadge"><span class="dot"></span>Séance en cours</div>
 <div id="cogStage" class="cogstage"></div>
 <div id="toast" role="status"></div>
@@ -575,6 +596,7 @@ async function onSignedIn(user) {
   $('#loginView').hidden = true;
   $('#appView').hidden = false;
   await loadProfile();
+  if (consentNeeded()) $('#consentGate').style.display = 'flex';
   $('#whoBox').innerHTML = '<b>' + (profile.prenom || me.email) + '</b><br>' + me.email;
   // pré-remplir le sexe du test VO2max et du profil
   setSeg('#vSex', profile.sexe);
@@ -587,6 +609,20 @@ async function onSignedIn(user) {
   refreshCogLast();
   restoreLiveSession();
 }
+
+function consentNeeded() {
+  if (profile && profile.consent_at) return false;
+  try { if (me && localStorage.getItem('vs-consent-' + me.id)) return false; } catch (e) {}
+  return true;
+}
+$('#consentAccept').addEventListener('click', async () => {
+  const now = new Date().toISOString();
+  try { if (me) localStorage.setItem('vs-consent-' + me.id, now); } catch (e) {}
+  try { await sb.from('profiles').update({ consent_at: now }).eq('id', me.id); if (profile) profile.consent_at = now; } catch (e) {}
+  $('#consentGate').style.display = 'none';
+  toast('Merci, consentement enregistré.');
+});
+$('#consentDecline').addEventListener('click', async () => { if (sb) await sb.auth.signOut(); });
 
 async function loadProfile() {
   const { data, error } = await sb.from('profiles').select('*').eq('id', me.id).single();
