@@ -568,6 +568,13 @@ async function onSignedIn(user) {
   $('#loginView').hidden = true;
   $('#appView').hidden = false;
   await loadProfile();
+  if (location.hash.toLowerCase().includes('debug')) {
+    const r = await sb.from('profiles').select('id,email,role').eq('id', me.id);
+    alert('DIAGNOSTIC\n\nuser.id (session) = ' + me.id +
+      '\n\nrôle chargé = ' + (profile && profile.role) +
+      '\n\nlignes lues = ' + JSON.stringify(r.data) +
+      '\n\nerreur = ' + JSON.stringify(r.error));
+  }
   $('#whoBox').innerHTML = '<b>' + (profile.prenom || me.email) + '</b><br>' + me.email;
   // pré-remplir le sexe du test VO2max et du profil
   setSeg('#vSex', profile.sexe);
