@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Moniteur de groupe · Polar H10 — Vivien Strudel</title>
+<title>Moniteur de groupe · Capteurs cardiaques — Vivien Strudel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
@@ -371,7 +371,7 @@
     <svg width="26" height="30" viewBox="0 0 26 30" fill="none" aria-hidden="true">
       <path d="M13 1 L21 12 H17 L23 21 H15 V29 H11 V21 H3 L9 12 H5 Z" fill="#C9D4CC"/>
     </svg>
-    <h1>Moniteur de groupe<small>Polar H10 · FC &amp; VFC en direct</small></h1>
+    <h1>Moniteur de groupe<small>FC &amp; VFC en direct</small></h1>
   </div>
   <span class="chrono idle" id="clock">00:00</span>
   <div class="grp" id="grp">—</div>
@@ -393,7 +393,7 @@
 
 <div id="empty">
   <h2>Aucun capteur connecté</h2>
-  <p>Appuyez sur <strong>+ Capteur</strong> et choisissez un Polar H10 dans la liste.
+  <p>Appuyez sur <strong>+ Capteur</strong> et choisissez un capteur cardiaque dans la liste.
      Le navigateur n'autorise qu'une connexion à la fois&nbsp;: répétez l'opération pour chaque ceinture.</p>
   <div class="tip"><strong>Astuce terrain&nbsp;:</strong> connectez chaque capteur au moment où vous le distribuez,
      puis renommez la carte avec le prénom du participant. Réglez la FCmax individuelle pour des zones justes.
@@ -503,7 +503,7 @@
     </div>
     <div id="vHist"></div>
     <p class="note" style="margin-top:.6rem">Step de 41 cm, 3 min à 24 pas/min (hommes) / 22 (femmes),
-       puis FC de récupération relevée entre 5 et 20 s (lisible sur le Polar). VO2max estimée par les
+       puis FC de récupération relevée entre 5 et 20 s (lisible sur le capteur). VO2max estimée par les
        équations de McArdle (Queens College) — suivi intra-individuel, marge ~±10–15 %.</p>
   </div>
 
@@ -568,7 +568,7 @@
     </div>
     <p class="note">Les mesures sont enregistrées au nom de chaque participant : leur profil se met à jour automatiquement
        (individuel + cours collectif réunis). Step VO2max : 41 cm, 3 min, cadence commune 24 pas/min, FC de récupération
-       lue sur chaque Polar connecté ; pour le protocole femmes strict (22 pas/min), utilisez le test individuel.</p>
+       lue sur chaque capteur connecté ; pour le protocole femmes strict (22 pas/min), utilisez le test individuel.</p>
   </div>
 </section>
 
@@ -613,14 +613,14 @@
 'use strict';
 
 /* =========================================================
-   Moniteur de groupe Polar H10 — Vivien Strudel · v2
+   Moniteur de groupe — capteurs cardiaques — Vivien Strudel · v2
    FC + intervalles RR (VFC) via Web Bluetooth, multi-capteurs.
    v2 : archivage local des séances (IndexedDB), rapports de
    débriefing, ré-exports CSV, sauvegarde/restauration JSON.
    À héberger en HTTPS et ouvrir dans Chrome ou Bluefy (iPad).
    ========================================================= */
 
-/* ---------- Zones (% FCmax, convention Polar) ---------- */
+/* ---------- Zones (% FCmax) ---------- */
 const ZONES = [
   { min:  0, label: 'Repos', css: 'var(--z0)', hex: '#9AA69E' },
   { min: 50, label: 'Z1',    css: 'var(--z1)', hex: '#94A7B5' },
@@ -1921,7 +1921,7 @@ function reportHeadHTML(chosen) {
     '<div class="ph-brand">' +
     '<svg width="22" height="26" viewBox="0 0 26 30" fill="none" aria-hidden="true">' +
     '<path d="M13 1 L21 12 H17 L23 21 H15 V29 H11 V21 H3 L9 12 H5 Z" fill="#1F3A2D"/></svg>' +
-    '<div><strong>Vivien Strudel</strong><span>Bilan physiologique &amp; tests — Moniteur de groupe Polar H10</span></div>' +
+    '<div><strong>Vivien Strudel</strong><span>Bilan physiologique &amp; tests — Moniteur de groupe</span></div>' +
     '</div>' +
     '<div class="ph-meta">Édité le ' + frDate(Date.now()) + (names ? ' · ' + esc(names) : '') + '</div>' +
     '</div>';
@@ -2967,7 +2967,7 @@ function runVO2(stage, name, sex) {
   function recoveryAuto(p) {
     let rt = 20; const arr = [];
     ui.arena.innerHTML = '<div><strong>Effort terminé — restez immobile, ceinture en place.</strong><br>' +
-      'Lecture de la FC de récupération sur le Polar de ' + esc(name) + ' (5–20 s)…<br><span class="big" id="vrc">0:20</span></div>';
+      'Lecture de la FC de récupération sur le capteur de ' + esc(name) + ' (5–20 s)…<br><span class="big" id="vrc">0:20</span></div>';
     ui.pad.innerHTML = '';
     const rc = setInterval(async () => {
       const elapsed = 20 - rt;
@@ -2984,7 +2984,7 @@ function runVO2(stage, name, sex) {
   function recoveryManual(msg) {
     let rt = 20;
     ui.arena.innerHTML = '<div><strong>' + (msg || 'Effort terminé — restez debout.') + '</strong><br>' +
-      'Relevez la FC sur le Polar entre <b>5 et 20 s</b>, puis saisissez-la.<br>' +
+      'Relevez la FC sur le capteur entre <b>5 et 20 s</b>, puis saisissez-la.<br>' +
       '<span class="big" id="vrc">0:20</span></div>';
     ui.pad.innerHTML = '<input type="number" id="vrHR" min="60" max="220" inputmode="numeric" placeholder="FC récup (bpm)" ' +
       'style="flex:1;font:inherit;font-size:1.1rem;padding:.6rem;border:1.5px solid var(--line);border-radius:9px">' +

@@ -2,7 +2,7 @@
 
 Cet espace permet à **chaque adhérent de se connecter et d'enregistrer lui-même ses
 statistiques** (force, préhension, VO2max, et séances de fréquence cardiaque via son
-propre capteur Polar H10). Toi, en tant que **coach**, tu vois les données de tout le monde.
+propre capteur cardiaque). Toi, en tant que **coach**, tu vois les données de tout le monde.
 
 Fichiers :
 - `espace-adherent.html` — l'application adhérent (+ vue coach intégrée)

@@ -153,7 +153,7 @@
   <main class="wrap">
     <div class="tabs" id="tabs">
       <button class="tab on" data-tab="saisie">Mes mesures</button>
-      <button class="tab" data-tab="polar">Capteur Polar</button>
+      <button class="tab" data-tab="polar">Capteur</button>
       <button class="tab" data-tab="cognitif">Tests cognitifs</button>
       <button class="tab" data-tab="histo">Historique</button>
       <button class="tab" data-tab="progression">Progression</button>
@@ -215,9 +215,9 @@
       </div>
     </section>
 
-    <!-- ---- Capteur Polar ---- -->
+    <!-- ---- Capteur cardiaque ---- -->
     <section data-panel="polar" hidden>
-      <h2>Capteur Polar H10</h2>
+      <h2>Capteur cardiaque</h2>
       <div class="panel">
         <div class="livebox">
           <div>
@@ -299,7 +299,7 @@
     <section data-panel="histo" hidden>
       <h2>Mon historique</h2>
       <div class="panel">
-        <h3>Séances Polar</h3>
+        <h3>Séances capteur</h3>
         <div class="hist" id="histHr"><p class="muted">Chargement…</p></div>
       </div>
       <div class="panel">
@@ -324,7 +324,7 @@
             </div></div>
           <button class="btn-soft" id="pSave">Enregistrer</button>
         </div>
-        <p class="note">La FC max sert à calculer vos zones d'effort pendant les séances Polar.</p>
+        <p class="note">La FC max sert à calculer vos zones d'effort pendant les séances avec capteur.</p>
       </div>
 
       <div class="panel">
@@ -655,7 +655,7 @@ $('#pSave').addEventListener('click', async () => {
 });
 
 /* =====================================================================
-   Capteur Polar H10 (Web Bluetooth) — repris de l'app coach
+   Capteur cardiaque (Web Bluetooth) — repris de l'app coach
    ===================================================================== */
 if (!navigator.bluetooth) {
   const b = $('#banner'); b.hidden = false;
@@ -900,7 +900,7 @@ async function loadCoach() {
 let hrr = null;
 $('#btnHrr').addEventListener('click', () => {
   if (hrr) return;
-  if (live.hr === null) { toast('Capteur non actif — connecte ton Polar et attends une FC.'); return; }
+  if (live.hr === null) { toast('Capteur non actif — connecte ton capteur et attends une FC.'); return; }
   hrr = { peak: live.hr, t0: Date.now() };
   $('#hrrCount').textContent = '60';
   $('#hrrInfo').textContent = 'FC de pic : ' + hrr.peak + ' bpm — reste immobile…';

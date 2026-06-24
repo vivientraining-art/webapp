@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Espace adhérent — schéma Supabase (Postgres)
---  Application : Moniteur de groupe Polar H10 — Vivien Strudel
+--  Application : Moniteur de groupe — capteurs cardiaques — Vivien Strudel
 --
 --  À exécuter UNE FOIS dans Supabase :
 --    Dashboard → SQL Editor → New query → coller ce fichier → Run.
@@ -8,7 +8,7 @@
 --  Ce script crée :
 --    • profiles        : un profil par adhérent (lié à auth.users)
 --    • measurements    : mesures saisies à la main (force, préhension, VO2max, cognitif)
---    • hr_sessions     : séances de fréquence cardiaque enregistrées via le Polar H10
+--    • hr_sessions     : séances de fréquence cardiaque enregistrées via le capteur
 --    • Row Level Security : chaque adhérent ne voit QUE ses données.
 --      Le coach (profiles.role = 'coach') voit TOUT en lecture.
 -- =====================================================================
@@ -45,7 +45,7 @@ create table if not exists public.measurements (
 create index if not exists measurements_user_idx on public.measurements (user_id, recorded_at desc);
 
 -- ------------------------------------------------------------------
--- 3) Séances de fréquence cardiaque (capteur Polar)
+-- 3) Séances de fréquence cardiaque (capteur cardiaque)
 --    zone_seconds : { "0":120, "1":300, ... "5":60 } secondes par zone
 -- ------------------------------------------------------------------
 create table if not exists public.hr_sessions (
