@@ -370,7 +370,6 @@
   .authbox input{width:100%;margin-bottom:.7rem;font:inherit;color:var(--ink);background:#fff;
     border:1px solid var(--line);border-radius:8px;padding:.65rem;min-height:46px}
   .authbox button{width:100%}
-  .authbox #gateBack{margin-top:.5rem;background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.3)}
   .authbox #gateMsg{color:#F3D9CF;font-size:.85rem;margin-top:.7rem;min-height:1em}
   .modecards{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
   .modecard{background:var(--linen);color:var(--ink);border:1px solid var(--line);border-radius:14px;
@@ -398,22 +397,21 @@
 </head>
 <body>
 
-<div id="authGate" style="display:none">
+<div id="authGate">
   <div>
     <h2>Espace coach</h2>
-    <p>Connectez-vous avec votre compte coach pour accéder à ce mode.</p>
+    <p>Connectez-vous avec votre compte coach pour accéder au moniteur.</p>
   </div>
   <div class="authbox">
     <input type="email" id="gateEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
     <input type="password" id="gatePassword" placeholder="Mot de passe" autocomplete="current-password">
     <button class="btn-rec" id="gateBtn">Se connecter</button>
-    <button class="btn-soft" id="gateBack">← Retour au menu</button>
     <p style="margin-top:.7rem"><a href="#" id="gateForgot" style="color:#E9CFC4;font-size:.85rem">Mot de passe oublié ?</a></p>
     <p id="gateMsg"></p>
   </div>
 </div>
 
-<div id="modeSelect">
+<div id="modeSelect" style="display:none">
   <div>
     <h2>Moniteur de groupe</h2>
     <p>Choisissez votre mode pour cette session.</p>
@@ -3213,53 +3211,21 @@ const SPEC_URL = 'https://mxdsvbrxeospfohgvzbz.supabase.co';
 const SPEC_KEY = 'sb_publishable_MIO9ShdnMK1-mQm0T1J5YA_UPkAJ80_';
 let specSb = null, specChannel = null, specPruneTimer = null;
 const specCards = new Map();   // user_id -> { el, lastAt }
-let gateBusy = false, coachReady = false, pendingMode = null;
+let gateBusy = false, gateDone = false;
 
-/* --- On choisit le mode d'abord, puis on se connecte (compte coach exigé) ;
-       retour au menu possible. Si déjà connecté coach, la connexion est sautée. --- */
-(function initCoachAuth() {
-  if (typeof supabase === 'undefined') return;
-  specSb = supabase.createClient(SPEC_URL, SPEC_KEY);
-  specSb.auth.getSession().then(({ data }) => { if (data.session) onAuthCoach(data.session.user); });
-  specSb.auth.onAuthStateChange((_e, s) => { if (s && s.user) onAuthCoach(s.user); });
-})();
-
-async function onAuthCoach(user) {
-  if (gateBusy) return;
-  gateBusy = true;
-  const { data: prof } = await specSb.from('profiles').select('role').eq('id', user.id).single();
-  gateBusy = false;
-  if (!prof || prof.role !== 'coach') {
-    coachReady = false;
-    if ($('#authGate').style.display !== 'none')
-      $('#gateMsg').textContent = 'Le compte ' + (user.email || '') + ' n’est pas coach. Connectez-vous avec le compte coach.';
+/* --- Connexion coach d'abord, puis choix du mode. L'app entière exige le
+       compte coach. Si déjà connecté coach, on passe direct au choix de mode. --- */
+(function initCoachGate() {
+  if (typeof supabase === 'undefined') {
+    $('#authGate').querySelector('.authbox').innerHTML =
+      '<p style="color:#F3D9CF;line-height:1.5">Connexion au service impossible (hors ligne ?). ' +
+      'Le moniteur nécessite une connexion internet pour vérifier votre compte coach.</p>';
     return;
   }
-  coachReady = true;
-  if (pendingMode) { const m = pendingMode; pendingMode = null; routeMode(m); }
-}
-
-function pickMode(mode) {
-  if (coachReady) { routeMode(mode); return; }
-  pendingMode = mode;
-  $('#modeSelect').style.display = 'none';
-  $('#authGate').style.display = '';
-  if (typeof supabase === 'undefined')
-    $('#gateMsg').textContent = 'Connexion au service impossible (hors ligne ?).';
-  $('#gateEmail').focus();
-}
-$('#modeCreator').addEventListener('click', () => pickMode('creator'));
-$('#modeSpectator').addEventListener('click', () => pickMode('spectator'));
-[$('#modeCreator'), $('#modeSpectator')].forEach(c => c.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); }
-}));
-
-$('#gateBack').addEventListener('click', () => {
-  pendingMode = null;
-  $('#authGate').style.display = 'none';
-  $('#modeSelect').style.display = '';
-  $('#gateMsg').textContent = '';
-});
+  specSb = supabase.createClient(SPEC_URL, SPEC_KEY);
+  specSb.auth.getSession().then(({ data }) => { if (data.session) gateCheckCoach(data.session.user); });
+  specSb.auth.onAuthStateChange((_e, s) => { if (s && s.user) gateCheckCoach(s.user); });
+})();
 
 $('#gateBtn').addEventListener('click', async () => {
   const email = $('#gateEmail').value.trim(), password = $('#gatePassword').value;
@@ -3284,13 +3250,26 @@ $('#gateForgot').addEventListener('click', async (e) => {
     : 'E-mail de réinitialisation envoyé ! Cliquez le lien reçu pour choisir un nouveau mot de passe, puis revenez vous connecter ici.';
 });
 
-function routeMode(mode) {
+async function gateCheckCoach(user) {
+  if (gateDone || gateBusy) return;
+  gateBusy = true;
+  const { data: prof } = await specSb.from('profiles').select('role').eq('id', user.id).single();
+  gateBusy = false;
+  if (!prof || prof.role !== 'coach') {
+    $('#gateMsg').textContent = 'Le compte ' + (user.email || '') + ' n’est pas coach. Connectez-vous avec le compte coach.';
+    return;
+  }
+  gateDone = true;
   $('#authGate').style.display = 'none';
-  $('#modeSelect').style.display = 'none';
-  $('#gateMsg').textContent = '';
-  if (mode === 'spectator') enterSpectator();
-  // créateur : l'app locale est déjà en place sous les overlays
+  $('#modeSelect').style.display = '';
 }
+
+function chooseCreator() { $('#modeSelect').style.display = 'none'; }
+$('#modeCreator').addEventListener('click', chooseCreator);
+$('#modeSpectator').addEventListener('click', enterSpectator);
+[$('#modeCreator'), $('#modeSpectator')].forEach(c => c.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); }
+}));
 
 $('#specBack').addEventListener('click', () => location.reload());
 
