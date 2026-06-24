@@ -92,7 +92,21 @@
       <span id="switchPrompt">Pas encore de compte ?</span>
       <a href="#" id="switchMode" style="color:var(--terra);font-weight:600">Créer un compte</a>
     </p>
+    <p class="note" style="margin-top:.2rem">
+      <a href="#" id="forgotLink" style="color:var(--muted)">Mot de passe oublié ?</a>
+    </p>
     <p id="loginMsg" class="note" style="margin-top:.4rem"></p>
+  </div>
+</div>
+
+<!-- ===================== Réinitialisation du mot de passe ===================== -->
+<div id="resetView" class="login" hidden>
+  <div class="card">
+    <h2>Nouveau mot de passe</h2>
+    <p>Choisissez un nouveau mot de passe pour votre compte.</p>
+    <input type="password" id="resetPassword" placeholder="Nouveau mot de passe (6 caractères min.)" autocomplete="new-password">
+    <button class="btn-primary" id="resetBtn">Valider</button>
+    <p id="resetMsg" class="note" style="margin-top:.9rem"></p>
   </div>
 </div>
 
@@ -317,12 +331,19 @@ let profile = null;   // ligne profiles
 /* =====================================================================
    Authentification (lien magique)
    ===================================================================== */
+let recoveryMode = false;
+
 async function initAuth() {
   if (!sb) { showLogin(); return; }
+  // Arrivée depuis un lien « mot de passe oublié » ?
+  if (/type=recovery/.test(location.hash)) recoveryMode = true;
   const { data } = await sb.auth.getSession();
-  if (data.session) { await onSignedIn(data.session.user); }
+  if (recoveryMode) { showReset(); }
+  else if (data.session) { await onSignedIn(data.session.user); }
   else { showLogin(); }
-  sb.auth.onAuthStateChange((_e, session) => {
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') { recoveryMode = true; showReset(); return; }
+    if (recoveryMode) return; // on attend que le nouveau mot de passe soit défini
     if (session && (!me || me.id !== session.user.id)) onSignedIn(session.user);
     if (!session && me) location.reload();
   });
@@ -331,7 +352,39 @@ async function initAuth() {
 function showLogin() {
   $('#loginView').hidden = false;
   $('#appView').hidden = true;
+  $('#resetView').hidden = true;
 }
+function showReset() {
+  $('#loginView').hidden = true;
+  $('#appView').hidden = true;
+  $('#resetView').hidden = false;
+}
+
+$('#forgotLink').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const email = $('#loginEmail').value.trim();
+  if (!email || !email.includes('@')) { toast('Entrez d’abord votre e-mail dans le champ ci-dessus.'); return; }
+  if (!sb) return;
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split('#')[0] });
+  $('#loginMsg').textContent = error
+    ? 'Erreur : ' + describeError(error)
+    : 'E-mail de réinitialisation envoyé ! Cliquez le lien reçu pour choisir un nouveau mot de passe.';
+});
+
+$('#resetBtn').addEventListener('click', async () => {
+  const pw = $('#resetPassword').value;
+  if (pw.length < 6) { toast('Mot de passe : 6 caractères minimum.'); return; }
+  if (!sb) return;
+  $('#resetBtn').disabled = true;
+  const { data, error } = await sb.auth.updateUser({ password: pw });
+  $('#resetBtn').disabled = false;
+  if (error) { $('#resetMsg').textContent = 'Erreur : ' + describeError(error); return; }
+  recoveryMode = false;
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  $('#resetView').hidden = true;
+  toast('Mot de passe mis à jour ✔');
+  if (data.user) onSignedIn(data.user);
+});
 
 let authMode = 'signin'; // 'signin' | 'signup'
 $('#switchMode').addEventListener('click', (e) => {
