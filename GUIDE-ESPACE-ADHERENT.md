@@ -111,7 +111,8 @@ Sans cette migration, l'enregistrement de la récupération cardiaque et le bout
 
 ## Deux modes dans l'app coach (spectateur / créateur)
 
-L'app coach (`moniteur-groupe-polar.html`) propose un **choix de mode au lancement** :
+L'app coach (`moniteur-groupe-polar.html`) **exige d'abord une connexion avec ton compte coach**
+(les deux modes sont protégés). Une fois connecté, tu choisis ton mode :
 
 - **Mode créateur** : fonctionnement habituel — tu apparies les capteurs à ta tablette
   et tu enregistres toi-même. Rien à configurer.
