@@ -354,7 +354,18 @@ function traduireErreur(msg) {
   if (/already registered|already exists|User already/i.test(msg)) return 'Un compte existe déjà avec cet e-mail — connectez-vous plutôt.';
   if (/Password should be/i.test(msg)) return 'Mot de passe trop court (6 caractères minimum).';
   if (/Email not confirmed/i.test(msg)) return 'E-mail pas encore confirmé — vérifiez votre boîte mail.';
+  if (/sending|confirmation email|smtp/i.test(msg)) return 'L’envoi de l’e-mail de confirmation a échoué (réglage SMTP/Resend dans Supabase).';
+  if (/Database error|saving new user/i.test(msg)) return 'Erreur base de données à la création — le script SQL est-il bien installé ?';
   return msg;
+}
+function describeError(error) {
+  const m = error && (error.message || error.error_description || error.msg);
+  if (m) return traduireErreur(m);
+  const parts = [];
+  if (error && error.status) parts.push('code ' + error.status);
+  if (error && error.code) parts.push(error.code);
+  if (parts.length) return parts.join(' ') + ' — souvent l’envoi d’e-mail (SMTP) qui échoue.';
+  return 'erreur serveur (probablement l’envoi de l’e-mail de confirmation). Voir réglage SMTP/Resend.';
 }
 
 $('#loginBtn').addEventListener('click', async () => {
@@ -372,13 +383,17 @@ $('#loginBtn').addEventListener('click', async () => {
         email, password,
         options: { data: { prenom }, emailRedirectTo: location.href.split('#')[0] }
       });
-      if (error) { $('#loginMsg').textContent = 'Erreur : ' + traduireErreur(error.message); return; }
+      if (error) { console.error('signUp', error); $('#loginMsg').textContent = 'Erreur : ' + describeError(error); return; }
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        $('#loginMsg').textContent = 'Un compte existe déjà avec cet e-mail. Cliquez sur « Se connecter ».';
+        return;
+      }
       if (!data.session) {
         $('#loginMsg').textContent = 'Compte créé ! Confirmez votre e-mail (lien reçu par mail), puis connectez-vous.';
       } // si une session est renvoyée, onAuthStateChange connecte automatiquement
     } else {
       const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) { $('#loginMsg').textContent = 'Erreur : ' + traduireErreur(error.message); return; }
+      if (error) { console.error('signIn', error); $('#loginMsg').textContent = 'Erreur : ' + describeError(error); return; }
     }
   } finally {
     $('#loginBtn').disabled = false;
