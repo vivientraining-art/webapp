@@ -10,103 +10,172 @@
 <style>
   :root{
     --forest:#1F3A2D; --pine:#2F5240; --sand:#F2EDE2; --linen:#FBF8F1;
-    --ink:#22302A; --muted:#6E7B73; --terra:#C26B4A; --line:#DDD4C3;
+    --ink:#22302A; --muted:#6E7B73; --terra:#C26B4A; --terra-deep:#A85535; --line:#DDD4C3;
     --z0:#9AA69E; --z1:#94A7B5; --z2:#5C8FA6; --z3:#5F9560; --z4:#D78F3C; --z5:#C14F38;
+    --r-lg:16px; --r-md:12px; --r-sm:9px;
+    --sh-1:0 1px 2px rgba(34,48,42,.05),0 2px 10px rgba(34,48,42,.05);
+    --sh-2:0 2px 6px rgba(34,48,42,.08),0 14px 36px rgba(34,48,42,.12);
+    --ring:0 0 0 3px rgba(47,82,64,.20);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
-  body{font-family:'Source Sans 3',system-ui,sans-serif;background:var(--sand);color:var(--ink);-webkit-font-smoothing:antialiased}
-  header{position:sticky;top:0;z-index:10;background:var(--forest);color:#F4F0E6;display:flex;align-items:center;flex-wrap:wrap;gap:.6rem 1.2rem;padding:.65rem 1rem}
+  body{
+    font-family:'Source Sans 3',system-ui,sans-serif;color:var(--ink);
+    background:radial-gradient(1100px 480px at 50% -12%,#F8F4EA,var(--sand)) fixed;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- En-tête ---------- */
+  header{
+    position:sticky;top:0;z-index:10;color:#F4F0E6;
+    background:linear-gradient(180deg,#254531,var(--forest));
+    border-bottom:1px solid rgba(255,255,255,.07);
+    display:flex;align-items:center;flex-wrap:wrap;gap:.6rem 1.2rem;padding:.7rem 1.1rem;
+  }
   .brand{display:flex;align-items:center;gap:.6rem;min-width:0}
-  .brand h1{font-family:'Libre Baskerville',Georgia,serif;font-size:1.05rem;font-weight:700;line-height:1.1;white-space:nowrap}
-  .brand small{display:block;font-weight:400;font-size:.72rem;color:#C9D4CC;letter-spacing:.04em}
+  .brand h1{font-family:'Libre Baskerville',Georgia,serif;font-size:1.08rem;font-weight:700;line-height:1.1;white-space:nowrap}
+  .brand small{display:block;font-weight:400;font-size:.72rem;color:#C9D4CC;letter-spacing:.05em}
   .spacer{flex:1}
-  .who{font-size:.85rem;color:#C9D4CC;text-align:right;line-height:1.25}
+  .who{font-size:.85rem;color:#C9D4CC;text-align:right;line-height:1.3}
   .who b{color:#fff}
-  button{font:inherit;font-weight:600;border:none;border-radius:8px;padding:.6rem .95rem;cursor:pointer;min-height:44px;transition:filter .12s ease,opacity .12s ease}
-  button:active{filter:brightness(.92)}
-  button:disabled{opacity:.45;cursor:default}
+  /* ---------- Boutons ---------- */
+  button{
+    font:inherit;font-weight:600;border:none;border-radius:10px;
+    padding:.6rem 1rem;cursor:pointer;min-height:44px;
+    transition:filter .15s ease,box-shadow .15s ease,transform .06s ease;
+  }
+  button:active{transform:translateY(1px);filter:brightness(.94)}
+  button:disabled{opacity:.45;cursor:default;transform:none}
+  button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}
   .btn-ghost{background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.25)}
-  .btn-rec{background:var(--terra);color:#fff}
-  .btn-stop{background:#fff;color:var(--terra)}
-  .btn-soft{background:var(--linen);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:.6rem .95rem;border-radius:8px;font-weight:600;cursor:pointer}
-  .btn-primary{background:var(--terra);color:#fff}
-  .wrap{max-width:760px;margin:0 auto;padding:1.1rem 1rem 4rem}
-  h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.25rem;margin-bottom:.9rem}
-  h3{font-size:1rem;margin-bottom:.7rem}
-  .panel{background:var(--linen);border:1px solid var(--line);border-radius:12px;padding:1rem;margin-bottom:1.1rem;box-shadow:0 1px 2px rgba(34,48,42,.06)}
-  .formrow{display:flex;flex-wrap:wrap;gap:.7rem;align-items:flex-end}
-  .field{display:flex;flex-direction:column;gap:.25rem;font-size:.82rem;color:var(--muted);font-weight:600}
-  input,select{font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:8px;padding:.55rem .6rem;min-height:44px;min-width:120px}
+  .btn-ghost:hover{background:rgba(255,255,255,.2)}
+  .btn-rec{background:var(--terra);color:#fff;box-shadow:0 2px 8px rgba(194,107,74,.35)}
+  .btn-rec:hover{background:var(--terra-deep)}
+  .btn-stop{background:#fff;color:var(--terra);border:1px solid var(--terra)}
+  .btn-soft{
+    background:#fff;color:var(--ink);border:1px solid var(--line);
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:44px;padding:.6rem 1rem;border-radius:10px;font-weight:600;cursor:pointer;
+    transition:border-color .15s ease,box-shadow .15s ease,transform .06s ease;
+  }
+  .btn-soft:hover{border-color:var(--pine);box-shadow:var(--sh-1)}
+  .btn-primary{background:var(--terra);color:#fff;box-shadow:0 2px 8px rgba(194,107,74,.35)}
+  .btn-primary:hover{background:var(--terra-deep)}
+  .btn-danger{background:#fff;color:var(--z5);border:1px solid var(--z5)}
+  /* ---------- Structure ---------- */
+  .wrap{max-width:780px;margin:0 auto;padding:1.3rem 1rem 4.5rem}
+  h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.35rem;margin-bottom:1rem;letter-spacing:.01em}
+  h3{font-size:1rem;margin-bottom:.75rem}
+  .panel{
+    background:var(--linen);border:1px solid var(--line);border-radius:var(--r-lg);
+    padding:1.15rem 1.15rem 1.2rem;margin-bottom:1.15rem;box-shadow:var(--sh-1);
+  }
+  .formrow{display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end}
+  .field{
+    display:flex;flex-direction:column;gap:.3rem;
+    font-size:.72rem;color:var(--muted);font-weight:700;
+    text-transform:uppercase;letter-spacing:.06em;
+  }
+  input,select{
+    font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:.55rem .65rem;min-height:44px;min-width:120px;
+    transition:border-color .15s ease,box-shadow .15s ease;
+  }
+  input:focus,select:focus{border-color:var(--pine);outline:none;box-shadow:var(--ring)}
   input[type=number]{max-width:140px}
-  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .seg button{background:#fff;color:var(--muted);border:none;border-radius:0;min-height:44px;padding:.5rem .9rem;font-weight:600}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:#fff}
+  .seg button{background:#fff;color:var(--muted);border:none;border-radius:0;min-height:44px;padding:.5rem .95rem;font-weight:600}
   .seg button.sel{background:var(--pine);color:#fff}
-  .note{font-size:.8rem;color:var(--muted);line-height:1.5;margin-top:.6rem}
-  .tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.1rem}
-  .tab{background:var(--linen);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:.55rem 1rem;min-height:44px}
-  .tab.on{background:var(--forest);color:#F4F0E6;border-color:var(--forest)}
+  .note{font-size:.8rem;color:var(--muted);line-height:1.55;margin-top:.65rem}
+  /* ---------- Onglets ---------- */
+  .tabs{display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:1.2rem}
+  .tab{
+    background:rgba(255,255,255,.6);color:var(--ink);border:1px solid var(--line);
+    border-radius:999px;padding:.55rem 1.05rem;min-height:44px;font-weight:600;
+    transition:border-color .15s ease,background .15s ease;
+  }
+  .tab:hover{border-color:var(--pine)}
+  .tab.on{background:var(--forest);color:#F4F0E6;border-color:var(--forest);box-shadow:0 2px 8px rgba(31,58,45,.28)}
+  /* ---------- Historique ---------- */
   .hist{margin-top:.7rem;font-size:.9rem}
-  .hist .item{display:flex;justify-content:space-between;gap:.6rem;padding:.5rem 0;border-top:1px solid var(--line)}
+  .hist .item{display:flex;justify-content:space-between;gap:.6rem;padding:.6rem 0;border-top:1px solid var(--line)}
   .hist .item:first-child{border-top:none}
   .hist b{font-variant-numeric:tabular-nums}
   .muted{color:var(--muted)}
-  /* Login */
-  .login{max-width:420px;margin:8vh auto 0;padding:0 1rem}
-  .login .card{background:var(--linen);border:1px solid var(--line);border-radius:14px;padding:1.6rem;text-align:center;box-shadow:0 4px 16px rgba(34,48,42,.08)}
-  .login h2{margin-bottom:.4rem}
-  .login p{color:var(--muted);font-size:.9rem;line-height:1.5;margin-bottom:1.1rem}
+  /* ---------- Connexion ---------- */
+  .login{max-width:430px;margin:7vh auto 0;padding:0 1rem}
+  .login .card{
+    background:var(--linen);border:1px solid var(--line);border-radius:20px;
+    padding:1.9rem 1.7rem;text-align:center;box-shadow:var(--sh-2);
+  }
+  .login .card>svg{margin-bottom:.7rem}
+  .login h2{margin-bottom:.45rem}
+  .login p{color:var(--muted);font-size:.9rem;line-height:1.55;margin-bottom:1.15rem}
   .login input{width:100%;max-width:none;margin-bottom:.8rem}
   .login button{width:100%}
-  /* Live HR */
-  .hrbig{font-variant-numeric:tabular-nums;font-size:3.4rem;font-weight:700;line-height:1}
+  /* ---------- FC en direct ---------- */
+  .hrbig{font-variant-numeric:tabular-nums;font-size:3.6rem;font-weight:700;line-height:1;letter-spacing:-.01em}
   .hrunit{font-size:1rem;color:var(--muted);font-weight:600}
-  .zbadge{display:inline-block;color:#fff;font-weight:700;border-radius:999px;padding:.2rem .8rem;font-size:.9rem;background:var(--z0)}
-  .livebox{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
-  .chrono{font-variant-numeric:tabular-nums;font-weight:700;font-size:1.4rem}
-  .zonebars{display:flex;gap:3px;margin-top:.8rem;height:14px;border-radius:7px;overflow:hidden}
+  .zbadge{display:inline-block;color:#fff;font-weight:700;border-radius:999px;padding:.22rem .85rem;font-size:.9rem;background:var(--z0)}
+  .livebox{display:flex;align-items:center;gap:1.1rem;flex-wrap:wrap}
+  .chrono{font-variant-numeric:tabular-nums;font-weight:700;font-size:1.45rem}
+  .zonebars{display:flex;gap:2px;margin-top:.9rem;height:16px;border-radius:8px;overflow:hidden}
   .zonebars span{display:block}
+  /* ---------- Divers ---------- */
   #banner{background:#F6E3D3;color:#7A4426;border-bottom:1px solid #E3C4AA;padding:.7rem 1rem;font-size:.9rem;line-height:1.4}
-  #toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);background:var(--forest);color:#F4F0E6;padding:.7rem 1.1rem;border-radius:10px;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:50;max-width:90vw;text-align:center}
+  #toast{
+    position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%);
+    background:var(--forest);color:#F4F0E6;padding:.75rem 1.2rem;border-radius:12px;
+    font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .2s ease;
+    z-index:50;max-width:90vw;text-align:center;box-shadow:var(--sh-2);
+  }
   #toast.show{opacity:1}
-  .coachrow{display:flex;justify-content:space-between;gap:.6rem;padding:.7rem 0;border-top:1px solid var(--line);flex-wrap:wrap}
+  .coachrow{display:flex;justify-content:space-between;gap:.6rem;padding:.75rem 0;border-top:1px solid var(--line);flex-wrap:wrap}
   .coachrow:first-child{border-top:none}
-  .config-warn{background:#FBE3E0;border:1px solid #E0A89F;color:#8A3024;border-radius:12px;padding:1rem;margin:1rem;font-size:.9rem;line-height:1.5}
+  .config-warn{background:#FBE3E0;border:1px solid #E0A89F;color:#8A3024;border-radius:var(--r-md);padding:1rem;margin:1rem;font-size:.9rem;line-height:1.5}
   code{background:#0001;padding:.1rem .3rem;border-radius:4px;font-size:.85em}
-  .btn-danger{background:#fff;color:var(--z5);border:1px solid var(--z5)}
-  .checkrow{display:flex;gap:.55rem;align-items:flex-start;text-align:left;font-size:.8rem;color:var(--muted);line-height:1.45;margin-bottom:.9rem}
-  .checkrow input{width:auto;min-width:0;margin:.15rem 0 0;flex:none}
-  .cogcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:.9rem;margin-bottom:.8rem}
-  .cogcard .last{font-size:.85rem;color:var(--muted);margin:.3rem 0 .6rem;font-variant-numeric:tabular-nums}
-  .cogstage{position:fixed;inset:0;z-index:60;background:var(--forest);color:#F4F0E6;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:1.2rem;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  .checkrow{display:flex;gap:.55rem;align-items:flex-start;text-align:left;font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:.9rem}
+  .checkrow input{width:auto;min-width:0;min-height:0;margin:.15rem 0 0;flex:none}
+  /* ---------- Tests cognitifs ---------- */
+  .cogcard{background:var(--linen);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.05rem 1.1rem;margin-bottom:.9rem;box-shadow:var(--sh-1)}
+  .cogcard .last{font-size:.85rem;color:var(--muted);margin:.35rem 0 .7rem;font-variant-numeric:tabular-nums}
+  .cogstage{
+    position:fixed;inset:0;z-index:60;background:linear-gradient(180deg,#254531,var(--forest));color:#F4F0E6;
+    display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    padding:1.2rem;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
   .cogstage.on{display:flex}
-  .cogstage .instr{max-width:520px;font-size:1.05rem;line-height:1.65;margin-bottom:1.3rem}
+  .cogstage .instr{max-width:520px;font-size:1.05rem;line-height:1.7;margin-bottom:1.4rem}
   .cogstage .big{font-size:clamp(2.5rem,16vw,6rem);font-weight:700;line-height:1}
-  .cog-disc{width:46vw;max-width:230px;height:46vw;max-height:230px;border-radius:50%}
+  .cog-disc{width:46vw;max-width:230px;height:46vw;max-height:230px;border-radius:50%;box-shadow:0 10px 40px rgba(0,0,0,.3)}
   .cog-word{font-size:clamp(2rem,12vw,4.5rem);font-weight:800}
   .cog-tap{margin-top:1.5rem;font-size:.9rem;color:#C9D4CC}
   .cogstage .formrow{justify-content:center}
   .cogstage .btn-soft{background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.3)}
-  .chartcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:.9rem;margin-bottom:.9rem}
-  .chartcard h4{font-size:.92rem;margin-bottom:.5rem}
-  .chartcard svg{width:100%;height:120px;display:block}
+  /* ---------- Graphiques ---------- */
+  .chartcard{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:1rem 1rem .85rem;margin-bottom:.95rem;box-shadow:var(--sh-1)}
+  .chartcard h4{font-size:.92rem;margin-bottom:.6rem}
+  .chartcard svg{width:100%;height:auto;display:block}
   .chart-empty{font-size:.85rem;color:var(--muted)}
+  /* ---------- HRR ---------- */
   .hrr-box{text-align:center;padding:.4rem 0 .2rem}
   .hrr-count{font-size:3rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
-  #sessionBadge{position:fixed;left:10px;bottom:10px;z-index:55;background:var(--terra);color:#fff;
-    font-size:.8rem;font-weight:700;border-radius:999px;padding:.4rem .85rem;box-shadow:0 2px 8px rgba(0,0,0,.2);
-    display:none;align-items:center;gap:.45rem}
+  /* ---------- Badge séance ---------- */
+  #sessionBadge{
+    position:fixed;left:12px;bottom:12px;z-index:55;background:var(--terra);color:#fff;
+    font-size:.8rem;font-weight:700;border-radius:999px;padding:.45rem .9rem;
+    box-shadow:var(--sh-2);display:none;align-items:center;gap:.45rem;
+  }
   #sessionBadge.on{display:inline-flex}
   #sessionBadge .dot{width:9px;height:9px;border-radius:50%;background:#fff;animation:vspulse 1.4s infinite}
   @keyframes vspulse{0%,100%{opacity:1}50%{opacity:.25}}
-  #consentGate{position:fixed;inset:0;z-index:70;background:rgba(31,58,45,.96);display:none;
-    align-items:center;justify-content:center;padding:1.2rem}
-  #consentGate .card{background:var(--linen);border:1px solid var(--line);border-radius:14px;
-    padding:1.6rem;max-width:460px;text-align:left;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  /* ---------- Consentement ---------- */
+  #consentGate{position:fixed;inset:0;z-index:70;background:rgba(31,58,45,.96);display:none;align-items:center;justify-content:center;padding:1.2rem}
+  #consentGate .card{background:var(--linen);border:1px solid var(--line);border-radius:20px;padding:1.7rem;max-width:470px;text-align:left;box-shadow:var(--sh-2)}
   #consentGate h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.2rem;margin-bottom:.6rem}
-  #consentGate p{color:var(--muted);font-size:.9rem;line-height:1.55;margin-bottom:1rem}
+  #consentGate p{color:var(--muted);font-size:.9rem;line-height:1.6;margin-bottom:1.05rem}
   #consentGate .row{display:flex;gap:.6rem;flex-wrap:wrap}
-  #consentGate .row button{flex:1;min-width:140px}
+  #consentGate .row button{flex:1;min-width:150px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -116,6 +185,9 @@
 <!-- ===================== Écran de connexion ===================== -->
 <div id="loginView" class="login" hidden>
   <div class="card">
+    <svg width="30" height="34" viewBox="0 0 26 30" fill="none" aria-hidden="true">
+      <path d="M13 1 L21 12 H17 L23 21 H15 V29 H11 V21 H3 L9 12 H5 Z" fill="#2F5240"/>
+    </svg>
     <h2>Espace adhérent</h2>
     <p id="loginIntro">Connectez-vous avec votre e-mail et votre mot de passe.</p>
     <input type="text" id="loginPrenom" placeholder="Votre prénom" autocomplete="given-name" hidden>
@@ -259,7 +331,8 @@
 
       <div class="panel">
         <h3>Récupération cardiaque (HRR)</h3>
-        <p class="note" style="margin-top:0">Juste à la <strong>fin d'un effort intense</strong> : appuie sur « Démarrer la récup ».
+        <p class="note" style="margin-top:0">Elle se mesure <strong>automatiquement à la fin de chaque séance</strong> d'au moins
+          5 min (garde le capteur 60 s après l'arrêt). Tu peux aussi la lancer à la main après un effort intense :
           L'app relève ta FC de pic, décompte 60 s pendant que tu restes immobile, puis mesure la baisse de FC.
           Plus la chute en 1 min est grande, meilleure est ta récupération (marqueur de forme).</p>
         <div class="hrr-box">
@@ -938,6 +1011,9 @@ $('#btnStop').addEventListener('click', async () => {
   toast('Séance enregistrée ✔  FC moy ' + row.hr_avg + ' bpm');
   castStat('session', { hr_avg: row.hr_avg, hr_peak: row.hr_peak, duration_s: row.duration_s });
   $('#zoneBars').hidden = true;
+  /* HRR60 automatique (Cole 1999) : mesurée à l'arrêt de l'effort, si la séance
+     a duré ≥ 5 min et que la FC est encore élevée (capteur toujours actif). */
+  if (row.duration_s >= 300 && live.hr !== null && live.hr >= 100) startHrrMeasure(true);
 });
 
 /* =====================================================================
@@ -972,7 +1048,7 @@ function renderMeasHist(rows) {
     if (r.type === 'force') desc = d.exercice + ' — <b>' + d.kg + ' kg × ' + d.reps + '</b> (1RM ≈ ' + d.e1rm + ' kg)';
     else if (r.type === 'grip') desc = 'Préhension ' + (d.main === 'D' ? 'droite' : 'gauche') + ' — <b>' + d.kg + ' kg</b>';
     else if (r.type === 'vo2max') desc = 'VO2max — <b>' + d.vo2max + '</b> ml/kg/min (FC réc. ' + d.fc_reco + ')';
-    else if (r.type === 'hrr') desc = 'Récup. cardiaque — <b>−' + d.hrr60 + ' bpm</b> en 60 s (pic ' + d.peak + ' → ' + d.hr60 + ')';
+    else if (r.type === 'hrr') desc = 'Récup. cardiaque — <b>−' + d.hrr60 + ' bpm</b> en 60 s (pic ' + d.peak + ' → ' + d.hr60 + ')' + (d.auto ? ' · fin de séance' : '');
     else if (r.type === 'cognitif') {
       const lbl = { gng: 'Go/No-Go', stroop: 'Stroop', nback: 'N-back' }[d.test] || d.test;
       const val = d.ms != null ? d.ms + ' ms' : (d.accuracy != null ? d.accuracy + ' %' : (d.score ?? '—'));
@@ -1021,28 +1097,33 @@ async function loadCoach() {
    Récupération cardiaque (HRR)
    ===================================================================== */
 let hrr = null;
-$('#btnHrr').addEventListener('click', () => {
+function startHrrMeasure(auto) {
   if (hrr) return;
-  if (live.hr === null) { toast('Capteur non actif — connecte ton capteur et attends une FC.'); return; }
-  hrr = { peak: live.hr, t0: Date.now() };
+  if (live.hr === null) { if (!auto) toast('Capteur non actif — connecte ton capteur et attends une FC.'); return; }
+  hrr = { peak: live.hr, t0: Date.now(), auto: !!auto };
   $('#hrrCount').textContent = '60';
   $('#hrrInfo').textContent = 'FC de pic : ' + hrr.peak + ' bpm — reste immobile…';
   $('#btnHrr').disabled = true;
+  if (auto) toast('Mesure de récupération lancée — reste immobile 60 s, garde le capteur.');
   hrr.timer = setInterval(async () => {
-    if (live.hr !== null && live.hr > hrr.peak) hrr.peak = live.hr; // le pic peut monter juste après l'appui
+    if (live.hr !== null && live.hr > hrr.peak) hrr.peak = live.hr; // le pic peut monter juste après l'arrêt
     const left = 60 - Math.floor((Date.now() - hrr.t0) / 1000);
     $('#hrrCount').textContent = Math.max(left, 0);
     if (left > 0) return;
     clearInterval(hrr.timer);
-    const hr60 = live.hr, drop = hrr.peak - hr60;
-    await saveMeasurement('hrr', { peak: hrr.peak, hr60, hrr60: drop });
-    $('#hrrCount').textContent = '−' + drop;
-    $('#hrrInfo').textContent = 'Récupération : −' + drop + ' bpm en 60 s (pic ' + hrr.peak + ' → ' + hr60 + ')';
-    toast('HRR enregistrée : −' + drop + ' bpm');
+    const wasAuto = hrr.auto, hr60 = live.hr, drop = hrr.peak - hr60;
+    const flags = { peak: hrr.peak, hr60, hrr60: drop };
+    if (wasAuto) flags.auto = true;                       // HRR mesurée automatiquement en fin de séance
     hrr = null;
     $('#btnHrr').disabled = false;
+    if (hr60 === null || drop < 0) { $('#hrrInfo').textContent = 'Mesure interrompue (signal perdu).'; return; }
+    await saveMeasurement('hrr', flags);
+    $('#hrrCount').textContent = '−' + drop;
+    $('#hrrInfo').textContent = 'Récupération : −' + drop + ' bpm en 60 s (pic ' + flags.peak + ' → ' + hr60 + ')';
+    toast('Récupération enregistrée : −' + drop + ' bpm en 60 s' + (drop >= 20 ? ' — très bonne récupération' : (drop < 12 ? ' — récupération lente' : '')));
   }, 250);
-});
+}
+$('#btnHrr').addEventListener('click', () => startHrrMeasure(false));
 
 /* =====================================================================
    Tests cognitifs (Go/No-Go, Stroop, N-back)
@@ -1194,18 +1275,38 @@ async function refreshCogLast() {
    ===================================================================== */
 function lineChartSVG(series, color) {
   if (series.length < 1) return '<p class="chart-empty">Pas encore de donnée.</p>';
-  const W = 600, H = 120, pad = 22;
+  const W = 600, H = 150, pad = 26;
   const xs = series.map(p => p.x), ys = series.map(p => p.y);
   const xmin = Math.min(...xs), xmax = Math.max(...xs), ymin = Math.min(...ys), ymax = Math.max(...ys);
   const sx = x => xmax === xmin ? W / 2 : pad + (x - xmin) / (xmax - xmin) * (W - 2 * pad);
   const sy = y => ymax === ymin ? H / 2 : H - pad - (y - ymin) / (ymax - ymin) * (H - 2 * pad);
-  const d = series.map((p, i) => (i ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ');
-  const dots = series.map(p => '<circle cx="' + sx(p.x).toFixed(1) + '" cy="' + sy(p.y).toFixed(1) + '" r="3.5" fill="' + color + '"/>').join('');
+  // grille horizontale discrète
+  let grid = '';
+  for (let g = 0; g < 3; g++) {
+    const gy = (pad + g * (H - 2 * pad) / 2).toFixed(1);
+    grid += '<line x1="' + pad + '" y1="' + gy + '" x2="' + (W - pad) + '" y2="' + gy +
+      '" stroke="rgba(34,48,42,.08)" stroke-width="1"/>';
+  }
+  const pts = series.map(p => [sx(p.x), sy(p.y)]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  // aire très légère sous la courbe
+  const area = series.length > 1
+    ? '<path d="' + d + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + (H - pad) +
+      ' L' + pts[0][0].toFixed(1) + ' ' + (H - pad) + ' Z" fill="' + color + '" opacity=".08"/>'
+    : '';
+  // points annelés (survol = infobulle native date · valeur)
+  const dots = series.map((p, i) => {
+    const last = i === series.length - 1;
+    return '<circle cx="' + pts[i][0].toFixed(1) + '" cy="' + pts[i][1].toFixed(1) +
+      '" r="' + (last ? 5 : 4) + '" fill="' + color + '" stroke="#fff" stroke-width="2">' +
+      '<title>' + frDate(p.x) + ' · ' + p.y + '</title></circle>';
+  }).join('');
   const a = series[0], b = series[series.length - 1];
-  return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
-    '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2.5"/>' + dots + '</svg>' +
-    '<div class="muted" style="font-size:.78rem;display:flex;justify-content:space-between;margin-top:.2rem">' +
-    '<span>' + frDate(a.x) + ' · ' + a.y + '</span><span>' + frDate(b.x) + ' · ' + b.y + '</span></div>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + grid + area +
+    '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    dots + '</svg>' +
+    '<div class="muted" style="font-size:.78rem;display:flex;justify-content:space-between;margin-top:.35rem;font-variant-numeric:tabular-nums">' +
+    '<span>' + frDate(a.x) + ' · ' + a.y + '</span><span>' + frDate(b.x) + ' · <b>' + b.y + '</b></span></div>';
 }
 
 async function loadCharts() {
@@ -1220,18 +1321,18 @@ async function loadCharts() {
   const ser = (arr, fy, fx) => arr.map(r => ({ x: +new Date(fx(r)), y: fy(r) }));
   let html = '';
   html += card('VO2max estimée (ml/kg/min)',
-    lineChartSVG(ser(M.filter(r => r.type === 'vo2max'), r => r.data.vo2max, r => r.recorded_at), '#5C8FA6'));
+    lineChartSVG(ser(M.filter(r => r.type === 'vo2max'), r => r.data.vo2max, r => r.recorded_at), '#2E82B8'));
   html += card('Récupération cardiaque — baisse FC en 60 s (bpm)',
-    lineChartSVG(ser(M.filter(r => r.type === 'hrr'), r => r.data.hrr60, r => r.recorded_at), '#C26B4A'));
+    lineChartSVG(ser(M.filter(r => r.type === 'hrr'), r => r.data.hrr60, r => r.recorded_at), '#C95F38'));
   html += card('VFC des séances — RMSSD (ms)',
-    lineChartSVG(ser(S.filter(r => r.rmssd != null), r => Math.round(r.rmssd), r => r.started_at), '#5F9560'));
+    lineChartSVG(ser(S.filter(r => r.rmssd != null), r => Math.round(r.rmssd), r => r.started_at), '#2F8A5B'));
   const byExo = {};
   M.filter(r => r.type === 'force').forEach(r => {
     const e = r.data.exercice || 'Force'; (byExo[e] = byExo[e] || []).push({ x: +new Date(r.recorded_at), y: r.data.e1rm });
   });
-  Object.keys(byExo).forEach(e => { html += card('Force — 1RM estimée · ' + e + ' (kg)', lineChartSVG(byExo[e], '#2F5240')); });
+  Object.keys(byExo).forEach(e => { html += card('Force — 1RM estimée · ' + e + ' (kg)', lineChartSVG(byExo[e], '#B08A2E')); });
   html += card('Go/No-Go — temps de réaction (ms)',
-    lineChartSVG(ser(M.filter(r => r.type === 'cognitif' && r.data.test === 'gng' && r.data.ms != null), r => r.data.ms, r => r.recorded_at), '#7A4426'));
+    lineChartSVG(ser(M.filter(r => r.type === 'cognitif' && r.data.test === 'gng' && r.data.ms != null), r => r.data.ms, r => r.recorded_at), '#98547A'));
   el.innerHTML = html;
 }
 
