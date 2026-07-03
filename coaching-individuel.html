@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Coaching individuel · Vivien Strudel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2D; --pine:#2F5240; --sand:#F2EDE2; --linen:#FBF8F1;
+    --ink:#22302A; --muted:#6E7B73; --terra:#C26B4A; --terra-deep:#A85535; --line:#DDD4C3;
+    --z0:#9AA69E; --z1:#94A7B5; --z2:#5C8FA6; --z3:#5F9560; --z4:#D78F3C; --z5:#C14F38;
+    --gold:#B08A2E;
+    --r-lg:16px; --r-md:12px; --r-sm:9px;
+    --sh-1:0 1px 2px rgba(34,48,42,.05),0 2px 10px rgba(34,48,42,.05);
+    --sh-2:0 2px 6px rgba(34,48,42,.08),0 14px 36px rgba(34,48,42,.12);
+    --ring:0 0 0 3px rgba(47,82,64,.20);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Source Sans 3',system-ui,sans-serif;color:var(--ink);
+    background:radial-gradient(1100px 480px at 50% -12%,#F8F4EA,var(--sand)) fixed;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    position:sticky;top:0;z-index:10;color:#F4F0E6;
+    background:linear-gradient(180deg,#254531,var(--forest));
+    border-bottom:1px solid rgba(255,255,255,.07);
+    display:flex;align-items:center;flex-wrap:wrap;gap:.6rem 1.2rem;padding:.7rem 1.1rem;
+  }
+  .brand{display:flex;align-items:center;gap:.6rem;min-width:0}
+  .brand h1{font-family:'Libre Baskerville',Georgia,serif;font-size:1.08rem;font-weight:700;line-height:1.1;white-space:nowrap}
+  .brand small{display:block;font-weight:400;font-size:.72rem;color:#C9D4CC;letter-spacing:.05em}
+  .spacer{flex:1}
+  .who{font-size:.85rem;color:#C9D4CC;text-align:right;line-height:1.3}
+  .who b{color:#fff}
+  button{
+    font:inherit;font-weight:600;border:none;border-radius:10px;
+    padding:.6rem 1rem;cursor:pointer;min-height:44px;
+    transition:filter .15s ease,box-shadow .15s ease,transform .06s ease;
+  }
+  button:active{transform:translateY(1px);filter:brightness(.94)}
+  button:disabled{opacity:.45;cursor:default;transform:none}
+  button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}
+  .btn-ghost{background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.25)}
+  .btn-ghost:hover{background:rgba(255,255,255,.2)}
+  .btn-rec{background:var(--terra);color:#fff;box-shadow:0 2px 8px rgba(194,107,74,.35)}
+  .btn-rec:hover{background:var(--terra-deep)}
+  .btn-stop{background:#fff;color:var(--terra);border:1px solid var(--terra)}
+  .btn-soft{
+    background:#fff;color:var(--ink);border:1px solid var(--line);
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:44px;padding:.6rem 1rem;border-radius:10px;font-weight:600;cursor:pointer;
+    transition:border-color .15s ease,box-shadow .15s ease,transform .06s ease;
+  }
+  .btn-soft:hover{border-color:var(--pine);box-shadow:var(--sh-1)}
+  .btn-primary{background:var(--terra);color:#fff;box-shadow:0 2px 8px rgba(194,107,74,.35)}
+  .btn-primary:hover{background:var(--terra-deep)}
+  .btn-danger{background:#fff;color:var(--z5);border:1px solid var(--z5)}
+  .btn-sm{min-height:34px;padding:.35rem .7rem;font-size:.82rem;border-radius:8px}
+  .wrap{max-width:900px;margin:0 auto;padding:1.3rem 1rem 4.5rem}
+  h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.35rem;margin-bottom:1rem;letter-spacing:.01em}
+  h3{font-size:1rem;margin-bottom:.75rem}
+  .panel{
+    background:var(--linen);border:1px solid var(--line);border-radius:var(--r-lg);
+    padding:1.15rem 1.15rem 1.2rem;margin-bottom:1.15rem;box-shadow:var(--sh-1);
+  }
+  .formrow{display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end}
+  .field{
+    display:flex;flex-direction:column;gap:.3rem;
+    font-size:.72rem;color:var(--muted);font-weight:700;
+    text-transform:uppercase;letter-spacing:.06em;
+  }
+  input,select,textarea{
+    font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:.55rem .65rem;min-height:44px;min-width:120px;
+    transition:border-color .15s ease,box-shadow .15s ease;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--pine);outline:none;box-shadow:var(--ring)}
+  input[type=number]{max-width:120px}
+  textarea{min-height:70px;min-width:220px;width:100%;resize:vertical;font-family:inherit}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:#fff}
+  .seg button{background:#fff;color:var(--muted);border:none;border-radius:0;min-height:44px;padding:.5rem .95rem;font-weight:600}
+  .seg button.sel{background:var(--pine);color:#fff}
+  .note{font-size:.8rem;color:var(--muted);line-height:1.55;margin-top:.65rem}
+  .tabs{display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:1.2rem}
+  .tab{
+    background:rgba(255,255,255,.6);color:var(--ink);border:1px solid var(--line);
+    border-radius:999px;padding:.55rem 1.05rem;min-height:44px;font-weight:600;
+    transition:border-color .15s ease,background .15s ease;
+  }
+  .tab:hover{border-color:var(--pine)}
+  .tab.on{background:var(--forest);color:#F4F0E6;border-color:var(--forest);box-shadow:0 2px 8px rgba(31,58,45,.28)}
+  .hist{margin-top:.7rem;font-size:.9rem}
+  .hist .item{display:flex;justify-content:space-between;gap:.6rem;padding:.6rem 0;border-top:1px solid var(--line)}
+  .hist .item:first-child{border-top:none}
+  .hist b{font-variant-numeric:tabular-nums}
+  .muted{color:var(--muted)}
+  .login{max-width:430px;margin:7vh auto 0;padding:0 1rem}
+  .login .card{
+    background:var(--linen);border:1px solid var(--line);border-radius:20px;
+    padding:1.9rem 1.7rem;text-align:center;box-shadow:var(--sh-2);
+  }
+  .login .card>svg{margin-bottom:.7rem}
+  .login h2{margin-bottom:.45rem}
+  .login p{color:var(--muted);font-size:.9rem;line-height:1.55;margin-bottom:1.15rem}
+  .login input{width:100%;max-width:none;margin-bottom:.8rem}
+  .login button{width:100%}
+  .hrbig{font-variant-numeric:tabular-nums;font-size:3.6rem;font-weight:700;line-height:1;letter-spacing:-.01em}
+  .hrunit{font-size:1rem;color:var(--muted);font-weight:600}
+  .zbadge{display:inline-block;color:#fff;font-weight:700;border-radius:999px;padding:.22rem .85rem;font-size:.9rem;background:var(--z0)}
+  .livebox{display:flex;align-items:center;gap:1.1rem;flex-wrap:wrap}
+  .chrono{font-variant-numeric:tabular-nums;font-weight:700;font-size:1.45rem}
+  .zonebars{display:flex;gap:2px;margin-top:.9rem;height:16px;border-radius:8px;overflow:hidden}
+  .zonebars span{display:block}
+  #banner{background:#F6E3D3;color:#7A4426;border-bottom:1px solid #E3C4AA;padding:.7rem 1rem;font-size:.9rem;line-height:1.4}
+  #toast{
+    position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%);
+    background:var(--forest);color:#F4F0E6;padding:.75rem 1.2rem;border-radius:12px;
+    font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .2s ease;
+    z-index:50;max-width:90vw;text-align:center;box-shadow:var(--sh-2);
+  }
+  #toast.show{opacity:1}
+  .config-warn{background:#FBE3E0;border:1px solid #E0A89F;color:#8A3024;border-radius:var(--r-md);padding:1rem;margin:1rem;font-size:.9rem;line-height:1.5}
+  code{background:#0001;padding:.1rem .3rem;border-radius:4px;font-size:.85em}
+  .chartcard{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:1rem 1rem .85rem;margin-bottom:.95rem;box-shadow:var(--sh-1)}
+  .chartcard h4{font-size:.92rem;margin-bottom:.6rem}
+  .chartcard svg{width:100%;height:auto;display:block}
+  .chart-empty{font-size:.85rem;color:var(--muted)}
+  #sessionBadge{
+    position:fixed;left:12px;bottom:12px;z-index:55;background:var(--terra);color:#fff;
+    font-size:.8rem;font-weight:700;border-radius:999px;padding:.45rem .9rem;
+    box-shadow:var(--sh-2);display:none;align-items:center;gap:.45rem;
+  }
+  #sessionBadge.on{display:inline-flex}
+  #sessionBadge .dot{width:9px;height:9px;border-radius:50%;background:#fff;animation:vspulse 1.4s infinite}
+  @keyframes vspulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .clientcard{
+    display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap;
+    background:#fff;border:1px solid var(--line);border-radius:var(--r-md);
+    padding:.9rem 1.05rem;margin-bottom:.7rem;cursor:pointer;box-shadow:var(--sh-1);
+    transition:border-color .15s ease,transform .06s ease;
+  }
+  .clientcard:hover{border-color:var(--pine)}
+  .clientcard:active{transform:translateY(1px)}
+  .clientcard .nom{font-weight:700;font-size:1.02rem}
+  .clientcard .meta{font-size:.82rem;color:var(--muted);margin-top:.15rem}
+  .badge-inactif{display:inline-block;background:var(--sand);color:var(--muted);border-radius:999px;padding:.12rem .6rem;font-size:.72rem;font-weight:700;margin-left:.4rem}
+  .backlink{display:inline-flex;align-items:center;gap:.35rem;color:var(--pine);font-weight:600;background:none;border:none;padding:0;min-height:0;margin-bottom:.9rem;cursor:pointer}
+  .backlink:hover{text-decoration:underline}
+  .clienthead{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.7rem;margin-bottom:1.1rem}
+  .clienthead h2{margin-bottom:.15rem}
+  table.settbl{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:.7rem}
+  table.settbl th{text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:.35rem .4rem;border-bottom:1px solid var(--line)}
+  table.settbl td{padding:.5rem .4rem;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  table.settbl tr:last-child td{border-bottom:none}
+  .tonrow{display:flex;justify-content:space-between;align-items:center;margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--line);font-weight:700}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div id="banner" hidden></div>
+
+<!-- ===================== Écran de connexion (coach uniquement) ===================== -->
+<div id="loginView" class="login" hidden>
+  <div class="card">
+    <svg width="30" height="34" viewBox="0 0 26 30" fill="none" aria-hidden="true">
+      <path d="M13 1 L21 12 H17 L23 21 H15 V29 H11 V21 H3 L9 12 H5 Z" fill="#2F5240"/>
+    </svg>
+    <h2>Coaching individuel</h2>
+    <p>Connexion coach — cet espace est réservé à ton compte coach (voir <code>GUIDE-ESPACE-ADHERENT.md</code> pour te désigner comme coach).</p>
+    <input type="email" id="loginEmail" placeholder="ton@email.fr" autocomplete="email" inputmode="email">
+    <input type="password" id="loginPassword" placeholder="Mot de passe" autocomplete="current-password">
+    <button class="btn-primary" id="loginBtn">Se connecter</button>
+    <p class="note" style="margin-top:.6rem">
+      <a href="#" id="forgotLink" style="color:var(--muted)">Mot de passe oublié ?</a>
+    </p>
+    <p id="loginMsg" class="note" style="margin-top:.4rem"></p>
+  </div>
+</div>
+
+<!-- ===================== Réinitialisation du mot de passe ===================== -->
+<div id="resetView" class="login" hidden>
+  <div class="card">
+    <h2>Nouveau mot de passe</h2>
+    <p>Choisis un nouveau mot de passe pour ton compte coach.</p>
+    <input type="password" id="resetPassword" placeholder="Nouveau mot de passe (6 caractères min.)" autocomplete="new-password">
+    <button class="btn-primary" id="resetBtn">Valider</button>
+    <p id="resetMsg" class="note" style="margin-top:.9rem"></p>
+  </div>
+</div>
+
+<!-- ===================== Application ===================== -->
+<div id="appView" hidden>
+  <header>
+    <div class="brand">
+      <div>
+        <h1>Coaching individuel</h1>
+        <small>Vivien Strudel · suivi personnalisé</small>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="who" id="whoBox"></div>
+    <button class="btn-ghost" id="logoutBtn">Déconnexion</button>
+  </header>
+
+  <main class="wrap">
+
+    <!-- ---- Liste des clients ---- -->
+    <section id="clientsView">
+      <h2>Mes clients</h2>
+
+      <div class="panel">
+        <h3>Nouveau client</h3>
+        <div class="formrow">
+          <div class="field">Nom
+            <input type="text" id="cNom" maxlength="60" placeholder="Prénom Nom"></div>
+          <div class="field">FC max (bpm)
+            <input type="number" id="cFcMax" min="120" max="230" step="1" value="190"></div>
+          <button class="btn-soft" id="cAdd">Ajouter</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="formrow" style="margin-bottom:.9rem">
+          <div class="seg" id="filterActif">
+            <button type="button" data-f="actifs" class="sel">Actifs</button>
+            <button type="button" data-f="tous">Tous</button>
+          </div>
+        </div>
+        <div id="clientList"><p class="muted">Chargement…</p></div>
+      </div>
+    </section>
+
+    <!-- ---- Fiche client ---- -->
+    <section id="clientView" hidden>
+      <button class="backlink" id="backBtn">← Mes clients</button>
+
+      <div class="clienthead">
+        <div>
+          <h2 id="cvNom">—</h2>
+          <div class="muted" id="cvMeta"></div>
+        </div>
+        <button class="btn-soft btn-sm" id="cvEditBtn">Modifier la fiche</button>
+      </div>
+
+      <div class="panel" id="cvEditPanel" hidden>
+        <div class="formrow">
+          <div class="field">Nom
+            <input type="text" id="ecNom" maxlength="60"></div>
+          <div class="field">FC max (bpm)
+            <input type="number" id="ecFcMax" min="120" max="230" step="1"></div>
+          <div class="field">Statut
+            <div class="seg" id="ecActif">
+              <button type="button" data-a="1">Actif</button>
+              <button type="button" data-a="0">Inactif</button>
+            </div></div>
+        </div>
+        <div class="field" style="margin-top:.75rem">Notes
+          <textarea id="ecNotes" maxlength="2000" placeholder="Objectifs, contre-indications, préférences…"></textarea></div>
+        <div class="formrow" style="margin-top:.85rem">
+          <button class="btn-soft" id="ecSave">Enregistrer</button>
+          <button class="btn-danger" id="ecDelete">Supprimer ce client</button>
+        </div>
+      </div>
+
+      <div class="tabs" id="cvTabs">
+        <button class="tab on" data-tab="seance">Séance</button>
+        <button class="tab" data-tab="histo">Historique</button>
+        <button class="tab" data-tab="progression">Progression</button>
+      </div>
+
+      <!-- Séance en cours -->
+      <section data-cvpanel="seance">
+        <div class="panel">
+          <h3>Fréquence cardiaque</h3>
+          <div class="livebox">
+            <div><span class="hrbig" id="hrBig">–</span> <span class="hrunit">bpm</span></div>
+            <div>
+              <span class="zbadge" id="zBadge">—</span>
+              <div class="muted" id="zPct" style="font-size:.82rem;margin-top:.3rem">&nbsp;</div>
+            </div>
+            <div class="spacer"></div>
+            <div style="text-align:right">
+              <div class="chrono" id="hrChrono">00:00</div>
+              <div class="muted" style="font-size:.8rem">RMSSD <b id="hrRmssd">—</b> ms</div>
+            </div>
+          </div>
+          <div class="zonebars" id="zoneBars" hidden></div>
+          <div class="formrow" style="margin-top:1rem">
+            <button class="btn-soft" id="btnConnect">Connecter un capteur</button>
+            <button class="btn-rec" id="btnStart">Démarrer la séance</button>
+            <button class="btn-stop" id="btnStop" hidden>Arrêter &amp; enregistrer</button>
+          </div>
+          <p class="note">Le capteur (ceinture/montre Bluetooth type Polar) est optionnel : tu peux démarrer une
+            séance pour chronométrer et ajouter des séries sans FC, ou connecter un capteur avant de démarrer
+            pour enregistrer FC moyenne/min/pic et VFC (RMSSD) automatiquement.</p>
+        </div>
+
+        <div class="panel">
+          <h3>Renforcement musculaire</h3>
+          <div class="formrow">
+            <div class="field">Exercice
+              <input type="text" id="sExo" list="exoList" placeholder="Squat, développé couché…"></div>
+            <div class="field">Charge (kg)
+              <input type="number" id="sKg" min="0.5" max="500" step="0.5" inputmode="decimal"></div>
+            <div class="field">Répétitions
+              <input type="number" id="sReps" min="1" max="50" step="1" inputmode="numeric"></div>
+            <div class="field">Séries
+              <input type="number" id="sSeries" min="1" max="20" step="1" value="1" inputmode="numeric"></div>
+            <button class="btn-soft" id="sAdd" disabled>Ajouter</button>
+          </div>
+          <datalist id="exoList">
+            <option>Squat</option><option>Développé couché</option><option>Soulevé de terre</option>
+            <option>Tirage horizontal</option><option>Développé militaire</option><option>Fentes</option>
+            <option>Rowing</option><option>Traction</option>
+          </datalist>
+          <p class="note" style="margin-top:.5rem">Tonnage = charge × répétitions × séries. 1RM estimée par la
+            formule d'Epley : charge × (1 + reps/30). Nécessite une séance démarrée.</p>
+          <table class="settbl" id="setTable" hidden>
+            <thead><tr><th>Exercice</th><th>Charge</th><th>Reps</th><th>Séries</th><th>Tonnage</th><th>1RM</th><th></th></tr></thead>
+            <tbody id="setTbody"></tbody>
+          </table>
+          <div class="tonrow" id="tonRow" hidden>
+            <span>Tonnage total de la séance</span>
+            <span id="tonTotal">0 kg</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Historique -->
+      <section data-cvpanel="histo" hidden>
+        <div class="panel">
+          <h3>Séances passées</h3>
+          <div class="hist" id="histSessions"><p class="muted">Chargement…</p></div>
+        </div>
+      </section>
+
+      <!-- Progression -->
+      <section data-cvpanel="progression" hidden>
+        <div class="panel">
+          <h3>Progression</h3>
+          <p class="note" style="margin-top:0">Évolution du tonnage et de la 1RM estimée par exercice. Les courbes
+            apparaissent dès deux points de données.</p>
+          <div id="cvCharts"><p class="muted">Chargement…</p></div>
+        </div>
+      </section>
+    </section>
+
+  </main>
+</div>
+
+<div id="sessionBadge"><span class="dot"></span>Séance en cours</div>
+<div id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+'use strict';
+
+/* =====================================================================
+   ⚙️  CONFIGURATION
+   Ce fichier utilise le MÊME projet Supabase que l'espace adhérent
+   (mêmes clés publiques, Dashboard → Project Settings → API).
+   Les nouvelles tables (coaching_clients, coaching_sessions,
+   strength_sets) sont installées par supabase-migration-3-coaching-individuel.sql
+   et protégées par des règles RLS séparées, réservées à ton compte coach.
+   ===================================================================== */
+const SUPABASE_URL      = 'https://mxdsvbrxeospfohgvzbz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_MIO9ShdnMK1-mQm0T1J5YA_UPkAJ80_';
+/* ===================================================================== */
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+let toastT;
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+const CONFIGURED = !SUPABASE_URL.includes('VOTRE-PROJET') && !SUPABASE_ANON_KEY.includes('VOTRE_CLE');
+if (!CONFIGURED) {
+  document.body.insertAdjacentHTML('afterbegin',
+    '<div class="config-warn"><strong>Configuration requise.</strong> Ouvrez <code>coaching-individuel.html</code> ' +
+    'et renseignez <code>SUPABASE_URL</code> et <code>SUPABASE_ANON_KEY</code> en haut du script.</div>');
+}
+const sb = CONFIGURED ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/* =====================================================================
+   Zones de FC, e1RM, formatage (identiques aux autres apps du coach)
+   ===================================================================== */
+const ZONES = [
+  { min:  0, label: 'Repos', hex: '#9AA69E' },
+  { min: 50, label: 'Z1',    hex: '#94A7B5' },
+  { min: 60, label: 'Z2',    hex: '#5C8FA6' },
+  { min: 70, label: 'Z3',    hex: '#5F9560' },
+  { min: 80, label: 'Z4',    hex: '#D78F3C' },
+  { min: 90, label: 'Z5',    hex: '#C14F38' },
+];
+function zoneIndex(hr, hrMax) {
+  const pct = (hr / hrMax) * 100;
+  for (let i = ZONES.length - 1; i >= 0; i--) if (pct >= ZONES[i].min) return i;
+  return 0;
+}
+function e1rmEpley(kg, reps) { return Math.round(kg * (1 + reps / 30) * 10) / 10; }
+const frDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+const frDateTime = (t) => new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const mmss = (s) => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+
+/* =====================================================================
+   Authentification — coach uniquement
+   ===================================================================== */
+let me = null;       // { id, email }
+let profile = null;  // ligne profiles (doit avoir role = 'coach')
+let recoveryMode = false;
+
+async function initAuth() {
+  if (!sb) { showLogin(); return; }
+  if (/type=recovery/.test(location.hash)) recoveryMode = true;
+  const { data } = await sb.auth.getSession();
+  if (recoveryMode) { showReset(); }
+  else if (data.session) { await onSignedIn(data.session.user); }
+  else { showLogin(); }
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') { recoveryMode = true; showReset(); return; }
+    if (recoveryMode) return;
+    if (session && (!me || me.id !== session.user.id)) onSignedIn(session.user);
+    if (!session && me) location.reload();
+  });
+}
+function showLogin() { $('#loginView').hidden = false; $('#appView').hidden = true; $('#resetView').hidden = true; }
+function showReset() { $('#loginView').hidden = true; $('#appView').hidden = true; $('#resetView').hidden = false; }
+
+$('#forgotLink').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const email = $('#loginEmail').value.trim();
+  if (!email || !email.includes('@')) { toast('Entre d’abord ton e-mail dans le champ ci-dessus.'); return; }
+  if (!sb) return;
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split('#')[0] });
+  $('#loginMsg').textContent = error ? 'Erreur : ' + error.message : 'E-mail de réinitialisation envoyé.';
+});
+
+$('#resetBtn').addEventListener('click', async () => {
+  const pw = $('#resetPassword').value;
+  if (pw.length < 6) { toast('Mot de passe : 6 caractères minimum.'); return; }
+  if (!sb) return;
+  $('#resetBtn').disabled = true;
+  const { data, error } = await sb.auth.updateUser({ password: pw });
+  $('#resetBtn').disabled = false;
+  if (error) { $('#resetMsg').textContent = 'Erreur : ' + error.message; return; }
+  recoveryMode = false;
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  $('#resetView').hidden = true;
+  toast('Mot de passe mis à jour ✔');
+  if (data.user) onSignedIn(data.user);
+});
+
+$('#loginBtn').addEventListener('click', async () => {
+  const email = $('#loginEmail').value.trim();
+  const password = $('#loginPassword').value;
+  if (!email || !email.includes('@')) { toast('Entre une adresse e-mail valide.'); return; }
+  if (!password) { toast('Entre ton mot de passe.'); return; }
+  if (!sb) { toast('Configuration Supabase manquante.'); return; }
+  $('#loginBtn').disabled = true;
+  $('#loginMsg').textContent = '';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  $('#loginBtn').disabled = false;
+  if (error) { $('#loginMsg').textContent = 'Erreur : ' + error.message; return; }
+});
+[$('#loginEmail'), $('#loginPassword')].forEach(el =>
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#loginBtn').click(); }));
+
+$('#logoutBtn').addEventListener('click', async () => { if (sb) await sb.auth.signOut(); });
+
+async function onSignedIn(user) {
+  me = { id: user.id, email: user.email };
+  const { data } = await sb.from('profiles').select('*').eq('id', me.id).single();
+  profile = data;
+  if (!profile || profile.role !== 'coach') {
+    toast('Ce compte n’est pas configuré comme coach — accès refusé.');
+    await sb.auth.signOut();
+    me = null; profile = null;
+    showLogin();
+    return;
+  }
+  $('#loginView').hidden = true;
+  $('#appView').hidden = false;
+  $('#whoBox').innerHTML = '<b>' + (profile.prenom || me.email) + '</b><br>' + me.email;
+  showClients();
+  loadClients();
+}
+
+/* =====================================================================
+   Liste des clients
+   ===================================================================== */
+let clients = [];
+let clientFilter = 'actifs';
+
+$('#filterActif').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  $$('#filterActif button').forEach(x => x.classList.toggle('sel', x === b));
+  clientFilter = b.dataset.f;
+  renderClients();
+});
+
+async function loadClients() {
+  const { data, error } = await sb.from('coaching_clients').select('*').order('nom');
+  if (error) { $('#clientList').innerHTML = '<p class="muted">Erreur : ' + error.message + '</p>'; return; }
+  clients = data || [];
+  const ids = clients.map(c => c.id);
+  let sessions = [], sets = [];
+  if (ids.length) {
+    const [sRes, tRes] = await Promise.all([
+      sb.from('coaching_sessions').select('client_id,started_at').in('client_id', ids).order('started_at', { ascending: false }),
+      sb.from('strength_sets').select('client_id,tonnage,recorded_at').in('client_id', ids),
+    ]);
+    sessions = sRes.data || []; sets = tRes.data || [];
+  }
+  clients.forEach(c => {
+    const cs = sessions.filter(s => s.client_id === c.id);
+    const ct = sets.filter(s => s.client_id === c.id);
+    c._lastSession = cs[0] ? cs[0].started_at : null;
+    c._sessionCount = cs.length;
+    c._tonnageTotal = ct.reduce((a, s) => a + Number(s.tonnage || 0), 0);
+  });
+  renderClients();
+}
+
+function renderClients() {
+  const list = clients.filter(c => clientFilter === 'tous' || c.actif);
+  const el = $('#clientList');
+  if (!list.length) { el.innerHTML = '<p class="muted">Aucun client pour l’instant — ajoute ton premier client ci-dessus.</p>'; return; }
+  el.innerHTML = list.map(c => (
+    '<div class="clientcard" data-id="' + c.id + '">' +
+      '<div><div class="nom">' + escapeHtml(c.nom) + (c.actif ? '' : '<span class="badge-inactif">inactif</span>') + '</div>' +
+      '<div class="meta">' + c._sessionCount + ' séance' + (c._sessionCount > 1 ? 's' : '') +
+      (c._lastSession ? ' · dernière le ' + frDate(c._lastSession) : '') + '</div></div>' +
+      '<div class="meta" style="text-align:right">Tonnage cumulé<br><b style="color:var(--ink);font-size:1rem">' +
+      Math.round(c._tonnageTotal).toLocaleString('fr-FR') + ' kg</b></div>' +
+    '</div>'
+  )).join('');
+}
+$('#clientList').addEventListener('click', (e) => {
+  const card = e.target.closest('.clientcard'); if (!card) return;
+  openClient(Number(card.dataset.id));
+});
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+$('#cAdd').addEventListener('click', async () => {
+  const nom = $('#cNom').value.trim();
+  const fc_max = parseInt($('#cFcMax').value, 10) || 190;
+  if (!nom) { toast('Entre le nom du client.'); return; }
+  $('#cAdd').disabled = true;
+  const { error } = await sb.from('coaching_clients').insert({ coach_id: me.id, nom, fc_max });
+  $('#cAdd').disabled = false;
+  if (error) { toast('Erreur : ' + error.message); return; }
+  $('#cNom').value = ''; $('#cFcMax').value = '190';
+  toast('Client ajouté ✔');
+  loadClients();
+});
+
+/* =====================================================================
+   Fiche client
+   ===================================================================== */
+let currentClient = null;
+
+function showClients() {
+  $('#clientsView').hidden = false;
+  $('#clientView').hidden = true;
+  stopLiveSession(true);
+}
+$('#backBtn').addEventListener('click', () => { showClients(); loadClients(); });
+
+async function openClient(id) {
+  const { data, error } = await sb.from('coaching_clients').select('*').eq('id', id).single();
+  if (error || !data) { toast('Client introuvable.'); return; }
+  currentClient = data;
+  $('#clientsView').hidden = true;
+  $('#clientView').hidden = false;
+  $('#cvEditPanel').hidden = true;
+  $('#cvNom').textContent = currentClient.nom;
+  $('#cvMeta').textContent = 'FC max ' + currentClient.fc_max + ' bpm' + (currentClient.actif ? '' : ' · inactif');
+  resetSeanceUI();
+  $$('.tab', $('#cvTabs')).forEach(t => t.classList.toggle('on', t.dataset.tab === 'seance'));
+  $$('section[data-cvpanel]').forEach(s => s.hidden = s.dataset.cvpanel !== 'seance');
+}
+
+$('#cvTabs').addEventListener('click', (e) => {
+  const b = e.target.closest('.tab'); if (!b) return;
+  $$('.tab', $('#cvTabs')).forEach(t => t.classList.toggle('on', t === b));
+  const tab = b.dataset.tab;
+  $$('section[data-cvpanel]').forEach(s => s.hidden = s.dataset.cvpanel !== tab);
+  if (tab === 'histo') loadHistory();
+  if (tab === 'progression') loadCharts();
+});
+
+$('#cvEditBtn').addEventListener('click', () => {
+  const p = $('#cvEditPanel');
+  p.hidden = !p.hidden;
+  if (!p.hidden) {
+    $('#ecNom').value = currentClient.nom;
+    $('#ecFcMax').value = currentClient.fc_max;
+    $('#ecNotes').value = currentClient.notes || '';
+    $$('#ecActif button').forEach(b => b.classList.toggle('sel', b.dataset.a === (currentClient.actif ? '1' : '0')));
+  }
+});
+$$('#ecActif button').forEach(b => b.addEventListener('click', () => {
+  $$('#ecActif button').forEach(x => x.classList.toggle('sel', x === b));
+}));
+
+$('#ecSave').addEventListener('click', async () => {
+  const nom = $('#ecNom').value.trim();
+  const fc_max = parseInt($('#ecFcMax').value, 10) || 190;
+  const actifBtn = $('#ecActif button.sel');
+  const actif = actifBtn ? actifBtn.dataset.a === '1' : true;
+  const notes = $('#ecNotes').value.trim();
+  if (!nom) { toast('Le nom est obligatoire.'); return; }
+  const { error } = await sb.from('coaching_clients').update({ nom, fc_max, actif, notes }).eq('id', currentClient.id);
+  if (error) { toast('Erreur : ' + error.message); return; }
+  currentClient = { ...currentClient, nom, fc_max, actif, notes };
+  $('#cvNom').textContent = nom;
+  $('#cvMeta').textContent = 'FC max ' + fc_max + ' bpm' + (actif ? '' : ' · inactif');
+  $('#cvEditPanel').hidden = true;
+  toast('Fiche mise à jour ✔');
+});
+
+$('#ecDelete').addEventListener('click', async () => {
+  if (!confirm('Supprimer définitivement « ' + currentClient.nom + ' » et tout son historique (séances, séries) ?\nCette action est irréversible.')) return;
+  const { error } = await sb.from('coaching_clients').delete().eq('id', currentClient.id);
+  if (error) { toast('Erreur : ' + error.message); return; }
+  toast('Client supprimé.');
+  showClients();
+  loadClients();
+});
+
+/* =====================================================================
+   Capteur cardiaque (Web Bluetooth)
+   ===================================================================== */
+if (!navigator.bluetooth) {
+  const b = $('#banner'); b.hidden = false;
+  b.innerHTML = 'Le Bluetooth web n’est pas disponible dans ce navigateur. ' +
+    'Utilise <strong>Chrome</strong> ou <strong>Edge</strong> sur Android / ordinateur ' +
+    '(non disponible sur iPhone). Tu peux quand même chronométrer la séance et saisir les séries.';
+}
+
+const live = {
+  device: null, hrChar: null, hrHandler: null,
+  hr: null, rrRecent: [], rmssd: null,
+  session: null, tick: null,
+};
+let wakeLock = null;
+async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+function releaseWakeLock() { if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; } }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && live.session) requestWakeLock(); });
+
+function parseHeartRate(dv) {
+  const flags = dv.getUint8(0);
+  let i = 1, hr;
+  if (flags & 0x01) { hr = dv.getUint16(i, true); i += 2; }
+  else              { hr = dv.getUint8(i);        i += 1; }
+  if (flags & 0x08) i += 2;
+  const rrs = [];
+  if (flags & 0x10) { for (; i + 1 < dv.byteLength; i += 2) rrs.push(dv.getUint16(i, true) * 1000 / 1024); }
+  return { hr, rrs };
+}
+function rmssdOf(rrList, minBeats) {
+  if (rrList.length < minBeats) return null;
+  let sum = 0, n = 0;
+  for (let i = 1; i < rrList.length; i++) {
+    const d = rrList[i] - rrList[i - 1];
+    if (Math.abs(d) > 250) continue;
+    sum += d * d; n++;
+  }
+  return n >= minBeats - 1 ? Math.sqrt(sum / n) : null;
+}
+
+$('#btnConnect').addEventListener('click', async () => {
+  if (!navigator.bluetooth) { toast('Bluetooth web indisponible ici.'); return; }
+  let device;
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: ['heart_rate'] }],
+      optionalServices: ['battery_service'],
+    });
+  } catch (e) { return; }
+  live.device = device;
+  device.addEventListener('gattserverdisconnected', () => { toast('Capteur déconnecté.'); });
+  try {
+    await connectGatt();
+    toast((device.name || 'Capteur') + ' connecté');
+    $('#btnConnect').textContent = 'Reconnecter';
+  } catch (e) { toast('Échec de connexion — réessaie près du capteur.'); }
+});
+
+async function connectGatt() {
+  const server = await live.device.gatt.connect();
+  const svc = await server.getPrimaryService('heart_rate');
+  const ch = await svc.getCharacteristic('heart_rate_measurement');
+  if (live.hrChar && live.hrHandler) { try { live.hrChar.removeEventListener('characteristicvaluechanged', live.hrHandler); } catch (e) {} }
+  live.hrChar = ch;
+  live.hrHandler = (ev) => { const { hr, rrs } = parseHeartRate(ev.target.value); feedData(hr, rrs); };
+  ch.addEventListener('characteristicvaluechanged', live.hrHandler);
+  await ch.startNotifications();
+}
+
+function feedData(hr, rrs) {
+  const t = Date.now();
+  live.hr = hr;
+  for (const rr of rrs) if (rr >= 300 && rr <= 2000) live.rrRecent.push({ t, rr });
+  while (live.rrRecent.length && t - live.rrRecent[0].t > 45000) live.rrRecent.shift();
+  live.rmssd = rmssdOf(live.rrRecent.map(o => o.rr), 8);
+
+  const s = live.session;
+  if (s) {
+    s.sum += hr; s.n++;
+    if (hr > s.max) s.max = hr;
+    if (hr < s.min) s.min = hr;
+    const z = zoneIndex(hr, s.fcMax);
+    if (s.lastZoneT !== null) {
+      const dt = Math.min((t - s.lastZoneT) / 1000, 5);
+      s.zoneSec[s.prevZone !== null ? s.prevZone : z] += dt;
+    }
+    s.prevZone = z; s.lastZoneT = t;
+  }
+  renderLiveHr();
+}
+
+function renderLiveHr() {
+  const hrMax = currentClient ? currentClient.fc_max : 190;
+  if (live.hr === null) { $('#hrBig').textContent = '–'; $('#zBadge').textContent = '—'; $('#zBadge').style.background = 'var(--z0)'; return; }
+  $('#hrBig').textContent = live.hr;
+  const zi = zoneIndex(live.hr, hrMax);
+  $('#zBadge').textContent = ZONES[zi].label; $('#zBadge').style.background = ZONES[zi].hex;
+  $('#zPct').textContent = Math.round(live.hr / hrMax * 100) + '% FC max';
+  $('#hrRmssd').textContent = live.rmssd === null ? '—' : Math.round(live.rmssd);
+}
+
+function resetSeanceUI() {
+  live.hr = null; live.rrRecent = []; live.rmssd = null;
+  renderLiveHr();
+  $('#hrChrono').textContent = '00:00';
+  $('#zoneBars').hidden = true;
+  $('#btnStart').hidden = false; $('#btnStart').disabled = false;
+  $('#btnStop').hidden = true;
+  $('#setTable').hidden = true; $('#tonRow').hidden = true;
+  $('#setTbody').innerHTML = '';
+  $('#sAdd').disabled = true;
+  currentSessionId = null;
+  seanceEntries = [];
+}
+
+$('#btnStart').addEventListener('click', async () => {
+  const { data, error } = await sb.from('coaching_sessions')
+    .insert({ client_id: currentClient.id, coach_id: me.id, started_at: new Date().toISOString() })
+    .select().single();
+  if (error) { toast('Erreur : ' + error.message); return; }
+  currentSessionId = data.id;
+  seanceEntries = [];
+  live.session = {
+    startedAt: Date.now(), sum: 0, n: 0, max: 0, min: 999,
+    zoneSec: [0, 0, 0, 0, 0, 0], prevZone: null, lastZoneT: null,
+    fcMax: currentClient.fc_max,
+  };
+  $('#btnStart').hidden = true;
+  $('#btnStop').hidden = false;
+  $('#sAdd').disabled = false;
+  $('#sessionBadge').classList.add('on');
+  requestWakeLock();
+  live.tick = setInterval(() => {
+    $('#hrChrono').textContent = mmss(Math.floor((Date.now() - live.session.startedAt) / 1000));
+  }, 1000);
+  toast('Séance démarrée — chrono lancé');
+});
+
+$('#btnStop').addEventListener('click', async () => {
+  const s = live.session;
+  clearInterval(live.tick);
+  live.session = null;
+  $('#sessionBadge').classList.remove('on');
+  releaseWakeLock();
+  $('#btnStop').hidden = true;
+  $('#btnStart').hidden = false;
+  const durationS = Math.round((Date.now() - s.startedAt) / 1000);
+  const patch = { duration_s: durationS };
+  if (s.n > 0) {
+    const zoneObj = {}; s.zoneSec.forEach((v, i) => { if (v > 0) zoneObj[i] = Math.round(v); });
+    patch.hr_avg = Math.round(s.sum / s.n);
+    patch.hr_min = s.min === 999 ? null : s.min;
+    patch.hr_peak = s.max || null;
+    patch.rmssd = live.rmssd === null ? null : Math.round(live.rmssd);
+    patch.zone_seconds = zoneObj;
+  }
+  const { error } = await sb.from('coaching_sessions').update(patch).eq('id', currentSessionId);
+  if (error) { toast('Erreur d’enregistrement : ' + error.message); return; }
+  toast('Séance enregistrée ✔ · ' + mmss(durationS) + (patch.hr_avg ? ' · FC moy ' + patch.hr_avg + ' bpm' : ''));
+});
+
+/* =====================================================================
+   Renforcement musculaire — séries de la séance en cours
+   ===================================================================== */
+let currentSessionId = null;
+let seanceEntries = [];
+
+$('#sAdd').addEventListener('click', async () => {
+  if (!currentSessionId) { toast('Démarre d’abord la séance.'); return; }
+  const exercice = $('#sExo').value.trim();
+  const kg = parseFloat($('#sKg').value);
+  const reps = parseInt($('#sReps').value, 10);
+  const series = parseInt($('#sSeries').value, 10) || 1;
+  if (!exercice) { toast('Indique l’exercice.'); return; }
+  if (!(kg > 0) || !(reps > 0)) { toast('Renseigne charge et répétitions.'); return; }
+  const tonnage = Math.round(kg * reps * series * 10) / 10;
+  const e1rm = e1rmEpley(kg, reps);
+  $('#sAdd').disabled = true;
+  const { data, error } = await sb.from('strength_sets')
+    .insert({ client_id: currentClient.id, session_id: currentSessionId, coach_id: me.id, exercice, kg, reps, series, tonnage, e1rm })
+    .select().single();
+  $('#sAdd').disabled = false;
+  if (error) { toast('Erreur : ' + error.message); return; }
+  seanceEntries.push(data);
+  renderSeanceEntries();
+  $('#sKg').value = ''; $('#sReps').value = '';
+  toast('Série ajoutée ✔');
+});
+
+function renderSeanceEntries() {
+  if (!seanceEntries.length) { $('#setTable').hidden = true; $('#tonRow').hidden = true; return; }
+  $('#setTable').hidden = false; $('#tonRow').hidden = false;
+  $('#setTbody').innerHTML = seanceEntries.map(r =>
+    '<tr data-id="' + r.id + '"><td>' + escapeHtml(r.exercice) + '</td><td>' + r.kg + ' kg</td><td>' + r.reps +
+    '</td><td>' + r.series + '</td><td>' + r.tonnage + ' kg</td><td>' + r.e1rm + ' kg</td>' +
+    '<td><button class="btn-soft btn-sm" data-del="' + r.id + '">✕</button></td></tr>'
+  ).join('');
+  const total = seanceEntries.reduce((a, r) => a + Number(r.tonnage), 0);
+  $('#tonTotal').textContent = Math.round(total).toLocaleString('fr-FR') + ' kg';
+}
+
+$('#setTbody').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-del]'); if (!b) return;
+  const id = Number(b.dataset.del);
+  const { error } = await sb.from('strength_sets').delete().eq('id', id);
+  if (error) { toast('Erreur : ' + error.message); return; }
+  seanceEntries = seanceEntries.filter(r => r.id !== id);
+  renderSeanceEntries();
+});
+
+function stopLiveSession(silent) {
+  if (live.tick) clearInterval(live.tick);
+  live.session = null;
+  $('#sessionBadge').classList.remove('on');
+  releaseWakeLock();
+  if (!silent) toast('Séance interrompue.');
+}
+
+/* =====================================================================
+   Historique
+   ===================================================================== */
+async function loadHistory() {
+  const el = $('#histSessions'); el.innerHTML = '<p class="muted">Chargement…</p>';
+  const [sRes, tRes] = await Promise.all([
+    sb.from('coaching_sessions').select('*').eq('client_id', currentClient.id).order('started_at', { ascending: false }).limit(40),
+    sb.from('strength_sets').select('*').eq('client_id', currentClient.id).order('recorded_at', { ascending: false }).limit(400),
+  ]);
+  const sessions = sRes.data || [], sets = tRes.data || [];
+  if (!sessions.length) { el.innerHTML = '<p class="muted">Aucune séance enregistrée pour l’instant.</p>'; return; }
+  el.innerHTML = sessions.map(s => {
+    const own = sets.filter(r => r.session_id === s.id);
+    const tonnage = own.reduce((a, r) => a + Number(r.tonnage), 0);
+    const exos = own.map(r => escapeHtml(r.exercice) + ' ' + r.kg + '×' + r.reps + (r.series > 1 ? '×' + r.series : '') + ' (1RM ' + r.e1rm + ' kg)').join(' · ');
+    return '<div class="item"><span>' + frDateTime(s.started_at) +
+      (s.duration_s ? ' · ' + mmss(s.duration_s) : '') +
+      (s.hr_avg ? ' · FC moy <b>' + s.hr_avg + '</b> pic <b>' + s.hr_peak + '</b>' : '') +
+      (own.length ? '<br><span class="muted" style="font-size:.82rem">' + exos + '</span>' : '') +
+      '</span><span class="muted" style="text-align:right;white-space:nowrap">' +
+      (tonnage ? Math.round(tonnage).toLocaleString('fr-FR') + ' kg' : '—') + '</span></div>';
+  }).join('');
+}
+
+/* =====================================================================
+   Graphiques de progression (SVG, sans dépendance)
+   ===================================================================== */
+function lineChartSVG(series, color) {
+  if (series.length < 1) return '<p class="chart-empty">Pas encore de donnée.</p>';
+  const W = 600, H = 150, pad = 26;
+  const xs = series.map(p => p.x), ys = series.map(p => p.y);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs), ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const sx = x => xmax === xmin ? W / 2 : pad + (x - xmin) / (xmax - xmin) * (W - 2 * pad);
+  const sy = y => ymax === ymin ? H / 2 : H - pad - (y - ymin) / (ymax - ymin) * (H - 2 * pad);
+  let grid = '';
+  for (let g = 0; g < 3; g++) {
+    const gy = (pad + g * (H - 2 * pad) / 2).toFixed(1);
+    grid += '<line x1="' + pad + '" y1="' + gy + '" x2="' + (W - pad) + '" y2="' + gy + '" stroke="rgba(34,48,42,.08)" stroke-width="1"/>';
+  }
+  const pts = series.map(p => [sx(p.x), sy(p.y)]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const area = series.length > 1
+    ? '<path d="' + d + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + (H - pad) + ' L' + pts[0][0].toFixed(1) + ' ' + (H - pad) + ' Z" fill="' + color + '" opacity=".08"/>'
+    : '';
+  const dots = series.map((p, i) => {
+    const last = i === series.length - 1;
+    return '<circle cx="' + pts[i][0].toFixed(1) + '" cy="' + pts[i][1].toFixed(1) + '" r="' + (last ? 5 : 4) +
+      '" fill="' + color + '" stroke="#fff" stroke-width="2"><title>' + frDate(p.x) + ' · ' + p.y + '</title></circle>';
+  }).join('');
+  const a = series[0], b = series[series.length - 1];
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + grid + area +
+    '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' + dots + '</svg>' +
+    '<div class="muted" style="font-size:.78rem;display:flex;justify-content:space-between;margin-top:.35rem;font-variant-numeric:tabular-nums">' +
+    '<span>' + frDate(a.x) + ' · ' + a.y + '</span><span>' + frDate(b.x) + ' · <b>' + b.y + '</b></span></div>';
+}
+
+async function loadCharts() {
+  const el = $('#cvCharts'); el.innerHTML = '<p class="muted">Chargement…</p>';
+  const [sRes, tRes] = await Promise.all([
+    sb.from('coaching_sessions').select('started_at,rmssd').eq('client_id', currentClient.id).order('started_at', { ascending: true }),
+    sb.from('strength_sets').select('exercice,kg,reps,e1rm,tonnage,session_id,recorded_at').eq('client_id', currentClient.id).order('recorded_at', { ascending: true }),
+  ]);
+  const sessions = sRes.data || [], sets = tRes.data || [];
+  const card = (title, svg) => '<div class="chartcard"><h4>' + title + '</h4>' + svg + '</div>';
+  let html = '';
+
+  // Tonnage total par séance
+  const bySession = {};
+  sets.forEach(r => { if (!r.session_id) return; (bySession[r.session_id] = bySession[r.session_id] || { t: r.recorded_at, sum: 0 }).sum += Number(r.tonnage); });
+  const tonSeries = Object.values(bySession).map(v => ({ x: +new Date(v.t), y: Math.round(v.sum) })).sort((a, b) => a.x - b.x);
+  html += card('Tonnage total par séance (kg)', lineChartSVG(tonSeries, '#C26B4A'));
+
+  html += card('VFC des séances — RMSSD (ms)',
+    lineChartSVG(sessions.filter(r => r.rmssd != null).map(r => ({ x: +new Date(r.started_at), y: Math.round(r.rmssd) })), '#2F8A5B'));
+
+  const byExo = {};
+  sets.forEach(r => { (byExo[r.exercice] = byExo[r.exercice] || []).push({ x: +new Date(r.recorded_at), y: r.e1rm }); });
+  Object.keys(byExo).sort().forEach(e => { html += card('1RM estimée · ' + escapeHtml(e) + ' (kg)', lineChartSVG(byExo[e], '#B08A2E')); });
+
+  el.innerHTML = html || '<p class="muted">Aucune donnée pour l’instant.</p>';
+}
+
+/* =====================================================================
+   Démarrage
+   ===================================================================== */
+initAuth();
+</script>
+</body>
+</html>
