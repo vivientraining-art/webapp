@@ -28,7 +28,7 @@
   html,body{height:100%}
   body{
     font-family:'Source Sans 3',system-ui,sans-serif;
-    background:var(--sand);
+    background:radial-gradient(1100px 480px at 50% -12%,#F8F4EA,var(--sand)) fixed;
     color:var(--ink);
     -webkit-font-smoothing:antialiased;
   }
@@ -36,9 +36,10 @@
   /* ---------- Barre supérieure ---------- */
   header{
     position:sticky;top:0;z-index:10;
-    background:var(--forest);color:#F4F0E6;
+    background:linear-gradient(180deg,#254531,var(--forest));color:#F4F0E6;
+    border-bottom:1px solid rgba(255,255,255,.07);
     display:flex;align-items:center;flex-wrap:wrap;gap:.6rem 1.2rem;
-    padding:.65rem 1rem;
+    padding:.7rem 1rem;
   }
   .brand{display:flex;align-items:center;gap:.6rem;min-width:0}
   .brand svg{flex:none}
@@ -57,11 +58,12 @@
   .spacer{flex:1}
   .actions{display:flex;gap:.5rem;flex-wrap:wrap}
   button{
-    font:inherit;font-weight:600;border:none;border-radius:8px;
+    font:inherit;font-weight:600;border:none;border-radius:10px;
     padding:.6rem .95rem;cursor:pointer;min-height:44px;
-    transition:filter .12s ease, opacity .12s ease;
+    transition:filter .15s ease, opacity .15s ease, transform .06s ease, box-shadow .15s ease;
   }
-  button:active{filter:brightness(.92)}
+  button:active{filter:brightness(.92);transform:translateY(1px)}
+  button:focus-visible,input:focus-visible,select:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(47,82,64,.25)}
   button:disabled{opacity:.45;cursor:default}
   .btn-ghost{background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.25)}
   .btn-rec{background:var(--terra);color:#fff}
@@ -92,10 +94,10 @@
     background:var(--linen);
     border:1px solid var(--line);
     border-left:7px solid var(--z0);
-    border-radius:12px;
+    border-radius:14px;
     padding:.75rem .9rem .8rem;
     display:flex;flex-direction:column;gap:.45rem;
-    box-shadow:0 1px 2px rgba(34,48,42,.06);
+    box-shadow:0 1px 2px rgba(34,48,42,.05),0 2px 10px rgba(34,48,42,.05);
   }
   .row1{display:flex;align-items:center;gap:.5rem}
   .dot{width:10px;height:10px;border-radius:50%;flex:none;background:#B8B2A4}
@@ -372,16 +374,19 @@
   .authbox button{width:100%}
   .authbox #gateMsg{color:#F3D9CF;font-size:.85rem;margin-top:.7rem;min-height:1em}
   .modecards{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
-  .modecard{background:var(--linen);color:var(--ink);border:1px solid var(--line);border-radius:14px;
-    padding:1.3rem;width:250px;cursor:pointer;text-align:left;box-shadow:0 6px 20px rgba(0,0,0,.22)}
-  .modecard:active{filter:brightness(.97)}
+  .modecard{background:var(--linen);color:var(--ink);border:1px solid var(--line);border-radius:18px;
+    padding:1.4rem;width:255px;cursor:pointer;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.24);
+    transition:transform .12s ease,box-shadow .12s ease}
+  .modecard:hover{transform:translateY(-2px);box-shadow:0 12px 36px rgba(0,0,0,.3)}
+  .modecard:active{filter:brightness(.97);transform:none}
   .modecard h3{font-size:1.1rem;margin:.2rem 0 .4rem}
   .modecard p{color:var(--muted);font-size:.85rem;margin:0;line-height:1.45}
   .modecard .ic{font-size:1.7rem}
   #spectator{max-width:1100px;margin:0 auto;padding:1rem}
   #specGrid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));margin-bottom:1.4rem}
   .speccard{background:var(--linen);border:1px solid var(--line);border-left:7px solid var(--z0);
-    border-radius:12px;padding:.8rem .9rem;transition:opacity .2s ease}
+    border-radius:14px;padding:.85rem .95rem;transition:opacity .2s ease;
+    box-shadow:0 1px 2px rgba(34,48,42,.05),0 2px 10px rgba(34,48,42,.05)}
   .speccard.stale{opacity:.4}
   .speccard .nm{font-weight:700;font-size:1rem;margin-bottom:.35rem}
   .speccard .bpm{font-variant-numeric:tabular-nums;font-size:2.2rem;font-weight:700;line-height:1}
@@ -1154,7 +1159,46 @@ $('#btnStop').addEventListener('click', () => {
     .then(() => dbPut('raw', lastPack.raw))
     .then(() => { toast('Séance archivée dans Rapports'); refreshReportCount(); })
     .catch(() => toast('Archivage local impossible — exportez les CSV maintenant'));
+
+  startGroupHrr(lastPack.summary);
 });
+
+/* ---------- Récupération cardiaque post-séance (HRR60, Cole 1999) ----------
+   À l'arrêt, les ceintures émettent encore : on relève la FC de chacun,
+   puis à nouveau 60 s plus tard. La chute (bpm) est ajoutée au rapport. */
+let groupHrr = null;
+function startGroupHrr(summary) {
+  if (groupHrr) { clearTimeout(groupHrr.timer); groupHrr = null; }
+  if (!summary || summary.durationS < 300) return;       // effort trop court : mesure non interprétable
+  const targets = [];
+  for (const p of participants.values()) {
+    if (p.hr !== null && p.hr >= 100) {
+      const sp = summary.participants.find(x => x.name === p.name);
+      if (sp) targets.push({ p, sp, hrStop: p.hr });
+    }
+  }
+  if (!targets.length) return;
+  toast('Mesure de récupération (60 s) — gardez les ceintures en place');
+  groupHrr = {
+    timer: setTimeout(async () => {
+      let n = 0;
+      for (const t of targets) {
+        // le pic de référence peut encore monter juste après l'arrêt
+        if (t.p.hr === null) continue;
+        const drop = t.hrStop - t.p.hr;
+        if (drop < 0) continue;
+        t.sp.hrr60 = drop; t.sp.hrrStop = t.hrStop; t.sp.hrr1min = t.p.hr; n++;
+      }
+      groupHrr = null;
+      if (!n) return;
+      try { await dbPut('sessions', summary); } catch (e) {}
+      toast('Récupération mesurée pour ' + n + ' participant' + (n > 1 ? 's' : '') + ' — voir Rapports');
+    }, 60000),
+  };
+}
+$('#btnStart').addEventListener('click', () => {
+  if (groupHrr) { clearTimeout(groupHrr.timer); groupHrr = null; }
+}, true);
 
 /* Construit le résumé + les données brutes de la séance courante */
 function summarizeSession() {
@@ -1377,7 +1421,11 @@ async function openDetail(id) {
       '<div class="pr-stats">FC moy <b>' + (p.hrAvg === null ? '—' : p.hrAvg) + '</b> · ' +
       'pic <b>' + (p.hrPeak === null ? '—' : p.hrPeak) + '</b> · ' +
       'FCmax réglée <b>' + p.hrMax + '</b><br>' +
-      'RMSSD début → fin <b>' + rm + '</b> ms <span title="3 premières / 3 dernières minutes">ⓘ</span></div>' +
+      'RMSSD début → fin <b>' + rm + '</b> ms <span title="3 premières / 3 dernières minutes">ⓘ</span>' +
+      (p.hrr60 != null
+        ? '<br>Récupération 60 s <b>−' + p.hrr60 + ' bpm</b> (' + p.hrrStop + ' → ' + p.hrr1min + ')' +
+          ' <span title="Chute de FC dans la minute suivant l’arrêt (Cole 1999) : > 20 bpm = très bonne, < 12 bpm = lente">ⓘ</span>'
+        : '') + '</div>' +
       '<div class="zbar">' + segs + '</div>' +
       '<canvas class="pr-curve" data-i="' + i + '"></canvas>' +
       '</div>';
