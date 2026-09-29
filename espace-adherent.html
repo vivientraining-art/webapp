@@ -135,22 +135,28 @@
   code{background:#0001;padding:.1rem .3rem;border-radius:4px;font-size:.85em}
   .checkrow{display:flex;gap:.55rem;align-items:flex-start;text-align:left;font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:.9rem}
   .checkrow input{width:auto;min-width:0;min-height:0;margin:.15rem 0 0;flex:none}
-  /* ---------- Tests cognitifs ---------- */
-  .cogcard{background:var(--linen);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.05rem 1.1rem;margin-bottom:.9rem;box-shadow:var(--sh-1)}
-  .cogcard .last{font-size:.85rem;color:var(--muted);margin:.35rem 0 .7rem;font-variant-numeric:tabular-nums}
-  .cogstage{
-    position:fixed;inset:0;z-index:60;background:linear-gradient(180deg,#254531,var(--forest));color:#F4F0E6;
-    display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;
-    padding:1.2rem;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  /* ---------- Protocole de test ---------- */
+  .steps{display:flex;gap:.3rem;margin-bottom:1rem;flex-wrap:wrap}
+  .steps span{flex:1;min-width:18px;height:5px;border-radius:3px;background:var(--line)}
+  .steps span.done{background:var(--pine)}
+  .steps span.on{background:var(--terra)}
+  .protocole-box{
+    background:#fff;border:1px solid var(--line);border-left:4px solid var(--pine);
+    border-radius:var(--r-md);padding:.9rem 1.05rem;margin:.8rem 0 1rem;font-size:.92rem;line-height:1.6;
   }
-  .cogstage.on{display:flex}
-  .cogstage .instr{max-width:520px;font-size:1.05rem;line-height:1.7;margin-bottom:1.4rem}
-  .cogstage .big{font-size:clamp(2.5rem,16vw,6rem);font-weight:700;line-height:1}
-  .cog-disc{width:46vw;max-width:230px;height:46vw;max-height:230px;border-radius:50%;box-shadow:0 10px 40px rgba(0,0,0,.3)}
-  .cog-word{font-size:clamp(2rem,12vw,4.5rem);font-weight:800}
-  .cog-tap{margin-top:1.5rem;font-size:.9rem;color:#C9D4CC}
-  .cogstage .formrow{justify-content:center}
-  .cogstage .btn-soft{background:rgba(255,255,255,.12);color:#F4F0E6;border:1px solid rgba(255,255,255,.3)}
+  .protocole-box b{color:var(--forest)}
+  .stepcard{background:var(--linen);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.3rem;box-shadow:var(--sh-1)}
+  .stepmeta{color:var(--muted);font-size:.82rem;margin-bottom:.3rem}
+  .rest-box{text-align:center;padding:1rem 0}
+  .rest-count{font-size:3.4rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;color:var(--forest)}
+  .rest-count.done{color:var(--terra)}
+  .rest-label{color:var(--muted);font-size:.9rem;margin-top:.4rem}
+  .rest-controls{display:flex;justify-content:center;gap:.6rem;margin-top:1.1rem;flex-wrap:wrap}
+  .typebadge{display:inline-block;background:var(--sand);color:var(--ink);border-radius:6px;padding:.15rem .6rem;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  table.resulttbl{width:100%;border-collapse:collapse;font-size:.88rem;margin-top:.5rem}
+  table.resulttbl th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:.4rem .5rem;border-bottom:1px solid var(--line)}
+  table.resulttbl td{padding:.55rem .5rem;border-bottom:1px solid var(--line)}
+  table.resulttbl tr:last-child td{border-bottom:none}
   /* ---------- Graphiques ---------- */
   .chartcard{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:1rem 1rem .85rem;margin-bottom:.95rem;box-shadow:var(--sh-1)}
   .chartcard h4{font-size:.92rem;margin-bottom:.6rem}
@@ -241,7 +247,7 @@
     <div class="tabs" id="tabs">
       <button class="tab on" data-tab="saisie">Mes mesures</button>
       <button class="tab" data-tab="polar">Capteur</button>
-      <button class="tab" data-tab="cognitif">Tests cognitifs</button>
+      <button class="tab" data-tab="protocole">Protocole test</button>
       <button class="tab" data-tab="histo">Historique</button>
       <button class="tab" data-tab="progression">Progression</button>
       <button class="tab" data-tab="profil">Mon profil</button>
@@ -346,33 +352,54 @@
       </div>
     </section>
 
-    <!-- ---- Tests cognitifs ---- -->
-    <section data-panel="cognitif" hidden>
-      <h2>Tests cognitifs</h2>
-      <p class="note" style="margin-top:0">Trois tests courts. Fais-les au calme, dans les mêmes conditions à chaque fois
-        (moment de la journée, assis, même consigne). Les deux premières passations servent surtout à te familiariser.</p>
+    <!-- ---- Protocole Force + Cardio ---- -->
+    <section data-panel="protocole" hidden>
+      <h2>Protocole Force + Cardio</h2>
 
-      <div class="cogcard">
-        <h3>Go / No-Go — inhibition</h3>
-        <p class="note" style="margin-top:0">Tape l'écran quand le disque est <strong>vert</strong> (Go),
-          <strong>ne tape pas</strong> quand il est <strong>rouge</strong> (No-Go). Mesure la vitesse ET la maîtrise. ~2 min.</p>
-        <div class="last" id="lastGng">—</div>
-        <button class="btn-soft" data-cog="gng">Lancer</button>
+      <div id="protoHome">
+        <div class="panel">
+          <div class="formrow">
+            <div class="field">Point de test
+              <div class="seg" id="ptPoint">
+                <button type="button" data-p="T0" class="sel">T0</button>
+                <button type="button" data-p="T1">T1</button>
+                <button type="button" data-p="T2">T2</button>
+                <button type="button" data-p="T3">T3</button>
+              </div></div>
+          </div>
+          <p class="note">Choisis le point de test indiqué par ton coach, puis lance le protocole. Connecte ton
+            capteur cardiaque avant de démarrer si tu veux que ta fréquence cardiaque soit enregistrée pendant
+            les tests (optionnel — le protocole fonctionne aussi sans capteur).</p>
+          <div class="formrow" style="margin-top:.8rem">
+            <button class="btn-soft" id="protoConnect">Connecter mon capteur</button>
+            <button class="btn-primary" id="protoStart">Commencer le protocole</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Ordre de passation</h3>
+          <ol style="padding-left:1.2rem;font-size:.9rem;line-height:1.9">
+            <li>Échauffement général 8–10 min <span class="muted">(non noté)</span></li>
+            <li>Force de préhension (dynamométrie)</li>
+            <li>Pecs — Pompes 1 min <span class="muted">→ repos 60–90 s</span></li>
+            <li>Quadriceps — Wall-sit <span class="muted">→ repos 60–90 s</span></li>
+            <li>Grands dorsaux — Rowing 1 min <span class="muted">→ repos 60–90 s</span></li>
+            <li>Ischio-jambiers — RDL haltères 1 min <span class="muted">→ repos long 3–5 min</span></li>
+            <li>AMRAP Cardio 10 min</li>
+            <li>Retour au calme <span class="muted">(non noté)</span></li>
+          </ol>
+        </div>
       </div>
 
-      <div class="cogcard">
-        <h3>Stroop — interférence</h3>
-        <p class="note" style="margin-top:0">Réponds à la <strong>couleur de l'encre</strong>, pas au mot lu.
-          Inhibition et contrôle attentionnel. ~2 min.</p>
-        <div class="last" id="lastStroop">—</div>
-        <button class="btn-soft" data-cog="stroop">Lancer</button>
-      </div>
-
-      <div class="cogcard">
-        <h3>N-back (2-back) — mémoire de travail</h3>
-        <p class="note" style="margin-top:0">Tape « Identique » quand la lettre est la même que <strong>2 lettres avant</strong>. ~1 min.</p>
-        <div class="last" id="lastNback">—</div>
-        <button class="btn-soft" data-cog="nback">Lancer</button>
+      <div id="protoRun" hidden>
+        <div class="livebox" style="margin-bottom:.9rem">
+          <span class="muted" style="font-size:.85rem">FC en direct</span>
+          <div class="spacer"></div>
+          <span class="hrbig" id="pHrBig" style="font-size:1.8rem">–</span>
+          <span class="hrunit">bpm</span>
+          <span class="zbadge" id="pZBadge" style="margin-left:.6rem">—</span>
+        </div>
+        <div class="steps" id="protoSteps"></div>
+        <div class="stepcard" id="protoCard"></div>
       </div>
     </section>
 
@@ -393,6 +420,11 @@
       <div class="panel">
         <h3>Mesures</h3>
         <div class="hist" id="histMeas"><p class="muted">Chargement…</p></div>
+      </div>
+      <div class="panel">
+        <h3>Protocole Force + Cardio</h3>
+        <p class="note" style="margin-top:0">Valeurs brutes par point de test, sans score calculé.</p>
+        <div id="histProto"><p class="muted">Chargement…</p></div>
       </div>
     </section>
 
@@ -449,7 +481,6 @@
   </div>
 </div>
 <div id="sessionBadge"><span class="dot"></span>Séance en cours</div>
-<div id="cogStage" class="cogstage"></div>
 <div id="toast" role="status"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -528,6 +559,9 @@ function vo2QueensCollege(sexe, hr) {
 }
 const frDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 const mmss = (s) => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 /* =====================================================================
    État utilisateur
@@ -682,8 +716,8 @@ async function onSignedIn(user) {
   if (profile.role === 'coach') $('#tabCoach').hidden = false;
   ensureChannel();
   loadHistory();
-  refreshCogLast();
   restoreLiveSession();
+  resumeProtocolIfAny();
 }
 
 function consentNeeded() {
@@ -721,7 +755,6 @@ $('#tabs').addEventListener('click', (e) => {
   const tab = b.dataset.tab;
   $$('section[data-panel]').forEach(s => s.hidden = s.dataset.panel !== tab);
   if (tab === 'histo') loadHistory();
-  if (tab === 'cognitif') refreshCogLast();
   if (tab === 'progression') loadCharts();
   if (tab === 'coach') loadCoach();
 });
@@ -832,15 +865,15 @@ function rmssdOf(rrList, minBeats) {
   return n >= minBeats - 1 ? Math.sqrt(sum / n) : null;
 }
 
-$('#btnConnect').addEventListener('click', async () => {
-  if (!navigator.bluetooth) { toast('Bluetooth web indisponible ici.'); return; }
+async function connectSensor() {
+  if (!navigator.bluetooth) { toast('Bluetooth web indisponible ici.'); return false; }
   let device;
   try {
     device = await navigator.bluetooth.requestDevice({
       filters: [{ services: ['heart_rate'] }],
       optionalServices: ['battery_service'],
     });
-  } catch (e) { return; }
+  } catch (e) { return false; }
   live.device = device;
   device.addEventListener('gattserverdisconnected', () => { toast('Capteur déconnecté.'); });
   try {
@@ -849,8 +882,12 @@ $('#btnConnect').addEventListener('click', async () => {
     $('#btnStart').disabled = false;
     $('#btnHrr').disabled = false;
     $('#btnConnect').textContent = 'Reconnecter';
-  } catch (e) { toast('Échec de connexion — réessayez près du capteur.'); }
-});
+    $('#protoConnect').textContent = 'Reconnecter';
+    return true;
+  } catch (e) { toast('Échec de connexion — réessayez près du capteur.'); return false; }
+}
+$('#btnConnect').addEventListener('click', connectSensor);
+$('#protoConnect').addEventListener('click', connectSensor);
 
 async function connectGatt() {
   const server = await live.device.gatt.connect();
@@ -909,6 +946,8 @@ function renderLive() {
   $('#zPct').innerHTML = live.hr === null ? '&nbsp;' : Math.round((live.hr / fcMax) * 100) + ' % FCmax';
   $('#hrRmssd').textContent = live.rmssd === null ? '—' : live.rmssd.toFixed(0);
   if (live.session) renderZoneBars();
+  const pHr = $('#pHrBig'); if (pHr) pHr.textContent = live.hr === null ? '–' : live.hr;
+  const pZ = $('#pZBadge'); if (pZ) { pZ.textContent = z === 0 ? '—' : ZONES[z].label; pZ.style.background = ZONES[z].hex; }
 }
 
 function renderZoneBars() {
@@ -970,7 +1009,8 @@ function restoreLiveSession() {
   toast('Séance reprise après rechargement — reconnecte ton capteur pour continuer.');
 }
 
-$('#btnStart').addEventListener('click', () => {
+function startHrSession() {
+  if (live.session) return;
   live.session = {
     startedAt: Date.now(), sum: 0, n: 0, max: 0, min: 999,
     zoneSec: [0, 0, 0, 0, 0, 0], prevZone: null, lastZoneT: null,
@@ -979,10 +1019,13 @@ $('#btnStart').addEventListener('click', () => {
   live.broadcast = true;
   enterSessionUI();
   saveLiveSnapshot();
+}
+$('#btnStart').addEventListener('click', () => {
+  startHrSession();
   toast('Séance démarrée — enregistrement en cours');
 });
 
-$('#btnStop').addEventListener('click', async () => {
+async function stopHrSession(silentIfEmpty) {
   const s = live.session;
   clearInterval(live.tick);
   live.session = null;
@@ -995,7 +1038,7 @@ $('#btnStop').addEventListener('click', async () => {
   $('#btnStart').hidden = false;
   $('#btnConnect').disabled = false;
   $('#hrChrono').textContent = '00:00';
-  if (!s || s.n === 0) { toast('Séance arrêtée — aucune donnée enregistrée.'); return; }
+  if (!s || s.n === 0) { if (!silentIfEmpty) toast('Séance arrêtée — aucune donnée enregistrée.'); return null; }
   const zoneObj = {}; s.zoneSec.forEach((v, i) => { if (v > 0) zoneObj[i] = Math.round(v); });
   const row = {
     user_id: me.id,
@@ -1010,13 +1053,17 @@ $('#btnStop').addEventListener('click', async () => {
     zone_seconds: zoneObj,
   };
   const { error } = await sb.from('hr_sessions').insert(row);
-  if (error) { toast('Erreur d’enregistrement : ' + error.message); return; }
-  toast('Séance enregistrée ✔  FC moy ' + row.hr_avg + ' bpm');
+  if (error) { toast('Erreur d’enregistrement : ' + error.message); return null; }
   castStat('session', { hr_avg: row.hr_avg, hr_peak: row.hr_peak, duration_s: row.duration_s });
   $('#zoneBars').hidden = true;
   /* HRR60 automatique (Cole 1999) : mesurée à l'arrêt de l'effort, si la séance
      a duré ≥ 5 min et que la FC est encore élevée (capteur toujours actif). */
   if (row.duration_s >= 300 && live.hr !== null && live.hr >= 100) startHrrMeasure(true);
+  return row;
+}
+$('#btnStop').addEventListener('click', async () => {
+  const row = await stopHrSession(false);
+  if (row) toast('Séance enregistrée ✔  FC moy ' + row.hr_avg + ' bpm');
 });
 
 /* =====================================================================
@@ -1030,6 +1077,8 @@ async function loadHistory() {
   ]);
   renderHrHist(hr.data || []);
   renderMeasHist(meas.data || []);
+  const protoHtml = await loadProtocolHistory();
+  $('#histProto').innerHTML = protoHtml || '<p class="muted">Aucun résultat enregistré pour l’instant.</p>';
 }
 
 function renderHrHist(rows) {
@@ -1069,26 +1118,28 @@ async function loadCoach() {
   const el = $('#coachList');
   const { data: members, error } = await sb.from('profiles').select('*').order('prenom');
   if (error) { el.innerHTML = '<p class="muted">Erreur : ' + error.message + '</p>'; return; }
-  const [hr, meas] = await Promise.all([
+  const [hr, meas, proto] = await Promise.all([
     sb.from('hr_sessions').select('user_id,started_at,hr_avg,rmssd').order('started_at', { ascending: false }),
     sb.from('measurements').select('user_id,type,data,recorded_at').order('recorded_at', { ascending: false }),
+    sb.from('protocol_test_results').select('participant_id,point_de_test'),
   ]);
-  const sessBy = {}, measBy = {};
+  const sessBy = {}, measBy = {}, protoBy = {};
   (hr.data || []).forEach(r => { (sessBy[r.user_id] = sessBy[r.user_id] || []).push(r); });
   (meas.data || []).forEach(r => { (measBy[r.user_id] = measBy[r.user_id] || []).push(r); });
+  (proto.data || []).forEach(r => { (protoBy[r.participant_id] = protoBy[r.participant_id] || new Set()).add(r.point_de_test); });
   const lastT = (arr, type) => (arr || []).find(r => r.type === type);
 
   el.innerHTML = members.map(m => {
     const sess = sessBy[m.id] || [], mm = measBy[m.id] || [];
-    const vo2 = lastT(mm, 'vo2max'), hrr = lastT(mm, 'hrr'), force = lastT(mm, 'force'), cog = lastT(mm, 'cognitif');
+    const vo2 = lastT(mm, 'vo2max'), hrr = lastT(mm, 'hrr'), force = lastT(mm, 'force');
+    const protoPoints = protoBy[m.id];
     const lines = [];
     lines.push('<b>' + sess.length + '</b> séance' + (sess.length > 1 ? 's' : '') + (sess[0] ? ' · dernière ' + frDate(sess[0].started_at) : ''));
     if (vo2) lines.push('VO2max ' + vo2.data.vo2max + ' · ' + frDate(vo2.recorded_at));
     if (hrr) lines.push('HRR −' + hrr.data.hrr60 + ' bpm · ' + frDate(hrr.recorded_at));
     if (force) lines.push('Force ' + force.data.exercice + ' 1RM ' + force.data.e1rm + ' kg');
-    if (cog) lines.push('Cognitif ' + ({ gng: 'Go/No-Go', stroop: 'Stroop', nback: 'N-back' }[cog.data.test] || cog.data.test) +
-      ' ' + (cog.data.ms != null ? cog.data.ms + ' ms' : (cog.data.accuracy ?? '') + '%'));
-    if (!sess.length && !mm.length) lines.length = 0, lines.push('Aucune donnée');
+    if (protoPoints) lines.push('Protocole : ' + ['T0', 'T1', 'T2', 'T3'].filter(p => protoPoints.has(p)).join(', '));
+    if (!sess.length && !mm.length && !protoPoints) lines.length = 0, lines.push('Aucune donnée');
     return '<div class="coachrow"><span><b>' + (m.prenom || m.email) +
       '</b>' + (m.role === 'coach' ? ' <span class="muted">(coach)</span>' : '') +
       '<br><span class="muted" style="font-size:.8rem">' + m.email + '</span></span>' +
@@ -1129,148 +1180,317 @@ function startHrrMeasure(auto) {
 $('#btnHrr').addEventListener('click', () => startHrrMeasure(false));
 
 /* =====================================================================
-   Tests cognitifs (Go/No-Go, Stroop, N-back)
+   Protocole de test Force + Cardio (auto-saisie par l'adhérent)
    ===================================================================== */
-const stage = $('#cogStage');
-function stageHTML(html) { stage.innerHTML = html; stage.classList.add('on'); }
-function stageClose() { stage.classList.remove('on'); stage.innerHTML = ''; cogProgressHide(); }
+const TEST_DEFS = {
+  grip: {
+    label: 'Force de préhension (dynamométrie)',
+    category: 'Force — Préhension',
+    protocole: "Debout, bras le long du corps, coude légèrement fléchi. 2 essais par main en alternant droite → gauche → droite → gauche, 15 sec de repos entre chaque prise. Garder le meilleur essai par main.",
+    fields: [
+      { key: 'force_main_droite_kg', label: 'Main droite (kg)', type: 'number', step: '0.1' },
+      { key: 'force_main_gauche_kg', label: 'Main gauche (kg)', type: 'number', step: '0.1' },
+    ],
+  },
+  pompes: {
+    label: 'Pecs — Pompes 1 min',
+    category: 'Force — Haut du corps',
+    protocole: "Max de répétitions techniques en 1 minute, variante genoux ou classique au choix du participant.",
+    fields: [
+      { key: 'pompes_reps', label: 'Répétitions', type: 'number', step: '1' },
+      { key: 'pompes_variante', label: 'Variante', type: 'select', options: ['genoux', 'classique'] },
+    ],
+  },
+  wallsit: {
+    label: 'Quadriceps — Wall-sit',
+    category: 'Force — Bas du corps',
+    protocole: "Dos plaqué au mur, cuisses parallèles au sol, genoux à 90°. On arrête au premier décroché de position.",
+    fields: [
+      { key: 'wallsit_secondes', label: 'Durée tenue (s)', type: 'number', step: '1' },
+    ],
+  },
+  rowing: {
+    label: 'Grands dorsaux — Rowing 1 min',
+    category: 'Force — Haut du corps',
+    protocole: "Buste penché à 45°, dos plat. Max de répétitions techniques en 1 minute, coudes tirés vers les hanches, pause 1 sec en haut du mouvement.",
+    fields: [
+      { key: 'rowing_reps', label: 'Répétitions', type: 'number', step: '1' },
+      { key: 'rowing_modalite', label: 'Modalité (barre, haltère…)', type: 'text' },
+      { key: 'rowing_charge_kg', label: 'Charge (kg) — optionnel', type: 'number', step: '0.5', optional: true },
+    ],
+  },
+  rdl: {
+    label: 'Ischio-jambiers — RDL haltères 1 min',
+    category: 'Force — Bas du corps',
+    protocole: "Max de répétitions techniques en 1 minute, tempo contrôlé, dos plat, flexion des hanches (pas du dos).",
+    fields: [
+      { key: 'rdl_reps', label: 'Répétitions', type: 'number', step: '1' },
+    ],
+  },
+  amrap_cardio: {
+    label: 'AMRAP Cardio 10 min',
+    category: 'Cardio',
+    protocole: "Circuit fixe en boucle continue pendant 10 min, à répéter sans interruption : 10 jumping jacks, " +
+      "10 mountain climbers (5/jambe), 8 squats, 5 pompes. Le partenaire compte les tours à voix haute. Au signal " +
+      "stop, noter le nombre de tours complets + la dernière station atteinte dans le tour en cours.",
+    fields: [
+      { key: 'amrap_tours_complets', label: 'Tours complets', type: 'number', step: '1' },
+      { key: 'amrap_derniere_station', label: 'Dernière station atteinte', type: 'select', options: ['jacks', 'climbers', 'squats', 'pompes'] },
+    ],
+    timedSeconds: 600,
+  },
+};
+const PROTOCOL_STEPS = [
+  { kind: 'info', title: 'Échauffement général', text: 'Échauffement général, 8 à 10 minutes. Non noté.' },
+  { kind: 'test', key: 'grip' },
+  { kind: 'test', key: 'pompes', restAfter: 75 },
+  { kind: 'test', key: 'wallsit', restAfter: 75 },
+  { kind: 'test', key: 'rowing', restAfter: 75 },
+  { kind: 'test', key: 'rdl', restAfter: 240 },
+  { kind: 'test', key: 'amrap_cardio' },
+  { kind: 'info', title: 'Retour au calme', text: 'Retour au calme. Non noté.', isLast: true },
+];
 
-let cogBar = null, cogBarFill = null, cogBarTxt = null;
-function cogProgress(done, total) {
-  if (!cogBar) {
-    cogBar = document.createElement('div');
-    cogBar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:61;display:flex;align-items:center;' +
-      'gap:8px;padding:7px 12px;background:rgba(0,0,0,.22)';
-    const track = document.createElement('div');
-    track.style.cssText = 'flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden';
-    cogBarFill = document.createElement('div');
-    cogBarFill.style.cssText = 'height:100%;width:0;background:#F4F0E6;transition:width .25s ease';
-    track.appendChild(cogBarFill);
-    cogBarTxt = document.createElement('span');
-    cogBarTxt.style.cssText = 'color:#F4F0E6;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;' +
-      'min-width:48px;text-align:right';
-    cogBar.appendChild(track); cogBar.appendChild(cogBarTxt);
-    document.body.appendChild(cogBar);
+let pointDeTest = 'T0';
+$('#ptPoint').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  $$('#ptPoint button').forEach(x => x.classList.toggle('sel', x === b));
+  pointDeTest = b.dataset.p;
+});
+
+let protoExisting = {};
+let protoStepIndex = 0;
+let protoPhase = 'content';
+let protoRestTimer = null, protoRestRemaining = 0, protoRestTotal = 0;
+let protoAmrapTimer = null, protoAmrapRemaining = 0, protoAmrapRunning = false;
+
+function protocolStorageKey() { return me ? ('vs-protocol-' + me.id) : null; }
+function saveProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.setItem(k, pointDeTest); } catch (e) {} } }
+function clearProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.removeItem(k); } catch (e) {} } }
+
+function firstIncompleteStepIndex(existing) {
+  for (let i = 0; i < PROTOCOL_STEPS.length; i++) {
+    const s = PROTOCOL_STEPS[i];
+    if (s.kind === 'test' && !(s.key in existing)) return i;
   }
-  cogBar.style.display = 'flex';
-  cogBarFill.style.width = Math.round(100 * done / total) + '%';
-  cogBarTxt.textContent = done + ' / ' + total;
-}
-function cogProgressHide() { if (cogBar) cogBar.style.display = 'none'; }
-const wait = (ms) => new Promise(r => setTimeout(r, ms));
-const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-const onceClick = (sel) => new Promise(res => $(sel).addEventListener('click', res, { once: true }));
-
-$$('[data-cog]').forEach(b => b.addEventListener('click', () => {
-  const k = b.dataset.cog;
-  if (k === 'gng') runGoNoGo();
-  else if (k === 'stroop') runStroop();
-  else if (k === 'nback') runNback();
-}));
-
-async function runGoNoGo() {
-  const N = 30, seq = [];
-  for (let i = 0; i < N; i++) seq.push(Math.random() < 0.72 ? 'go' : 'nogo');
-  stageHTML('<div class="instr">Go / No-Go<br><br>Tape l\'écran quand le disque est <b style="color:#7BD389">VERT</b>.<br>' +
-    'NE tape PAS quand il est <b style="color:#F08A7A">ROUGE</b>.<br>Sois rapide mais précis.</div>' +
-    '<button class="btn-soft" id="cogGo">Commencer</button>');
-  await onceClick('#cogGo');
-  const rts = []; let commission = 0, omission = 0, correct = 0;
-  for (let i = 0; i < seq.length; i++) {
-    const type = seq[i];
-    cogProgress(i + 1, N);
-    stageHTML('<div class="big">+</div>');
-    await wait(700 + Math.random() * 600);
-    const tap = { done: false, rt: null };
-    const onTap = () => { if (!tap.done) { tap.done = true; tap.rt = performance.now() - t0; } };
-    stageHTML('<div class="cog-disc" style="background:' + (type === 'go' ? '#7BD389' : '#F08A7A') + '"></div>' +
-      '<div class="cog-tap">tape si vert</div>');
-    const t0 = performance.now();
-    stage.addEventListener('pointerdown', onTap);
-    await wait(1000);
-    stage.removeEventListener('pointerdown', onTap);
-    if (type === 'go') { if (tap.done) { rts.push(tap.rt); correct++; } else omission++; }
-    else { if (tap.done) commission++; else correct++; }
-  }
-  cogProgressHide();
-  const mrt = mean(rts), acc = Math.round(100 * correct / N);
-  await saveMeasurement('cognitif', { test: 'gng', ms: mrt ? Math.round(mrt) : null, commission, omission, accuracy: acc, n: N });
-  stageHTML('<div class="instr">Terminé !<br><br>Temps de réaction : <b>' + (mrt ? Math.round(mrt) : '—') + ' ms</b><br>' +
-    'Erreurs (taper sur rouge) : <b>' + commission + '</b><br>Oublis (rater le vert) : <b>' + omission + '</b><br>' +
-    'Précision : <b>' + acc + ' %</b></div><button class="btn-soft" id="cogDone">Fermer</button>');
-  await onceClick('#cogDone'); stageClose(); refreshCogLast();
-}
-
-async function runStroop() {
-  const words = [['ROUGE', '#C14F38'], ['VERT', '#5F9560'], ['BLEU', '#5C8FA6'], ['JAUNE', '#D9A441']];
-  const N = 28;
-  stageHTML('<div class="instr">Stroop<br><br>Un mot coloré apparaît. Touche le bouton correspondant à la ' +
-    '<b>COULEUR DE L\'ENCRE</b>, pas au mot écrit.</div><button class="btn-soft" id="cogGo">Commencer</button>');
-  await onceClick('#cogGo');
-  const rts = []; let correct = 0;
-  for (let i = 0; i < N; i++) {
-    cogProgress(i + 1, N);
-    const wi = Math.floor(Math.random() * 4);
-    let ci = Math.floor(Math.random() * 4);
-    if (Math.random() < 0.7 && ci === wi) ci = (ci + 1) % 4; // souvent incongruent
-    const btns = words.map((w, idx) => '<button class="btn-soft cstroop" data-i="' + idx + '" ' +
-      'style="border-color:' + w[1] + ';color:' + w[1] + '">' + w[0] + '</button>').join('');
-    stageHTML('<div class="cog-word" style="color:' + words[ci][1] + '">' + words[wi][0] + '</div>' +
-      '<div class="formrow" style="margin-top:2rem">' + btns + '</div>');
-    const t0 = performance.now();
-    const choice = await new Promise(res =>
-      $$('.cstroop').forEach(bb => bb.addEventListener('pointerdown', () => res(parseInt(bb.dataset.i, 10)), { once: true })));
-    if (choice === ci) { correct++; rts.push(performance.now() - t0); }
-  }
-  cogProgressHide();
-  const mrt = mean(rts), acc = Math.round(100 * correct / N);
-  await saveMeasurement('cognitif', { test: 'stroop', ms: mrt ? Math.round(mrt) : null, accuracy: acc, n: N });
-  stageHTML('<div class="instr">Terminé !<br><br>Temps de réaction (bonnes réponses) : <b>' + (mrt ? Math.round(mrt) : '—') +
-    ' ms</b><br>Précision : <b>' + acc + ' %</b></div><button class="btn-soft" id="cogDone">Fermer</button>');
-  await onceClick('#cogDone'); stageClose(); refreshCogLast();
+  return PROTOCOL_STEPS.length - 1;
 }
 
-async function runNback() {
-  const letters = 'BCDFGHKLMNPQRSTVZ'.split(''), N = 24, back = 2, seq = [];
-  for (let i = 0; i < N; i++) {
-    if (i >= back && Math.random() < 0.3) seq.push(seq[i - back]);
-    else { let c; do { c = letters[Math.floor(Math.random() * letters.length)]; } while (i >= back && c === seq[i - back]); seq.push(c); }
-  }
-  stageHTML('<div class="instr">N-back (2-back)<br><br>Des lettres défilent. Touche <b>« Identique »</b> ' +
-    'quand la lettre est la même que <b>2 lettres avant</b>.</div><button class="btn-soft" id="cogGo">Commencer</button>');
-  await onceClick('#cogGo');
-  let hits = 0, falseAlarms = 0, misses = 0, targets = 0;
-  for (let i = 0; i < N; i++) {
-    cogProgress(i + 1, N);
-    const isTarget = i >= back && seq[i] === seq[i - back];
-    if (isTarget) targets++;
-    const tap = { done: false };
-    stageHTML('<div class="big">' + seq[i] + '</div><button class="btn-soft" id="nbBtn" style="margin-top:2rem">Identique</button>');
-    $('#nbBtn').addEventListener('pointerdown', () => { tap.done = true; }, { once: true });
-    await wait(2000);
-    if (isTarget && tap.done) hits++;
-    else if (isTarget) misses++;
-    else if (tap.done) falseAlarms++;
-  }
-  cogProgressHide();
-  const acc = targets ? Math.round(100 * hits / targets) : 0;
-  await saveMeasurement('cognitif', { test: 'nback', score: hits, hits, falseAlarms, misses, targets, accuracy: acc });
-  stageHTML('<div class="instr">Terminé !<br><br>Bonnes détections : <b>' + hits + '/' + targets + '</b><br>' +
-    'Fausses alarmes : <b>' + falseAlarms + '</b><br>Réussite : <b>' + acc + ' %</b></div>' +
-    '<button class="btn-soft" id="cogDone">Fermer</button>');
-  await onceClick('#cogDone'); stageClose(); refreshCogLast();
+async function beginProtocol() {
+  const { data, error } = await sb.from('protocol_test_results')
+    .select('test_type,data').eq('participant_id', me.id).eq('point_de_test', pointDeTest);
+  if (error) { toast('Erreur : ' + error.message); return; }
+  protoExisting = {};
+  (data || []).forEach(r => { protoExisting[r.test_type] = r.data; });
+  protoStepIndex = Object.keys(protoExisting).length ? firstIncompleteStepIndex(protoExisting) : 0;
+  protoPhase = 'content';
+  saveProtocolFlag();
+  startHrSession();
+  $('#protoHome').hidden = true;
+  $('#protoRun').hidden = false;
+  renderProtoStep();
+}
+$('#protoStart').addEventListener('click', beginProtocol);
+
+async function resumeProtocolIfAny() {
+  const k = protocolStorageKey(); if (!k) return;
+  let saved = null;
+  try { saved = localStorage.getItem(k); } catch (e) {}
+  if (!saved) return;
+  pointDeTest = saved;
+  $$('#ptPoint button').forEach(x => x.classList.toggle('sel', x.dataset.p === saved));
+  $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === 'protocole'));
+  $$('section[data-panel]').forEach(s => s.hidden = s.dataset.panel !== 'protocole');
+  await beginProtocol();
+  toast('Protocole repris là où tu l’avais laissé.');
 }
 
-async function refreshCogLast() {
-  if (!sb || !me) return;
-  const { data } = await sb.from('measurements').select('data,recorded_at')
-    .eq('user_id', me.id).eq('type', 'cognitif').order('recorded_at', { ascending: false }).limit(60);
-  const last = {};
-  (data || []).forEach(r => { const t = r.data && r.data.test; if (t && !last[t]) last[t] = r; });
-  const fmt = (r, f) => r ? f(r.data) + ' · ' + frDate(r.recorded_at) : '—';
-  $('#lastGng').textContent = fmt(last.gng, d => 'TR ' + (d.ms ?? '—') + ' ms · ' + d.commission + ' err · ' + d.accuracy + '%');
-  $('#lastStroop').textContent = fmt(last.stroop, d => 'TR ' + (d.ms ?? '—') + ' ms · ' + d.accuracy + '%');
-  $('#lastNback').textContent = fmt(last.nback, d => (d.hits ?? d.score) + '/' + (d.targets ?? '—') + ' · ' + d.accuracy + '%');
+function stopProtoTimers() {
+  clearInterval(protoRestTimer); protoRestTimer = null;
+  clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
+}
+
+function protoAdvance() {
+  stopProtoTimers();
+  protoPhase = 'content';
+  protoStepIndex++;
+  if (protoStepIndex >= PROTOCOL_STEPS.length) { $('#protoHome').hidden = false; $('#protoRun').hidden = true; return; }
+  renderProtoStep();
+}
+
+function renderProtoSteps() {
+  $('#protoSteps').innerHTML = PROTOCOL_STEPS.map((s, i) =>
+    '<span class="' + (i < protoStepIndex ? 'done' : i === protoStepIndex ? 'on' : '') + '"></span>'
+  ).join('');
+}
+
+function updateProtoRestDisplay() {
+  const el = $('#protoRestCount'); if (!el) return;
+  el.textContent = mmss(protoRestRemaining);
+  el.classList.toggle('done', protoRestRemaining === 0);
+}
+
+function renderProtoStep() {
+  renderProtoSteps();
+  const step = PROTOCOL_STEPS[protoStepIndex];
+  const card = $('#protoCard');
+
+  if (protoPhase === 'resting') {
+    card.innerHTML =
+      '<div class="rest-box">' +
+        '<div class="stepmeta">Repos avant l’étape suivante</div>' +
+        '<div class="rest-count" id="protoRestCount">' + mmss(protoRestRemaining) + '</div>' +
+        '<div class="rest-label">Repos conseillé : ' + mmss(protoRestTotal) + '</div>' +
+        '<div class="rest-controls">' +
+          '<button class="btn-soft" id="protoRestMinus">−15 s</button>' +
+          '<button class="btn-soft" id="protoRestPlus">+15 s</button>' +
+          '<button class="btn-primary" id="protoRestSkip">Continuer</button>' +
+        '</div>' +
+      '</div>';
+    $('#protoRestMinus').addEventListener('click', () => { protoRestRemaining = Math.max(0, protoRestRemaining - 15); updateProtoRestDisplay(); });
+    $('#protoRestPlus').addEventListener('click', () => { protoRestRemaining += 15; updateProtoRestDisplay(); });
+    $('#protoRestSkip').addEventListener('click', protoAdvance);
+    return;
+  }
+
+  if (step.kind === 'info') {
+    card.innerHTML =
+      '<h3>' + escapeHtml(step.title) + '</h3>' +
+      '<div class="protocole-box">' + escapeHtml(step.text) + '</div>' +
+      '<button class="btn-primary" id="protoInfoNext">' + (step.isLast ? 'Terminer le protocole' : 'Continuer') + '</button>';
+    $('#protoInfoNext').addEventListener('click', async () => {
+      if (step.isLast) {
+        stopProtoTimers();
+        clearProtocolFlag();
+        await stopHrSession(true);
+        $('#protoHome').hidden = false;
+        $('#protoRun').hidden = true;
+        toast('Protocole terminé, bravo ✔');
+        return;
+      }
+      protoAdvance();
+    });
+    return;
+  }
+
+  const def = TEST_DEFS[step.key];
+  const prev = protoExisting[step.key] || {};
+  const fieldsHtml = def.fields.map(f => {
+    const val = prev[f.key] != null ? prev[f.key] : '';
+    if (f.type === 'select') {
+      return '<div class="field">' + escapeHtml(f.label) +
+        '<select id="ptf_' + f.key + '"><option value="">—</option>' +
+        f.options.map(o => '<option value="' + o + '"' + (val === o ? ' selected' : '') + '>' + o + '</option>').join('') +
+        '</select></div>';
+    }
+    return '<div class="field">' + escapeHtml(f.label) +
+      '<input type="' + f.type + '" id="ptf_' + f.key + '" step="' + (f.step || 'any') + '" value="' + escapeHtml(val) + '"></div>';
+  }).join('');
+
+  let timerHtml = '';
+  if (def.timedSeconds) {
+    timerHtml =
+      '<div class="rest-box" style="margin-bottom:1rem">' +
+        '<div class="rest-count" id="protoAmrapCount">' + mmss(protoAmrapRemaining || def.timedSeconds) + '</div>' +
+        '<div class="rest-controls">' +
+          '<button class="btn-soft" id="protoAmrapStart">' + (protoAmrapRunning ? 'En cours…' : 'Démarrer les 10 min') + '</button>' +
+          '<button class="btn-soft" id="protoAmrapReset">Réinitialiser</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  card.innerHTML =
+    '<div class="stepmeta">Étape ' + (protoStepIndex + 1) + ' / ' + PROTOCOL_STEPS.length + ' · <span class="typebadge">' + escapeHtml(def.category) + '</span></div>' +
+    '<h3 style="margin-top:.5rem">' + escapeHtml(def.label) + '</h3>' +
+    '<div class="protocole-box"><b>Protocole —</b> ' + escapeHtml(def.protocole) + '</div>' +
+    timerHtml +
+    '<div class="formrow">' + fieldsHtml + '</div>' +
+    '<div class="formrow" style="margin-top:1.1rem"><button class="btn-primary" id="protoTestSave">Enregistrer et continuer</button></div>';
+
+  if (def.timedSeconds) {
+    if (protoAmrapRemaining === 0) protoAmrapRemaining = def.timedSeconds;
+    $('#protoAmrapStart').addEventListener('click', () => {
+      if (protoAmrapRunning) return;
+      protoAmrapRunning = true;
+      $('#protoAmrapStart').textContent = 'En cours…';
+      protoAmrapTimer = setInterval(() => {
+        protoAmrapRemaining = Math.max(0, protoAmrapRemaining - 1);
+        const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(protoAmrapRemaining);
+        if (protoAmrapRemaining === 0) {
+          clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
+          toast('10 minutes écoulées — note ton résultat.');
+          const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Terminé';
+        }
+      }, 1000);
+    });
+    $('#protoAmrapReset').addEventListener('click', () => {
+      clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
+      protoAmrapRemaining = def.timedSeconds;
+      const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(protoAmrapRemaining);
+      const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Démarrer les 10 min';
+    });
+  }
+
+  $('#protoTestSave').addEventListener('click', async () => {
+    const data = {};
+    for (const f of def.fields) {
+      const raw = $('#ptf_' + f.key).value;
+      if (raw === '') {
+        if (!f.optional) { toast('Renseigne « ' + f.label + ' ».'); return; }
+        continue;
+      }
+      data[f.key] = f.type === 'number' ? parseFloat(raw) : raw;
+    }
+    $('#protoTestSave').disabled = true;
+    const { error } = await sb.from('protocol_test_results')
+      .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: new Date().toISOString().slice(0, 10), test_type: step.key, data },
+        { onConflict: 'participant_id,point_de_test,test_type' });
+    $('#protoTestSave').disabled = false;
+    if (error) { toast('Erreur : ' + error.message); return; }
+    protoExisting[step.key] = data;
+    toast('Enregistré ✔');
+    if (step.restAfter) {
+      protoPhase = 'resting'; protoRestTotal = step.restAfter; protoRestRemaining = step.restAfter;
+      renderProtoStep();
+      protoRestTimer = setInterval(() => {
+        protoRestRemaining = Math.max(0, protoRestRemaining - 1);
+        updateProtoRestDisplay();
+        if (protoRestRemaining === 0) { clearInterval(protoRestTimer); protoRestTimer = null; }
+      }, 1000);
+    } else {
+      protoAmrapRemaining = 0;
+      protoAdvance();
+    }
+  });
+}
+
+function formatProtoData(testType, data) {
+  data = data || {};
+  switch (testType) {
+    case 'grip': return 'D ' + (data.force_main_droite_kg ?? '—') + ' kg · G ' + (data.force_main_gauche_kg ?? '—') + ' kg';
+    case 'pompes': return (data.pompes_reps ?? '—') + ' reps (' + (data.pompes_variante ?? '—') + ')';
+    case 'wallsit': return (data.wallsit_secondes ?? '—') + ' s';
+    case 'rowing': return (data.rowing_reps ?? '—') + ' reps' + (data.rowing_modalite ? ' · ' + data.rowing_modalite : '') + (data.rowing_charge_kg != null ? ' · ' + data.rowing_charge_kg + ' kg' : '');
+    case 'rdl': return (data.rdl_reps ?? '—') + ' reps';
+    case 'amrap_cardio': return (data.amrap_tours_complets ?? '—') + ' tours (arrêt : ' + (data.amrap_derniere_station ?? '—') + ')';
+    default: return '—';
+  }
+}
+const PROTO_TEST_ORDER = ['grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio'];
+const PROTO_TEST_LABELS = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP Cardio' };
+
+async function loadProtocolHistory() {
+  if (!sb || !me) return '';
+  const { data, error } = await sb.from('protocol_test_results').select('*').eq('participant_id', me.id);
+  if (error || !data || !data.length) return '';
+  const byTest = {};
+  data.forEach(r => { (byTest[r.test_type] = byTest[r.test_type] || {})[r.point_de_test] = r; });
+  return '<table class="resulttbl"><thead><tr><th>Test</th><th>T0</th><th>T1</th><th>T2</th><th>T3</th></tr></thead><tbody>' +
+    PROTO_TEST_ORDER.filter(t => byTest[t]).map(t =>
+      '<tr><td>' + PROTO_TEST_LABELS[t] + '</td>' +
+      ['T0', 'T1', 'T2', 'T3'].map(pt => '<td>' + (byTest[t][pt] ? formatProtoData(t, byTest[t][pt].data) : '—') + '</td>').join('') +
+      '</tr>'
+    ).join('') + '</tbody></table>';
 }
 
 /* =====================================================================
