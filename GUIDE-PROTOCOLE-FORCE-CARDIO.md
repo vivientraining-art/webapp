@@ -57,7 +57,12 @@ Onglet **Protocole test** :
    l'app, rien n'est perdu** : au retour, le protocole reprend automatiquement
    à l'étape exacte où l'adhérent s'était arrêté (le point de test choisi est
    mémorisé sur l'appareil, et chaque étape déjà validée est déjà en base).
-5. L'onglet **Mon historique** affiche ensuite ses résultats bruts,
+5. **Refaire un test** : une fois le protocole terminé, « Commencer le
+   protocole » repart de la première étape. Si des résultats existent déjà pour
+   ce point de test, l'app demande confirmation : les nouveaux résultats
+   remplacent les anciens de ce point au fur et à mesure. Pour garder les deux,
+   choisir le point de test suivant (T1, T2…).
+6. L'onglet **Mon historique** affiche ensuite ses résultats bruts,
    test par test, colonne par point de test (T0 à T3) — aucun score calculé.
 
 ## Côté coach
