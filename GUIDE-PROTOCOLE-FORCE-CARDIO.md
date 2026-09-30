@@ -42,6 +42,15 @@ Onglet **Protocole test** :
    alors enregistrée automatiquement pendant toute la durée du protocole
    (l'onglet Capteur a été retiré : le capteur se connecte uniquement
    depuis le protocole), sans action supplémentaire.
+   Choisir aussi l'**atelier de départ** (Préhension, Pompes, Wall-sit, Rowing
+   ou RDL), indiqué par le coach : les ateliers de force se passent **en
+   rotation**, plusieurs participants par atelier. L'app enchaîne ensuite les
+   5 ateliers dans l'ordre du circuit en boucle (ex. départ Rowing → Rowing,
+   RDL, Préhension, Pompes, Wall-sit), avec 75 s de repos pour tourner entre
+   deux ateliers et un repos long (4 min) après le 5e. Tout le groupe se
+   retrouve ensuite pour l'AMRAP, la RFC et le retour au calme. La position de
+   chaque atelier dans la rotation est enregistrée (colonne `atelier_depart`
+   de l'export).
 3. **Commencer le protocole** : l'app guide dans l'ordre prévu (échauffement,
    préhension, pompes, wall-sit, rowing, RDL, repos, AMRAP cardio, récupération
    FC, retour au calme), avec minuteurs de repos intégrés (60–90 s, puis

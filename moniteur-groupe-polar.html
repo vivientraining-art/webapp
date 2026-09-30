@@ -506,9 +506,15 @@ function csvCell(x) {
 
 /* Une ligne par adhérent, par date et par point de test (une seule ligne
    si l'adhérent n'a pas passé le protocole ce jour-là). */
+/* Atelier par lequel l'adhérent a commencé la rotation (ordre_passage = 1). */
+const ATELIER_LABELS = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL' };
+function atelierDepart(tests) {
+  const k = Object.keys(ATELIER_LABELS).find(t => tests[t] && tests[t].ordre_passage === 1);
+  return k ? ATELIER_LABELS[k] : '';
+}
 function buildCsv(list) {
   const head = ['date', 'cours', 'nom', 'prenom', 'email', 'genre', 'age', 'fc_max_tanaka', 'seances_capteur', 'duree_capteur_min', 'fc_moy', 'fc_pic', 'rmssd',
-    'temps_repos_s', 'temps_z1_s', 'temps_z2_s', 'temps_z3_s', 'temps_z4_s', 'temps_z5_s', 'point_de_test']
+    'temps_repos_s', 'temps_z1_s', 'temps_z2_s', 'temps_z3_s', 'temps_z4_s', 'temps_z5_s', 'point_de_test', 'atelier_depart']
     .concat(EXPORT_COLUMNS.map(c => c[0]), ['autres_mesures']);
   const lines = [head.join(';')];
   list.slice().sort((a, b) => b.date.localeCompare(a.date) || coursOf(a.uid).localeCompare(coursOf(b.uid)) ||
@@ -520,7 +526,7 @@ function buildCsv(list) {
     (points.length ? points : ['']).forEach(pt => {
       const tests = pt ? e.proto[pt] : {};
       const age = ageAt(p.date_naissance, e.date);
-      lines.push([e.date, coursOf(e.uid), p.nom, p.prenom, p.email, p.date_naissance ? GENRE_LABEL[p.sexe] : '', age, tanaka(age), h.n, h.minutes, h.avg, h.peak, h.rmssd].concat((h.zones || []).length ? h.zones.map(Math.round) : ['', '', '', '', '', ''], [pt])
+      lines.push([e.date, coursOf(e.uid), p.nom, p.prenom, p.email, p.date_naissance ? GENRE_LABEL[p.sexe] : '', age, tanaka(age), h.n, h.minutes, h.avg, h.peak, h.rmssd].concat((h.zones || []).length ? h.zones.map(Math.round) : ['', '', '', '', '', ''], [pt, atelierDepart(tests)])
         .concat(EXPORT_COLUMNS.map(([, type, key]) => (tests[type] || {})[key]), [autres])
         .map(csvCell).join(';'));
     });
