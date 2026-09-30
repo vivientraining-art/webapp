@@ -161,6 +161,10 @@
   .chartcard svg{width:100%;height:auto;display:block}
   .chart-empty{font-size:.85rem;color:var(--muted)}
   /* ---------- HRR ---------- */
+  .zonebar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:#EEE8DC;margin-top:.4rem}
+  .zonebar span{display:block;height:100%}
+  .zoneleg{font-size:.76rem;color:var(--muted);margin-top:.25rem;font-variant-numeric:tabular-nums}
+  .zoneleg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:.2rem}
   .hrr-box{text-align:center;padding:.4rem 0 .2rem}
   .hrr-count{font-size:3rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
   /* ---------- Badge séance ---------- */
@@ -1142,13 +1146,23 @@ async function loadHistory() {
   $('#histProto').innerHTML = protoHtml || '<p class="muted">Aucun résultat enregistré pour l’instant.</p>';
 }
 
+/* Temps passé dans chaque zone d'effort (repos, Z1…Z5) pendant une séance. */
+function zonesLine(zs) {
+  const secs = [0, 1, 2, 3, 4, 5].map(i => Number((zs || {})[i]) || 0), total = secs.reduce((a, b) => a + b, 0);
+  if (!total) return '';
+  return '<div class="zonebar">' + secs.map((sec, i) => sec ? '<span style="width:' + (sec / total * 100).toFixed(2) +
+      '%;background:' + ZONES[i].hex + '"></span>' : '').join('') + '</div>' +
+    '<div class="zoneleg">' + secs.map((sec, i) => sec ? '<i style="background:' + ZONES[i].hex + '"></i>' +
+      ZONES[i].label + ' ' + mmss(sec) : '').filter(Boolean).join(' ') + '</div>';
+}
 function renderHrHist(rows) {
   const el = $('#histHr');
   if (!rows.length) { el.innerHTML = '<p class="muted">Aucune séance enregistrée pour l’instant.</p>'; return; }
   el.innerHTML = rows.map(r =>
-    '<div class="item"><span>' + frDate(r.started_at) + ' · ' + mmss(r.duration_s) +
+    '<div class="item" style="flex-wrap:wrap"><span>' + frDate(r.started_at) + ' · ' + mmss(r.duration_s) +
     '</span><span class="muted">FC moy <b>' + (r.hr_avg ?? '—') + '</b> · pic <b>' + (r.hr_peak ?? '—') +
-    '</b> · RMSSD <b>' + (r.rmssd ?? '—') + '</b></span></div>'
+    '</b> · RMSSD <b>' + (r.rmssd ?? '—') + '</b></span>' +
+    '<div style="flex-basis:100%">' + zonesLine(r.zone_seconds) + '</div></div>'
   ).join('');
 }
 
