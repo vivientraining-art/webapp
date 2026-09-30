@@ -1,47 +1,50 @@
-# Guide — Protocole de test Force + Cardio
+# Guide — Protocole de test Force + Cardio (espace adhérent)
 
-Nouvel outil, séparé de tes autres apps, pour faire passer le protocole de test
-"Force + Cardio" à tes adhérents (préhension, pompes, wall-sit, rowing, RDL,
-AMRAP cardio). C'est toi (coach) qui pilotes l'écran pendant la séance — les
-adhérents n'ont rien à installer ni à saisir eux-mêmes.
+Le protocole "Force + Cardio" est intégré directement dans `espace-adherent.html`,
+onglet **Protocole test**. Chaque adhérent le passe lui-même, sur son propre
+compte — plus besoin d'un outil séparé pour le coach.
 
-Le test Ruffier existant n'est pas concerné et reste séparé.
-
-Fichiers :
-- `protocole-force-cardio.html` — l'application.
-- `supabase-migration-3-protocole-force-cardio.sql` — la table à installer une fois.
-
----
+Les tests cognitifs (Go/No-Go, Stroop, N-back) ont été retirés de l'app.
 
 ## Installation
 
-1. Supabase → **SQL Editor** → colle et exécute `supabase-migration-3-protocole-force-cardio.sql`.
-2. Ouvre `protocole-force-cardio.html`, connecte-toi avec ton compte coach habituel
-   (même projet Supabase que tes autres apps).
+Exécuter dans Supabase (SQL Editor → New query → Run), **dans l'ordre**, si ce
+n'est pas déjà fait :
+1. `supabase-migration-3-protocole-force-cardio.sql` — crée la table.
+2. `supabase-migration-4-protocole-adherent.sql` — adapte les droits pour que
+   chaque adhérent gère ses propres résultats (le protocole n'étant plus
+   administré par le coach mais auto-saisi).
 
-## Utilisation le jour du test
+## Côté adhérent
 
-1. Onglet **Nouveau test** : choisis le participant (liste de tes adhérents existants)
-   et le **point de test** (T0/T1/T2/T3 — reste sélectionné d'un participant à l'autre).
-2. **Commencer le protocole** : l'app te fait passer les étapes dans l'ordre prévu.
-   - Échauffement et retour au calme : simples rappels, non enregistrés.
-   - Chaque test affiche son protocole à lire/appliquer, les champs à remplir, puis
-     un bouton pour enregistrer et passer à l'étape suivante.
-   - Après pompes / wall-sit / rowing : minuteur de repos (60–90 s, ajustable).
-   - Après le RDL : minuteur de repos long (3–5 min) avant le cardio.
-   - AMRAP Cardio : bouton pour démarrer les 10 minutes, puis saisie du nombre de
-     tours complets et de la dernière station atteinte.
-3. Une fois un participant terminé, l'app revient à l'écran de sélection pour
-   enchaîner avec le suivant, en gardant le même point de test.
+Onglet **Protocole test** :
+1. Choisir le point de test (T0/T1/T2/T3, indiqué par le coach).
+2. Facultatif : connecter son capteur cardiaque — la fréquence cardiaque est
+   alors enregistrée automatiquement pendant toute la durée du protocole
+   (même mécanisme que l'onglet Capteur), sans action supplémentaire.
+3. **Commencer le protocole** : l'app guide dans l'ordre prévu (échauffement,
+   préhension, pompes, wall-sit, rowing, RDL, repos, AMRAP cardio, retour au
+   calme), avec minuteurs de repos intégrés (60–90 s, puis 3–5 min avant le
+   cardio) et chrono de 10 min pour l'AMRAP.
+4. Chaque étape est enregistrée dès qu'on clique sur "Enregistrer et
+   continuer" — **même en cas de rechargement de la page ou de fermeture de
+   l'app, rien n'est perdu** : au retour, le protocole reprend automatiquement
+   à l'étape exacte où l'adhérent s'était arrêté (le point de test choisi est
+   mémorisé sur l'appareil, et chaque étape déjà validée est déjà en base).
+5. L'onglet **Mon historique** affiche ensuite ses résultats bruts,
+   test par test, colonne par point de test (T0 à T3) — aucun score calculé.
 
-## Historique
+## Côté coach
 
-Onglet **Historique** → choisis un participant → tableau de ses résultats bruts,
-test par test, colonne par point de test (T0 à T3). Aucun score calculé ni
-normalisé, uniquement les valeurs telles que saisies — à toi de les interpréter.
+L'onglet **Vue coach** (dans le même espace adhérent) indique, pour chaque
+adhérent, les points de test déjà complétés (ex. "Protocole : T0, T1"). Pour
+le détail complet d'un adhérent, va dans son propre onglet Historique (ou
+interroge directement la table `protocol_test_results` dans Supabase si tu
+veux exporter/analyser plus finement).
 
-## Corriger une saisie
+## Limite à connaître
 
-Ré-ouvrir le protocole pour le même participant et le même point de test
-pré-remplit chaque étape avec la dernière valeur enregistrée ; ré-enregistrer
-remplace la valeur précédente (pas de doublon).
+Si l'adhérent recharge la page **en plein milieu** d'une connexion Bluetooth
+active, la connexion au capteur est coupée (limitation du Bluetooth web, pas
+de l'app) : il faudra la refaire. Les résultats des tests déjà validés, eux,
+ne sont jamais perdus.
