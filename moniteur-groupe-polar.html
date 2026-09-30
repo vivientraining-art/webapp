@@ -269,12 +269,22 @@ const nameOf = (uid) => {
   return [p.nom, p.prenom].filter(Boolean).join(' ') || p.email || 'Adhérent inconnu';
 };
 
+/* Âge à une date donnée (celle des données), depuis la date de naissance. */
+function ageAt(naissance, dateKey) {
+  if (!naissance) return null;
+  const [y, m, d] = naissance.split('-').map(Number), [Y, M, D] = dateKey.split('-').map(Number);
+  return Y - y - ((M < m || (M === m && D < d)) ? 1 : 0);
+}
+/* FC max théorique de Tanaka (2001) : 208 − 0,7 × âge. */
+const tanaka = (age) => age == null ? null : Math.round(208 - 0.7 * age);
+const GENRE_LABEL = { F: 'Femme', H: 'Homme' };
+
 async function loadData() {
   $('#summary').textContent = 'Chargement…';
   let profs, hrs, protos, meas;
   try {
     [profs, hrs, protos, meas] = await Promise.all([
-      fetchAll('profiles', 'id,prenom,nom,cours,email'),
+      fetchAll('profiles', 'id,prenom,nom,cours,email,sexe,date_naissance,fc_max'),
       fetchAll('hr_sessions', 'user_id,started_at,duration_s,hr_avg,hr_peak,rmssd'),
       fetchAll('protocol_test_results', 'participant_id,point_de_test,date_test,test_type,data'),
       fetchAll('measurements', 'user_id,type,data,recorded_at'),
@@ -370,7 +380,11 @@ function rowHTML(e) {
   });
   const m = e.meas.map(measValue).filter(Boolean);
   if (m.length) lines.push('<b>Mesures</b> · ' + m.map(esc).join(' · '));
-  return '<div class="arow"><div class="nm">' + esc(nameOf(e.uid)) + '</div>' +
+  const p = profiles[e.uid] || {}, age = ageAt(p.date_naissance, e.date);
+  const info = [p.date_naissance ? GENRE_LABEL[p.sexe] : null, age != null ? age + ' ans' : null,
+    age != null ? 'FC max ' + tanaka(age) + ' (Tanaka)' : null].filter(Boolean).join(' · ');
+  return '<div class="arow"><div class="nm">' + esc(nameOf(e.uid)) +
+    (info ? ' <span class="muted" style="font-weight:400;font-size:.85rem">' + esc(info) + '</span>' : '') + '</div>' +
     lines.map(l => '<div class="ln">' + l + '</div>').join('') + '</div>';
 }
 
@@ -428,7 +442,7 @@ function csvCell(x) {
 /* Une ligne par adhérent, par date et par point de test (une seule ligne
    si l'adhérent n'a pas passé le protocole ce jour-là). */
 function buildCsv(list) {
-  const head = ['date', 'cours', 'nom', 'prenom', 'email', 'seances_capteur', 'duree_capteur_min', 'fc_moy', 'fc_pic', 'rmssd', 'point_de_test']
+  const head = ['date', 'cours', 'nom', 'prenom', 'email', 'genre', 'age', 'fc_max_tanaka', 'seances_capteur', 'duree_capteur_min', 'fc_moy', 'fc_pic', 'rmssd', 'point_de_test']
     .concat(EXPORT_COLUMNS.map(c => c[0]), ['autres_mesures']);
   const lines = [head.join(';')];
   list.slice().sort((a, b) => b.date.localeCompare(a.date) || coursOf(a.uid).localeCompare(coursOf(b.uid)) ||
@@ -439,7 +453,8 @@ function buildCsv(list) {
     const points = Object.keys(e.proto).sort();
     (points.length ? points : ['']).forEach(pt => {
       const tests = pt ? e.proto[pt] : {};
-      lines.push([e.date, coursOf(e.uid), p.nom, p.prenom, p.email, h.n, h.minutes, h.avg, h.peak, h.rmssd, pt]
+      const age = ageAt(p.date_naissance, e.date);
+      lines.push([e.date, coursOf(e.uid), p.nom, p.prenom, p.email, p.date_naissance ? GENRE_LABEL[p.sexe] : '', age, tanaka(age), h.n, h.minutes, h.avg, h.peak, h.rmssd, pt]
         .concat(EXPORT_COLUMNS.map(([, type, key]) => (tests[type] || {})[key]), [autres])
         .map(csvCell).join(';'));
     });

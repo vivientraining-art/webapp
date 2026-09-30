@@ -18,6 +18,19 @@ n'est pas déjà fait :
    "rfc" (récupération de la fréquence cardiaque après l'AMRAP).
 4. `supabase-migration-6-nom-cours.sql` — ajoute le nom et le cours
    (Gironville, Milly, Boutigny) au profil de chaque adhérent.
+5. `supabase-migration-7-genre-age-tanaka.sql` — ajoute le genre et la date de
+   naissance ; la FC max est calculée avec la formule de Tanaka.
+
+## FC max : formule de Tanaka
+
+La FC max de chaque adhérent n'est plus saisie à la main : elle est calculée
+automatiquement à partir de son âge, **FC max = 208 − 0,7 × âge**, et
+recalculée à chaque connexion (elle suit les anniversaires). La formule et sa
+source sont affichées dans l'onglet « Mon profil » :
+
+> Tanaka H., Monahan K.D., Seals D.R. (2001). « Age-predicted maximal heart
+> rate revisited ». *Journal of the American College of Cardiology*, 37(1),
+> 153-156. doi:10.1016/S0735-1097(00)01054-8
 
 ## Côté adhérent
 
@@ -56,13 +69,13 @@ plus qu'un seul écran :
   enregistre quelque chose, ou via **Rafraîchir** ;
 - **Exporter la sélection (CSV)** télécharge exactement ce qui est filtré.
 
-Chaque adhérent doit renseigner **nom, prénom et cours** (obligatoire à
+Chaque adhérent doit renseigner **nom, prénom, cours, genre et date de naissance** (obligatoire à
 l'inscription ; les comptes existants le saisissent à leur prochaine
 connexion). Nécessite `supabase-migration-6-nom-cours.sql`. Un adhérent sans
 cours apparaît dans le groupe « Sans cours ».
 
 Le fichier CSV contient une ligne par adhérent, par date et par point de test,
-avec date, cours, nom, prénom, résumé FC du jour, puis une colonne par valeur
+avec date, cours, nom, prénom, genre, âge, FC max de Tanaka, résumé FC du jour, puis une colonne par valeur
 brute : préhension, pompes, wall-sit, rowing, RDL, AMRAP (tours, station, FC
 moyenne/pic) et RFC. Aucun score n'est calculé. Séparateur
 point-virgule et décimales à virgule : il s'ouvre directement dans Excel en
