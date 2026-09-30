@@ -1305,9 +1305,33 @@ let protoAmrapTimer = null, protoAmrapRemaining = 0, protoAmrapRunning = false;
 let protoAmrapHr = { sum: 0, n: 0, max: 0 };
 let protoRfcStarted = false, protoRfcTimer = null, protoRfcRemaining = 120, protoRfcPic = null, protoRfc2min = null;
 
+/* Passation en cours, mémorisée sur l'appareil pour survivre à un rechargement :
+   { p: point de test, i: étape en cours, done: tests enregistrés pendant CETTE passation }.
+   Les résultats d'une passation précédente du même point ne comptent pas comme faits :
+   on peut donc refaire un test terminé. */
+let protoDone = [];
 function protocolStorageKey() { return me ? ('vs-protocol-' + me.id) : null; }
-function saveProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.setItem(k, pointDeTest); } catch (e) {} } }
+function saveProtocolFlag() {
+  const k = protocolStorageKey();
+  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, i: protoStepIndex, done: protoDone })); } catch (e) {} }
+}
 function clearProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.removeItem(k); } catch (e) {} } }
+function readProtocolFlag() {
+  const k = protocolStorageKey(); if (!k) return null;
+  let raw = null;
+  try { raw = localStorage.getItem(k); } catch (e) {}
+  if (!raw) return null;
+  try { const o = JSON.parse(raw); if (o && o.p) return o; } catch (e) {}
+  return { p: raw, legacy: true };   // ancien format : seulement le point de test
+}
+function markProtoDone(key) {
+  if (!protoDone.includes(key)) protoDone.push(key);
+  saveProtocolFlag();
+}
+function localDay() {
+  const d = new Date(), z = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+}
 
 function firstIncompleteStepIndex(existing) {
   for (let i = 0; i < PROTOCOL_STEPS.length; i++) {
@@ -1320,11 +1344,29 @@ function firstIncompleteStepIndex(existing) {
 
 async function beginProtocol() {
   const { data, error } = await sb.from('protocol_test_results')
-    .select('test_type,data').eq('participant_id', me.id).eq('point_de_test', pointDeTest);
+    .select('test_type,data,date_test').eq('participant_id', me.id).eq('point_de_test', pointDeTest);
   if (error) { toast('Erreur : ' + error.message); return; }
+  const saved = readProtocolFlag();
+  const inProgress = saved && saved.p === pointDeTest;
   protoExisting = {};
-  (data || []).forEach(r => { protoExisting[r.test_type] = r.data; });
-  protoStepIndex = Object.keys(protoExisting).length ? firstIncompleteStepIndex(protoExisting) : 0;
+  if (inProgress) {
+    // reprise d'une passation interrompue : seuls ses propres résultats comptent
+    const rows = data || [];
+    protoDone = saved.legacy ? rows.map(r => r.test_type) : (saved.done || []);
+    rows.forEach(r => { if (protoDone.includes(r.test_type)) protoExisting[r.test_type] = r.data; });
+    protoStepIndex = saved.legacy ? firstIncompleteStepIndex(protoExisting)
+      : Math.min(Math.max(0, saved.i | 0), PROTOCOL_STEPS.length - 1);
+  } else {
+    if (data && data.length) {
+      const last = data.map(r => r.date_test).filter(Boolean).sort().pop();
+      const quand = last ? ' le ' + new Date(last + 'T12:00:00').toLocaleDateString('fr-FR') : '';
+      if (!confirm('Tu as déjà passé le test ' + pointDeTest + quand + '.\n\n' +
+          'Le refaire ? Tes nouveaux résultats remplaceront les anciens résultats ' + pointDeTest +
+          ' au fur et à mesure.\n\n(Pour un nouveau test sans rien remplacer, choisis plutôt le point de test suivant.)')) return;
+    }
+    protoDone = [];
+    protoStepIndex = 0;
+  }
   protoPhase = 'content';
   saveProtocolFlag();
   startHrSession();
@@ -1335,12 +1377,10 @@ async function beginProtocol() {
 $('#protoStart').addEventListener('click', beginProtocol);
 
 async function resumeProtocolIfAny() {
-  const k = protocolStorageKey(); if (!k) return;
-  let saved = null;
-  try { saved = localStorage.getItem(k); } catch (e) {}
+  const saved = readProtocolFlag();
   if (!saved) return;
-  pointDeTest = saved;
-  $$('#ptPoint button').forEach(x => x.classList.toggle('sel', x.dataset.p === saved));
+  pointDeTest = saved.p;
+  $$('#ptPoint button').forEach(x => x.classList.toggle('sel', x.dataset.p === saved.p));
   $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === 'protocole'));
   $$('section[data-panel]').forEach(s => s.hidden = s.dataset.panel !== 'protocole');
   await beginProtocol();
@@ -1358,7 +1398,8 @@ function protoAdvance() {
   protoPhase = 'content';
   protoRfcStarted = false;
   protoStepIndex++;
-  if (protoStepIndex >= PROTOCOL_STEPS.length) { $('#protoHome').hidden = false; $('#protoRun').hidden = true; return; }
+  if (protoStepIndex >= PROTOCOL_STEPS.length) { clearProtocolFlag(); $('#protoHome').hidden = false; $('#protoRun').hidden = true; return; }
+  saveProtocolFlag();
   renderProtoStep();
 }
 
@@ -1467,10 +1508,11 @@ function renderProtoStep() {
         const data = { fc_pic: protoRfcPic };
         if (protoRfc2min != null) { data.fc_2min = protoRfc2min; data.rfc_2min = protoRfcPic - protoRfc2min; }
         const { error } = await sb.from('protocol_test_results')
-          .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: new Date().toISOString().slice(0, 10), test_type: 'rfc', data },
+          .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'rfc', data },
             { onConflict: 'participant_id,point_de_test,test_type' });
         if (error) { toast('Erreur : ' + error.message); return; }
         protoExisting.rfc = data;
+        markProtoDone('rfc');
         toast('RFC enregistrée ✔');
       }
       protoAdvance();
@@ -1555,11 +1597,12 @@ function renderProtoStep() {
     }
     $('#protoTestSave').disabled = true;
     const { error } = await sb.from('protocol_test_results')
-      .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: new Date().toISOString().slice(0, 10), test_type: step.key, data },
+      .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: step.key, data },
         { onConflict: 'participant_id,point_de_test,test_type' });
     $('#protoTestSave').disabled = false;
     if (error) { toast('Erreur : ' + error.message); return; }
     protoExisting[step.key] = data;
+    markProtoDone(step.key);
     toast('Enregistré ✔');
     if (step.restAfter) {
       protoPhase = 'resting'; protoRestTotal = step.restAfter; protoRestRemaining = step.restAfter;
