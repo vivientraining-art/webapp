@@ -350,8 +350,18 @@
                 <button type="button" data-p="T2">T2</button>
                 <button type="button" data-p="T3">T3</button>
               </div></div>
+            <div class="field">Atelier de départ
+              <div class="seg" id="ptStart">
+                <button type="button" data-a="grip" class="sel">Préhension</button>
+                <button type="button" data-a="pompes">Pompes</button>
+                <button type="button" data-a="wallsit">Wall-sit</button>
+                <button type="button" data-a="rowing">Rowing</button>
+                <button type="button" data-a="rdl">RDL</button>
+              </div></div>
           </div>
-          <p class="note">Choisis le point de test indiqué par ton coach, puis lance le protocole. Connecte ton
+          <p class="note">Choisis le point de test et l'atelier par lequel tu commences (indiqués par ton coach) :
+            l'app enchaîne ensuite les ateliers dans l'ordre du circuit, puis tout le monde se retrouve pour l'AMRAP.
+            Connecte ton
             capteur cardiaque avant de démarrer si tu veux que ta fréquence cardiaque soit enregistrée pendant
             les tests (optionnel — le protocole fonctionne aussi sans capteur).</p>
           <div class="formrow" style="margin-top:.8rem">
@@ -361,17 +371,7 @@
         </div>
         <div class="panel">
           <h3>Ordre de passation</h3>
-          <ol style="padding-left:1.2rem;font-size:.9rem;line-height:1.9">
-            <li>Échauffement général 8–10 min <span class="muted">(non noté)</span></li>
-            <li>Force de préhension (dynamométrie)</li>
-            <li>Pecs — Pompes 1 min <span class="muted">→ repos 60–90 s</span></li>
-            <li>Quadriceps — Wall-sit <span class="muted">→ repos 60–90 s</span></li>
-            <li>Grands dorsaux — Rowing 1 min <span class="muted">→ repos 60–90 s</span></li>
-            <li>Ischio-jambiers — RDL haltères 1 min <span class="muted">→ repos long 3–5 min</span></li>
-            <li>AMRAP Cardio 10 min <span class="muted">→ FC pic/moyenne enregistrées automatiquement</span></li>
-            <li>Récupération FC (RFC) — 2 min <span class="muted">immobile, mesure automatique</span></li>
-            <li>Retour au calme <span class="muted">(non noté)</span></li>
-          </ol>
+          <ol id="protoOrder" style="padding-left:1.2rem;font-size:.9rem;line-height:1.9"></ol>
         </div>
       </div>
 
@@ -1377,17 +1377,49 @@ const TEST_DEFS = {
     timedSeconds: 600,
   },
 };
-const PROTOCOL_STEPS = [
-  { kind: 'info', title: 'Échauffement général', text: 'Échauffement général, 8 à 10 minutes. Non noté.' },
-  { kind: 'test', key: 'grip' },
-  { kind: 'test', key: 'pompes', restAfter: 75 },
-  { kind: 'test', key: 'wallsit', restAfter: 75 },
-  { kind: 'test', key: 'rowing', restAfter: 75 },
-  { kind: 'test', key: 'rdl', restAfter: 240 },
-  { kind: 'test', key: 'amrap_cardio' },
-  { kind: 'rfc' },
-  { kind: 'info', title: 'Retour au calme', text: 'Retour au calme. Non noté.', isLast: true },
-];
+/* Circuit des ateliers de force, passé en rotation : chaque participant démarre
+   à l'atelier indiqué par le coach puis suit l'ordre du circuit en boucle
+   (ex. départ Rowing → Rowing, RDL, Préhension, Pompes, Wall-sit). Repos
+   identique entre ateliers (75 s, le temps de tourner), repos long (4 min)
+   après le dernier, puis AMRAP, RFC et retour au calme pour tout le groupe. */
+const FORCE_CIRCUIT = ['grip', 'pompes', 'wallsit', 'rowing', 'rdl'];
+const ATELIER_LABELS = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL' };
+function circuitFrom(start) {
+  const i = Math.max(0, FORCE_CIRCUIT.indexOf(start));
+  return FORCE_CIRCUIT.slice(i).concat(FORCE_CIRCUIT.slice(0, i));
+}
+function buildProtocolSteps(start) {
+  const order = circuitFrom(start);
+  return [
+    { kind: 'info', title: 'Échauffement général', text: 'Échauffement général, 8 à 10 minutes. Non noté.' },
+    ...order.map((key, n) => ({ kind: 'test', key, atelier: n + 1, restAfter: n === order.length - 1 ? 240 : 75 })),
+    { kind: 'test', key: 'amrap_cardio' },
+    { kind: 'rfc' },
+    { kind: 'info', title: 'Retour au calme', text: 'Retour au calme. Non noté.', isLast: true },
+  ];
+}
+let protoStartAtelier = 'grip';
+let PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
+
+function renderProtoOrder() {
+  const order = circuitFrom(protoStartAtelier);
+  $('#protoOrder').innerHTML =
+    '<li>Échauffement général 8–10 min <span class="muted">(non noté)</span></li>' +
+    order.map((k, n) => '<li><b>Atelier ' + (n + 1) + '</b> — ' + escapeHtml(TEST_DEFS[k].label) + ' <span class="muted">→ ' +
+      (n === order.length - 1 ? 'repos long 3–5 min' : 'repos 75 s, puis atelier suivant') + '</span></li>').join('') +
+    '<li>AMRAP Cardio 10 min <span class="muted">→ FC pic/moyenne enregistrées automatiquement</span></li>' +
+    '<li>Récupération FC (RFC) — 2 min <span class="muted">immobile, mesure automatique</span></li>' +
+    '<li>Retour au calme <span class="muted">(non noté)</span></li>';
+}
+function setStartAtelier(a) {
+  protoStartAtelier = FORCE_CIRCUIT.includes(a) ? a : 'grip';
+  $$('#ptStart button').forEach(x => x.classList.toggle('sel', x.dataset.a === protoStartAtelier));
+  renderProtoOrder();
+}
+$('#ptStart').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (b) setStartAtelier(b.dataset.a);
+});
+renderProtoOrder();
 
 let pointDeTest = 'T0';
 $('#ptPoint').addEventListener('click', (e) => {
@@ -1412,7 +1444,7 @@ let protoDone = [];
 function protocolStorageKey() { return me ? ('vs-protocol-' + me.id) : null; }
 function saveProtocolFlag() {
   const k = protocolStorageKey();
-  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, i: protoStepIndex, done: protoDone })); } catch (e) {} }
+  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoStepIndex, done: protoDone })); } catch (e) {} }
 }
 function clearProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.removeItem(k); } catch (e) {} } }
 function readProtocolFlag() {
@@ -1450,6 +1482,8 @@ async function beginProtocol() {
   protoExisting = {};
   if (inProgress) {
     // reprise d'une passation interrompue : seuls ses propres résultats comptent
+    setStartAtelier(saved.s || 'grip');
+    PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
     const rows = data || [];
     protoDone = saved.legacy ? rows.map(r => r.test_type) : (saved.done || []);
     rows.forEach(r => { if (protoDone.includes(r.test_type)) protoExisting[r.test_type] = r.data; });
@@ -1465,6 +1499,7 @@ async function beginProtocol() {
     }
     protoDone = [];
     protoStepIndex = 0;
+    PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
   }
   protoPhase = 'content';
   saveProtocolFlag();
@@ -1523,7 +1558,10 @@ function renderProtoStep() {
   if (protoPhase === 'resting') {
     card.innerHTML =
       '<div class="rest-box">' +
-        '<div class="stepmeta">Repos avant l’étape suivante</div>' +
+        '<div class="stepmeta">Repos avant l’étape suivante' + (function () {
+          const nx = PROTOCOL_STEPS[protoStepIndex + 1];
+          return nx && nx.kind === 'test' ? ' — prochain : <b>' + escapeHtml(nx.atelier ? 'atelier ' + ATELIER_LABELS[nx.key] : TEST_DEFS[nx.key].label) + '</b>' : '';
+        })() + '</div>' +
         '<div class="rest-count" id="protoRestCount">' + mmss(protoRestRemaining) + '</div>' +
         '<div class="rest-label">Repos conseillé : ' + mmss(protoRestTotal) + '</div>' +
         '<div class="rest-controls">' +
@@ -1647,7 +1685,9 @@ function renderProtoStep() {
   }
 
   card.innerHTML =
-    '<div class="stepmeta">Étape ' + (protoStepIndex + 1) + ' / ' + PROTOCOL_STEPS.length + ' · <span class="typebadge">' + escapeHtml(def.category) + '</span></div>' +
+    '<div class="stepmeta">Étape ' + (protoStepIndex + 1) + ' / ' + PROTOCOL_STEPS.length +
+      (step.atelier ? ' · <b>Atelier ' + step.atelier + ' / ' + FORCE_CIRCUIT.length + '</b>' : '') +
+      ' · <span class="typebadge">' + escapeHtml(def.category) + '</span></div>' +
     '<h3 style="margin-top:.5rem">' + escapeHtml(def.label) + '</h3>' +
     '<div class="protocole-box"><b>Protocole —</b> ' + escapeHtml(def.protocole) + '</div>' +
     timerHtml +
@@ -1691,6 +1731,7 @@ function renderProtoStep() {
       }
       data[f.key] = f.type === 'number' ? parseFloat(raw) : raw;
     }
+    if (step.atelier) data.ordre_passage = step.atelier;   // position dans la rotation (1 = atelier de départ)
     if (step.key === 'amrap_cardio' && protoAmrapHr.n > 0) {
       data.fc_moy_amrap = Math.round(protoAmrapHr.sum / protoAmrapHr.n);
       data.fc_pic_amrap = protoAmrapHr.max;
