@@ -64,6 +64,9 @@ Onglet **Protocole test** :
    choisir le point de test suivant (T1, T2…).
 6. L'onglet **Mon historique** affiche ensuite ses résultats bruts,
    test par test, colonne par point de test (T0 à T3) — aucun score calculé.
+   Chaque élément peut y être **supprimé par l'adhérent** en cas d'erreur
+   (✕ à côté d'une séance capteur, d'une mesure ou d'un résultat, ou bouton
+   « Supprimer le test T0 » pour toute une passation), avec confirmation.
 
 ## Côté coach
 
