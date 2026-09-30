@@ -20,6 +20,8 @@ n'est pas déjà fait :
    (Gironville, Milly, Boutigny) au profil de chaque adhérent.
 5. `supabase-migration-7-genre-age-tanaka.sql` — ajoute le genre et la date de
    naissance ; la FC max est calculée avec la formule de Tanaka.
+6. `supabase-migration-8-suppression-coach.sql` — autorise le compte coach à
+   supprimer des tests depuis l'espace coach.
 
 ## FC max : formule de Tanaka
 
@@ -68,6 +70,10 @@ plus qu'un seul écran :
   par cours) ; les données se rechargent automatiquement quand un adhérent
   enregistre quelque chose, ou via **Rafraîchir** ;
 - **Exporter la sélection (CSV)** télécharge exactement ce qui est filtré.
+- **Supprimer des tests** active un mode suppression : une croix ✕ apparaît
+  à côté de chaque test (✕ tout supprime un point de test entier), des séances
+  capteur et des mesures. Chaque suppression demande une confirmation et est
+  définitive. Recliquer sur « Terminer la suppression » masque les croix.
 
 Chaque adhérent doit renseigner **nom, prénom, cours, genre et date de naissance** (obligatoire à
 l'inscription ; les comptes existants le saisissent à leur prochaine

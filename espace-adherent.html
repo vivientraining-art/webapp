@@ -267,70 +267,15 @@
 
   <main class="wrap">
     <div class="tabs" id="tabs">
-      <button class="tab on" data-tab="saisie">Mes mesures</button>
-      <button class="tab" data-tab="polar">Capteur</button>
+      <button class="tab on" data-tab="polar">Capteur</button>
       <button class="tab" data-tab="protocole">Protocole test</button>
       <button class="tab" data-tab="histo">Historique</button>
       <button class="tab" data-tab="progression">Progression</button>
       <button class="tab" data-tab="profil">Mon profil</button>
     </div>
 
-    <!-- ---- Saisie manuelle ---- -->
-    <section data-panel="saisie">
-      <h2>Saisie de mes mesures</h2>
-
-      <div class="panel">
-        <h3>Force — charge × répétitions</h3>
-        <div class="formrow">
-          <div class="field">Exercice
-            <select id="fExo">
-              <option>Squat</option>
-              <option>Développé couché</option>
-              <option>Soulevé de terre roumain</option>
-              <option>Tirage horizontal</option>
-            </select></div>
-          <div class="field">Charge (kg)
-            <input type="number" id="fKg" min="1" max="500" step="0.5" inputmode="decimal"></div>
-          <div class="field">Répétitions
-            <input type="number" id="fReps" min="1" max="20" step="1" inputmode="numeric"></div>
-          <button class="btn-soft" id="fSave">Enregistrer</button>
-        </div>
-        <p class="note">1RM estimée par la formule d'Epley : charge × (1 + reps/30).</p>
-      </div>
-
-      <div class="panel">
-        <h3>Force de préhension — dynamomètre</h3>
-        <div class="formrow">
-          <div class="field">Main
-            <div class="seg" id="gHand">
-              <button type="button" data-h="G" class="sel">Gauche</button>
-              <button type="button" data-h="D">Droite</button>
-            </div></div>
-          <div class="field">Mesure (kg)
-            <input type="number" id="gKg" min="1" max="120" step="0.1" inputmode="decimal"></div>
-          <button class="btn-soft" id="gSave">Enregistrer</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h3>VO2max — test du step (Queens College)</h3>
-        <div class="formrow">
-          <div class="field">Sexe
-            <div class="seg" id="vSex">
-              <button type="button" data-s="H" class="sel">Homme</button>
-              <button type="button" data-s="F">Femme</button>
-            </div></div>
-          <div class="field">FC de récupération (bpm)
-            <input type="number" id="vHR" min="60" max="220" step="1" inputmode="numeric"></div>
-          <button class="btn-soft" id="vSave">Enregistrer</button>
-        </div>
-        <p class="note">Step de 41 cm, 3 min à 24 pas/min (hommes) / 22 (femmes), FC de récupération relevée
-          entre 5 et 20 s. VO2max estimée (Queens College, McArdle) — suivi intra-individuel, marge ~±10–15 %.</p>
-      </div>
-    </section>
-
     <!-- ---- Capteur cardiaque ---- -->
-    <section data-panel="polar" hidden>
+    <section data-panel="polar">
       <h2>Capteur cardiaque</h2>
       <div class="panel">
         <div class="livebox">
@@ -605,10 +550,6 @@ function zoneIndex(hr, hrMax) {
   for (let i = ZONES.length - 1; i >= 0; i--) if (pct >= ZONES[i].min) return i;
   return 0;
 }
-function e1rmEpley(kg, reps) { return Math.round(kg * (1 + reps / 30)); }
-function vo2QueensCollege(sexe, hr) {
-  return sexe === 'F' ? 65.81 - 0.1847 * hr : 111.33 - 0.42 * hr;
-}
 const frDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 const mmss = (s) => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 function escapeHtml(s) {
@@ -820,7 +761,6 @@ function syncTanaka() {
   sb.from('profiles').update({ fc_max: profile.fc_max }).eq('id', me.id).then(() => {}, () => {});
 }
 function fillProfileForm() {
-  setSeg('#vSex', profile.sexe);   // pré-remplit aussi le test VO2max
   $('#pPrenom').value = profile.prenom || '';
   $('#pNom').value = profile.nom || '';
   $('#pCours').value = profile.cours || '';
@@ -914,7 +854,7 @@ $$('.seg').forEach(seg => seg.addEventListener('click', (e) => {
 }));
 
 /* =====================================================================
-   Saisie manuelle → enregistrement
+   Enregistrement d'une mesure (récupération cardiaque)
    ===================================================================== */
 async function saveMeasurement(type, data) {
   if (!sb) { toast('Configuration Supabase manquante.'); return false; }
@@ -924,32 +864,6 @@ async function saveMeasurement(type, data) {
   castStat(type, data);
   return true;
 }
-
-$('#fSave').addEventListener('click', async () => {
-  const exo = $('#fExo').value;
-  const kg = parseFloat($('#fKg').value), reps = parseInt($('#fReps').value, 10);
-  if (!(kg > 0) || !(reps > 0)) { toast('Renseignez charge et répétitions.'); return; }
-  if (await saveMeasurement('force', { exercice: exo, kg, reps, e1rm: e1rmEpley(kg, reps) })) {
-    $('#fKg').value = ''; $('#fReps').value = '';
-  }
-});
-
-$('#gSave').addEventListener('click', async () => {
-  const main = getSeg('#gHand') || 'G';
-  const kg = parseFloat($('#gKg').value);
-  if (!(kg > 0)) { toast('Renseignez la mesure.'); return; }
-  if (await saveMeasurement('grip', { main, kg })) $('#gKg').value = '';
-});
-
-$('#vSave').addEventListener('click', async () => {
-  const sexe = getSeg('#vSex') || 'H';
-  const hr = parseInt($('#vHR').value, 10);
-  if (!(hr >= 60)) { toast('Renseignez la FC de récupération.'); return; }
-  const vo2 = Math.round(vo2QueensCollege(sexe, hr) * 10) / 10;
-  if (await saveMeasurement('vo2max', { sexe, fc_reco: hr, vo2max: vo2 })) {
-    $('#vHR').value = ''; toast('VO2max estimée : ' + vo2 + ' ml/kg/min');
-  }
-});
 
 /* =====================================================================
    Profil → enregistrement
@@ -981,7 +895,7 @@ if (!navigator.bluetooth) {
   const b = $('#banner'); b.hidden = false;
   b.innerHTML = 'Le Bluetooth web n’est pas disponible dans ce navigateur. ' +
     'Utilisez <strong>Chrome</strong> ou <strong>Edge</strong> sur Android / ordinateur ' +
-    '(non disponible sur iPhone). La saisie manuelle reste possible.';
+    '(non disponible sur iPhone). Le protocole de test reste utilisable sans capteur.';
 }
 
 const live = {
