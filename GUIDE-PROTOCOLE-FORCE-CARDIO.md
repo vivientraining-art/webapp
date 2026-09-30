@@ -14,6 +14,8 @@ n'est pas déjà fait :
 2. `supabase-migration-4-protocole-adherent.sql` — adapte les droits pour que
    chaque adhérent gère ses propres résultats (le protocole n'étant plus
    administré par le coach mais auto-saisi).
+3. `supabase-migration-5-rfc-amrap.sql` — autorise le nouveau type de test
+   "rfc" (récupération de la fréquence cardiaque après l'AMRAP).
 
 ## Côté adhérent
 
@@ -23,9 +25,15 @@ Onglet **Protocole test** :
    alors enregistrée automatiquement pendant toute la durée du protocole
    (même mécanisme que l'onglet Capteur), sans action supplémentaire.
 3. **Commencer le protocole** : l'app guide dans l'ordre prévu (échauffement,
-   préhension, pompes, wall-sit, rowing, RDL, repos, AMRAP cardio, retour au
-   calme), avec minuteurs de repos intégrés (60–90 s, puis 3–5 min avant le
-   cardio) et chrono de 10 min pour l'AMRAP.
+   préhension, pompes, wall-sit, rowing, RDL, repos, AMRAP cardio, récupération
+   FC, retour au calme), avec minuteurs de repos intégrés (60–90 s, puis
+   3–5 min avant le cardio) et chrono de 10 min pour l'AMRAP.
+   - Si un capteur est connecté, la FC pic et la FC moyenne pendant l'AMRAP
+     sont enregistrées automatiquement avec le résultat du test.
+   - Juste après l'AMRAP, un chrono de **2 minutes de récupération** démarre
+     automatiquement : la FC relevée à la fin de ces 2 minutes, comparée à la
+     FC de fin d'effort, donne la **RFC** (récupération de la fréquence
+     cardiaque). Sans capteur connecté, cette étape peut être passée.
 4. Chaque étape est enregistrée dès qu'on clique sur "Enregistrer et
    continuer" — **même en cas de rechargement de la page ou de fermeture de
    l'app, rien n'est perdu** : au retour, le protocole reprend automatiquement
