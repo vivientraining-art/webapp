@@ -80,6 +80,10 @@
   .arow .nm{font-weight:700}
   .arow .ln{font-size:.88rem;line-height:1.5;margin-top:.2rem}
   .arow .ln b{color:var(--forest)}
+  .del{min-height:0;padding:.05rem .45rem;margin-left:.3rem;border-radius:7px;font-size:.78rem;line-height:1.5;
+    background:#fff;color:var(--terra-deep);border:1px solid #E6C3B5;vertical-align:1px}
+  .del:hover{background:#FBEDE7}
+  #btnDelMode.on{background:var(--terra-deep);color:#fff;border-color:var(--terra-deep)}
   .empty{color:var(--muted);font-size:.92rem}
   /* ---- Connexion ---- */
   #authGate{position:fixed;inset:0;z-index:80;background:var(--forest);color:#F4F0E6;display:flex;flex-direction:column;
@@ -133,6 +137,7 @@
       </div>
       <select id="fDate" aria-label="Date"><option value="">Toutes les dates</option></select>
       <div class="spacer"></div>
+      <button class="btn-soft" id="btnDelMode" aria-pressed="false">Supprimer des tests</button>
       <button class="btn-soft" id="btnRefresh">Rafraîchir</button>
       <button class="btn-primary" id="btnExport">Exporter la sélection (CSV)</button>
     </div>
@@ -285,9 +290,9 @@ async function loadData() {
   try {
     [profs, hrs, protos, meas] = await Promise.all([
       fetchAll('profiles', 'id,prenom,nom,cours,email,sexe,date_naissance,fc_max'),
-      fetchAll('hr_sessions', 'user_id,started_at,duration_s,hr_avg,hr_peak,rmssd'),
-      fetchAll('protocol_test_results', 'participant_id,point_de_test,date_test,test_type,data'),
-      fetchAll('measurements', 'user_id,type,data,recorded_at'),
+      fetchAll('hr_sessions', 'id,user_id,started_at,duration_s,hr_avg,hr_peak,rmssd'),
+      fetchAll('protocol_test_results', 'id,participant_id,point_de_test,date_test,test_type,data'),
+      fetchAll('measurements', 'id,user_id,type,data,recorded_at'),
     ]);
   } catch (e) {
     $('#summary').textContent = 'Erreur de chargement : ' + (e.message || e) +
@@ -299,13 +304,14 @@ async function loadData() {
   entries = new Map();
   const entry = (uid, date) => {
     const k = uid + '|' + date;
-    if (!entries.has(k)) entries.set(k, { uid, date, hr: [], proto: {}, meas: [] });
+    if (!entries.has(k)) entries.set(k, { uid, date, hr: [], proto: {}, protoIds: {}, meas: [] });
     return entries.get(k);
   };
   hrs.forEach(r => entry(r.user_id, dayKey(r.started_at)).hr.push(r));
   protos.forEach(r => {
     const e = entry(r.participant_id, r.date_test);
     (e.proto[r.point_de_test] = e.proto[r.point_de_test] || {})[r.test_type] = r.data || {};
+    (e.protoIds[r.point_de_test] = e.protoIds[r.point_de_test] || {})[r.test_type] = r.id;
   });
   meas.forEach(r => entry(r.user_id, dayKey(r.recorded_at)).meas.push(r));
   fillDates();
@@ -367,19 +373,31 @@ function measValue(r) {
   }
 }
 
+/* Bouton de suppression, visible uniquement en mode « Supprimer des tests ». */
+function delBtn(table, ids, label, title) {
+  if (!delMode || !ids.length) return '';
+  return '<button type="button" class="del" data-table="' + table + '" data-ids="' + ids.join(',') +
+    '" data-label="' + esc(label) + '" title="' + esc(title) + '">✕' + (title.startsWith('Tout') ? ' tout' : '') + '</button>';
+}
+
 function rowHTML(e) {
-  const lines = [];
+  const lines = [], who = nameOf(e.uid), when = dayLabel(e.date);
   const h = hrSummary(e.hr);
   if (h) lines.push('<b>Capteur</b> · ' + h.n + ' séance' + (h.n > 1 ? 's' : '') + ' · ' + h.minutes + ' min' +
     (h.avg != null ? ' · FC moy ' + h.avg : '') + (h.peak != null ? ' / pic ' + h.peak : '') +
-    (h.rmssd != null ? ' · RMSSD ' + h.rmssd : ''));
+    (h.rmssd != null ? ' · RMSSD ' + h.rmssd : '') +
+    delBtn('hr_sessions', e.hr.map(r => r.id), 'les séances capteur de ' + who + ' du ' + when, 'Supprimer les séances capteur'));
   Object.keys(e.proto).sort().forEach(pt => {
-    const tests = e.proto[pt];
-    lines.push('<b>Protocole ' + esc(pt) + '</b> · ' + Object.keys(PROTO_LABELS).filter(t => tests[t])
-      .map(t => PROTO_LABELS[t] + ' ' + esc(protoValue(t, tests[t]))).join(' · '));
+    const tests = e.proto[pt], ids = e.protoIds[pt];
+    const types = Object.keys(PROTO_LABELS).filter(t => tests[t]);
+    lines.push('<b>Protocole ' + esc(pt) + '</b>' +
+      delBtn('protocol_test_results', types.map(t => ids[t]), 'tout le protocole ' + pt + ' de ' + who + ' du ' + when, 'Tout le protocole ' + pt) +
+      ' · ' + types.map(t => PROTO_LABELS[t] + ' ' + esc(protoValue(t, tests[t])) +
+        delBtn('protocol_test_results', [ids[t]], 'le test ' + PROTO_LABELS[t] + ' (' + pt + ') de ' + who + ' du ' + when, 'Supprimer ce test')).join(' · '));
   });
-  const m = e.meas.map(measValue).filter(Boolean);
-  if (m.length) lines.push('<b>Mesures</b> · ' + m.map(esc).join(' · '));
+  const m = e.meas.filter(r => measValue(r));
+  if (m.length) lines.push('<b>Mesures</b> · ' + m.map(r => esc(measValue(r)) +
+    delBtn('measurements', [r.id], 'la mesure « ' + measValue(r) + ' » de ' + who, 'Supprimer cette mesure')).join(' · '));
   const p = profiles[e.uid] || {}, age = ageAt(p.date_naissance, e.date);
   const info = [p.date_naissance ? GENRE_LABEL[p.sexe] : null, age != null ? age + ' ans' : null,
     age != null ? 'FC max ' + tanaka(age) + ' (Tanaka)' : null].filter(Boolean).join(' · ');
@@ -419,6 +437,33 @@ $('#fCours').addEventListener('click', (e) => {
 });
 $('#fDate').addEventListener('change', () => { fDate = $('#fDate').value; render(); });
 $('#btnRefresh').addEventListener('click', loadData);
+
+/* =====================================================================
+   Suppression de tests — mode activé volontairement, confirmation à chaque fois
+   ===================================================================== */
+let delMode = false;
+$('#btnDelMode').addEventListener('click', () => {
+  delMode = !delMode;
+  $('#btnDelMode').classList.toggle('on', delMode);
+  $('#btnDelMode').setAttribute('aria-pressed', String(delMode));
+  $('#btnDelMode').textContent = delMode ? 'Terminer la suppression' : 'Supprimer des tests';
+  render();
+});
+$('#dataView').addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button.del'); if (!b) return;
+  const ids = b.dataset.ids.split(',').map(Number).filter(Boolean);
+  if (!ids.length || !confirm('Supprimer définitivement ' + b.dataset.label + ' ?\n\nCette action est irréversible.')) return;
+  b.disabled = true;
+  const { data, error } = await sb.from(b.dataset.table).delete().in('id', ids).select('id');
+  if (error) { b.disabled = false; toast('Erreur : ' + error.message); return; }
+  if (!data || !data.length) {   // RLS : rien supprimé sans droit coach
+    b.disabled = false;
+    toast('Suppression refusée — exécute la migration 8 dans Supabase.');
+    return;
+  }
+  toast(data.length > 1 ? data.length + ' éléments supprimés' : 'Supprimé ✔');
+  await loadData();
+});
 
 /* =====================================================================
    Export CSV de la sélection (cours + date) — valeurs brutes
