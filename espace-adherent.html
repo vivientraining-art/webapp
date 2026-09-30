@@ -185,6 +185,10 @@
   #identityGate p{color:var(--muted);font-size:.9rem;line-height:1.6;margin-bottom:1.05rem}
   #identityGate input,#identityGate select{width:100%;max-width:none;margin-bottom:.8rem}
   #identityGate .row button{width:100%}
+  .minilabel{display:block;text-align:left;font-size:.8rem;color:var(--muted);margin:-.2rem 0 .25rem}
+  .tanaka{background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:.7rem .85rem;margin-top:.8rem;font-size:.9rem;line-height:1.5}
+  .tanaka b{font-size:1.15rem;color:var(--forest)}
+  .tanaka cite{display:block;font-style:normal;font-size:.76rem;color:var(--muted);margin-top:.35rem}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -208,6 +212,13 @@
       <option value="Milly">Milly</option>
       <option value="Boutigny">Boutigny</option>
     </select>
+    <select id="loginGenre" hidden>
+      <option value="">Votre genre…</option>
+      <option value="F">Femme</option>
+      <option value="H">Homme</option>
+    </select>
+    <label class="minilabel" for="loginNaissance" id="loginNaissanceLbl" hidden>Date de naissance (sert à calculer votre FC max)</label>
+    <input type="date" id="loginNaissance" hidden>
     <input type="email" id="loginEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
     <input type="password" id="loginPassword" placeholder="Mot de passe (6 caractères min.)" autocomplete="current-password">
     <div class="checkrow" id="consentRow" hidden>
@@ -455,16 +466,19 @@
               <option value="Milly">Milly</option>
               <option value="Boutigny">Boutigny</option>
             </select></div>
-          <div class="field">FC max (bpm)
-            <input type="number" id="pFcMax" min="120" max="230" step="1" inputmode="numeric"></div>
-          <div class="field">Sexe
-            <div class="seg" id="pSexe">
-              <button type="button" data-s="H" class="sel">Homme</button>
-              <button type="button" data-s="F">Femme</button>
-            </div></div>
+          <div class="field">Genre
+            <select id="pGenre">
+              <option value="">—</option>
+              <option value="F">Femme</option>
+              <option value="H">Homme</option>
+            </select></div>
+          <div class="field">Date de naissance
+            <input type="date" id="pNaissance"></div>
           <button class="btn-soft" id="pSave">Enregistrer</button>
         </div>
-        <p class="note">La FC max sert à calculer vos zones d'effort pendant les séances avec capteur.</p>
+        <div class="tanaka" id="pTanaka"></div>
+        <p class="note">La FC max est calculée automatiquement à partir de ton âge et sert à définir tes zones
+          d'effort pendant les séances avec capteur.</p>
       </div>
 
       <div class="panel">
@@ -481,7 +495,8 @@
 <div id="identityGate">
   <div class="card">
     <h2>Complète ton profil</h2>
-    <p>Pour que ton coach retrouve tes résultats dans le bon groupe, indique ton prénom, ton nom et ton cours.</p>
+    <p>Pour que ton coach retrouve tes résultats dans le bon groupe, indique ton prénom, ton nom, ton cours,
+      ton genre et ta date de naissance (elle sert à calculer ta FC max).</p>
     <input type="text" id="igPrenom" placeholder="Prénom" autocomplete="given-name" maxlength="40">
     <input type="text" id="igNom" placeholder="Nom" autocomplete="family-name" maxlength="60">
     <select id="igCours">
@@ -490,6 +505,13 @@
       <option value="Milly">Milly</option>
       <option value="Boutigny">Boutigny</option>
     </select>
+    <select id="igGenre">
+      <option value="">Ton genre…</option>
+      <option value="F">Femme</option>
+      <option value="H">Homme</option>
+    </select>
+    <label class="minilabel" for="igNaissance">Date de naissance</label>
+    <input type="date" id="igNaissance">
     <div class="row">
       <button class="btn-primary" id="igSave">Enregistrer</button>
     </div>
@@ -593,6 +615,7 @@ function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 const COURS = ['Gironville', 'Milly', 'Boutigny'];
+const GENRES = ['F', 'H'];
 
 /* =====================================================================
    État utilisateur
@@ -666,6 +689,9 @@ $('#switchMode').addEventListener('click', (e) => {
   $('#loginPrenom').hidden = !signup;
   $('#loginNom').hidden = !signup;
   $('#loginCours').hidden = !signup;
+  $('#loginGenre').hidden = !signup;
+  $('#loginNaissance').hidden = !signup;
+  $('#loginNaissanceLbl').hidden = !signup;
   $('#consentRow').hidden = !signup;
   $('#loginBtn').textContent = signup ? 'Créer mon compte' : 'Se connecter';
   $('#loginIntro').textContent = signup
@@ -711,10 +737,14 @@ $('#loginBtn').addEventListener('click', async () => {
       const cours = $('#loginCours').value;
       if (!prenom || !nom) { toast('Renseignez votre prénom et votre nom.'); return; }
       if (!COURS.includes(cours)) { toast('Choisissez votre cours.'); return; }
+      const sexe = $('#loginGenre').value;
+      const date_naissance = $('#loginNaissance').value;
+      if (!GENRES.includes(sexe)) { toast('Choisissez votre genre.'); return; }
+      if (ageFrom(date_naissance) == null) { toast('Renseignez une date de naissance valide.'); return; }
       if (!$('#consentCheck').checked) { toast('Cochez la case de consentement pour créer le compte.'); return; }
       const { data, error } = await sb.auth.signUp({
         email, password,
-        options: { data: { prenom, nom, cours, consent_at: new Date().toISOString() }, emailRedirectTo: location.href.split('#')[0] }
+        options: { data: { prenom, nom, cours, sexe, date_naissance, fc_max: tanaka(ageFrom(date_naissance)), consent_at: new Date().toISOString() }, emailRedirectTo: location.href.split('#')[0] }
       });
       if (error) { console.error('signUp', error); $('#loginMsg').textContent = 'Erreur : ' + describeError(error); return; }
       if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
@@ -748,20 +778,55 @@ async function onSignedIn(user) {
     $('#igPrenom').value = profile.prenom || '';
     $('#igNom').value = profile.nom || '';
     $('#igCours').value = profile.cours || '';
+    // genre : choix explicite demandé (l'ancienne valeur par défaut « H » n'a jamais été confirmée)
+    $('#igGenre').value = profile.date_naissance ? (profile.sexe || '') : '';
+    $('#igNaissance').value = profile.date_naissance || '';
     $('#identityGate').style.display = 'flex';
   }
+  syncTanaka();
   renderWho();
-  // pré-remplir le sexe du test VO2max et du profil
-  setSeg('#vSex', profile.sexe);
-  setSeg('#pSexe', profile.sexe);
-  $('#pPrenom').value = profile.prenom || '';
-  $('#pNom').value = profile.nom || '';
-  $('#pCours').value = profile.cours || '';
-  $('#pFcMax').value = profile.fc_max || 190;
+  fillProfileForm();
   ensureChannel();
   loadHistory();
   restoreLiveSession();
   resumeProtocolIfAny();
+}
+
+/* FC max théorique — Tanaka H, Monahan KD, Seals DR. Age-predicted maximal heart
+   rate revisited. J Am Coll Cardiol. 2001;37(1):153-156. doi:10.1016/S0735-1097(00)01054-8
+   FCmax = 208 − 0,7 × âge (méta-analyse de 351 études, 18 712 sujets ; valable
+   pour les femmes comme pour les hommes). */
+function tanaka(age) { return Math.round(208 - 0.7 * age); }
+function ageFrom(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const [y, m, d] = iso.split('-').map(Number), now = new Date();
+  let age = now.getFullYear() - y;
+  if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age--;
+  return age >= 5 && age <= 100 ? age : null;
+}
+function tanakaHtml(age) {
+  if (age == null) return 'Renseigne ta date de naissance pour calculer ta FC max.';
+  return 'Âge : ' + age + ' ans — FC max théorique : <b>' + tanaka(age) + ' bpm</b><br>' +
+    'Formule de Tanaka : 208 − 0,7 × âge = 208 − 0,7 × ' + age + ' = ' + tanaka(age) + ' bpm.' +
+    '<cite>Source : Tanaka H., Monahan K.D., Seals D.R. (2001). « Age-predicted maximal heart rate revisited ». ' +
+    '<i>Journal of the American College of Cardiology</i>, 37(1), 153-156. ' +
+    '<a href="https://doi.org/10.1016/S0735-1097(00)01054-8" target="_blank" rel="noopener">doi:10.1016/S0735-1097(00)01054-8</a></cite>';
+}
+// La FC max suit l'âge : recalculée à chaque connexion (anniversaire passé entre-temps).
+function syncTanaka() {
+  const age = ageFrom(profile && profile.date_naissance);
+  if (age == null || profile.fc_max === tanaka(age)) return;
+  profile.fc_max = tanaka(age);
+  sb.from('profiles').update({ fc_max: profile.fc_max }).eq('id', me.id).then(() => {}, () => {});
+}
+function fillProfileForm() {
+  setSeg('#vSex', profile.sexe);   // pré-remplit aussi le test VO2max
+  $('#pPrenom').value = profile.prenom || '';
+  $('#pNom').value = profile.nom || '';
+  $('#pCours').value = profile.cours || '';
+  $('#pGenre').value = GENRES.includes(profile.sexe) ? profile.sexe : '';
+  $('#pNaissance').value = profile.date_naissance || '';
+  $('#pTanaka').innerHTML = tanakaHtml(ageFrom(profile.date_naissance));
 }
 
 function renderWho() {
@@ -770,18 +835,24 @@ function renderWho() {
     (profile.cours ? escapeHtml(profile.cours) + ' · ' : '') + escapeHtml(me.email);
 }
 function identityNeeded() {
-  return !profile || !profile.prenom || !profile.nom || !COURS.includes(profile.cours);
+  return !profile || !profile.prenom || !profile.nom || !COURS.includes(profile.cours) ||
+    !GENRES.includes(profile.sexe) || ageFrom(profile.date_naissance) == null;
 }
 $('#igSave').addEventListener('click', async () => {
   const prenom = $('#igPrenom').value.trim(), nom = $('#igNom').value.trim(), cours = $('#igCours').value;
+  const sexe = $('#igGenre').value, date_naissance = $('#igNaissance').value;
   if (!prenom || !nom) { toast('Renseigne ton prénom et ton nom.'); return; }
   if (!COURS.includes(cours)) { toast('Choisis ton cours.'); return; }
+  if (!GENRES.includes(sexe)) { toast('Choisis ton genre.'); return; }
+  const age = ageFrom(date_naissance);
+  if (age == null) { toast('Renseigne une date de naissance valide.'); return; }
+  const fc_max = tanaka(age);
   $('#igSave').disabled = true;
-  const { error } = await sb.from('profiles').update({ prenom, nom, cours }).eq('id', me.id);
+  const { error } = await sb.from('profiles').update({ prenom, nom, cours, sexe, date_naissance, fc_max }).eq('id', me.id);
   $('#igSave').disabled = false;
   if (error) { toast('Erreur : ' + error.message); return; }
-  Object.assign(profile, { prenom, nom, cours });
-  $('#pPrenom').value = prenom; $('#pNom').value = nom; $('#pCours').value = cours;
+  Object.assign(profile, { prenom, nom, cours, sexe, date_naissance, fc_max });
+  fillProfileForm();
   renderWho();
   $('#identityGate').style.display = 'none';
   toast('Profil enregistré ✔');
@@ -812,6 +883,9 @@ async function loadProfile() {
     profile = data;
   }
 }
+
+// aperçu de la FC max en direct pendant la saisie de la date de naissance
+$('#pNaissance').addEventListener('input', () => { $('#pTanaka').innerHTML = tanakaHtml(ageFrom($('#pNaissance').value)); });
 
 /* =====================================================================
    Onglets
@@ -884,13 +958,18 @@ $('#pSave').addEventListener('click', async () => {
   const prenom = $('#pPrenom').value.trim();
   const nom = $('#pNom').value.trim();
   const cours = $('#pCours').value;
-  const fc_max = parseInt($('#pFcMax').value, 10) || 190;
-  const sexe = getSeg('#pSexe') || 'H';
+  const sexe = $('#pGenre').value;
+  const date_naissance = $('#pNaissance').value;
   if (!prenom || !nom) { toast('Le prénom et le nom sont obligatoires.'); return; }
   if (!COURS.includes(cours)) { toast('Choisis ton cours.'); return; }
-  const { error } = await sb.from('profiles').update({ prenom, nom, cours, fc_max, sexe }).eq('id', me.id);
+  if (!GENRES.includes(sexe)) { toast('Choisis ton genre.'); return; }
+  const age = ageFrom(date_naissance);
+  if (age == null) { toast('Renseigne une date de naissance valide.'); return; }
+  const fc_max = tanaka(age);
+  const { error } = await sb.from('profiles').update({ prenom, nom, cours, sexe, date_naissance, fc_max }).eq('id', me.id);
   if (error) { toast('Erreur : ' + error.message); return; }
-  Object.assign(profile, { prenom, nom, cours, fc_max, sexe });
+  Object.assign(profile, { prenom, nom, cours, sexe, date_naissance, fc_max });
+  fillProfileForm();
   renderWho();
   toast('Profil enregistré ✔');
 });
