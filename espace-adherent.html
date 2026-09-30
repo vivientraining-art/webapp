@@ -267,15 +267,16 @@
 
   <main class="wrap">
     <div class="tabs" id="tabs">
-      <button class="tab on" data-tab="polar">Capteur</button>
-      <button class="tab" data-tab="protocole">Protocole test</button>
+      <button class="tab on" data-tab="protocole">Protocole test</button>
       <button class="tab" data-tab="histo">Historique</button>
       <button class="tab" data-tab="progression">Progression</button>
       <button class="tab" data-tab="profil">Mon profil</button>
     </div>
 
     <!-- ---- Capteur cardiaque ---- -->
-    <section data-panel="polar">
+    <!-- Moteur FC (connexion Bluetooth, enregistrement de la séance) utilisé par le
+         protocole de test : plus d'onglet dédié, ces éléments restent masqués. -->
+    <section data-panel="polar" hidden>
       <h2>Capteur cardiaque</h2>
       <div class="panel">
         <div class="livebox">
@@ -319,7 +320,7 @@
     </section>
 
     <!-- ---- Protocole Force + Cardio ---- -->
-    <section data-panel="protocole" hidden>
+    <section data-panel="protocole">
       <h2>Protocole Force + Cardio</h2>
 
       <div id="protoHome">
@@ -1119,10 +1120,7 @@ async function stopHrSession(silentIfEmpty) {
   if (error) { toast('Erreur d’enregistrement : ' + error.message); return null; }
   castStat('session', { hr_avg: row.hr_avg, hr_peak: row.hr_peak, duration_s: row.duration_s });
   $('#zoneBars').hidden = true;
-  /* HRR60 automatique (Cole 1999) : mesurée à l'arrêt de l'effort, si la séance
-     a duré ≥ 5 min et que la FC est encore élevée (capteur toujours actif). */
-  if (row.duration_s >= 300 && live.hr !== null && live.hr >= 100) startHrrMeasure(true);
-  return row;
+  return row;   // la récupération est mesurée par l'étape RFC du protocole
 }
 $('#btnStop').addEventListener('click', async () => {
   const row = await stopHrSession(false);

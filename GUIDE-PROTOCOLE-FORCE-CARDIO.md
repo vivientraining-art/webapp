@@ -40,7 +40,8 @@ Onglet **Protocole test** :
 1. Choisir le point de test (T0/T1/T2/T3, indiqué par le coach).
 2. Facultatif : connecter son capteur cardiaque — la fréquence cardiaque est
    alors enregistrée automatiquement pendant toute la durée du protocole
-   (même mécanisme que l'onglet Capteur), sans action supplémentaire.
+   (l'onglet Capteur a été retiré : le capteur se connecte uniquement
+   depuis le protocole), sans action supplémentaire.
 3. **Commencer le protocole** : l'app guide dans l'ordre prévu (échauffement,
    préhension, pompes, wall-sit, rowing, RDL, repos, AMRAP cardio, récupération
    FC, retour au calme), avec minuteurs de repos intégrés (60–90 s, puis
