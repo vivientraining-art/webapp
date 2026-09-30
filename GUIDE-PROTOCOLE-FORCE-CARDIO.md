@@ -71,6 +71,9 @@ plus qu'un seul écran :
   par cours) ; les données se rechargent automatiquement quand un adhérent
   enregistre quelque chose, ou via **Rafraîchir** ;
 - **Exporter la sélection (CSV)** télécharge exactement ce qui est filtré.
+- le **temps passé dans chaque zone d'effort** (repos < 50 %, Z1 50–60 %,
+  Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 % de la FC max de Tanaka) est
+  affiché sous les séances capteur de chaque adhérent, avec une barre colorée ;
 - **Supprimer des tests** active un mode suppression : une croix ✕ apparaît
   à côté de chaque test (✕ tout supprime un point de test entier), des séances
   capteur et des mesures. Chaque suppression demande une confirmation et est
@@ -82,7 +85,8 @@ connexion). Nécessite `supabase-migration-6-nom-cours.sql`. Un adhérent sans
 cours apparaît dans le groupe « Sans cours ».
 
 Le fichier CSV contient une ligne par adhérent, par date et par point de test,
-avec date, cours, nom, prénom, genre, âge, FC max de Tanaka, résumé FC du jour, puis une colonne par valeur
+avec date, cours, nom, prénom, genre, âge, FC max de Tanaka, résumé FC du jour,
+temps en secondes dans chaque zone (temps_repos_s, temps_z1_s … temps_z5_s), puis une colonne par valeur
 brute : préhension, pompes, wall-sit, rowing, RDL, AMRAP (tours, station, FC
 moyenne/pic) et RFC. Aucun score n'est calculé. Séparateur
 point-virgule et décimales à virgule : il s'ouvre directement dans Excel en
