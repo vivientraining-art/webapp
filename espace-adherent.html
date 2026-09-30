@@ -99,6 +99,12 @@
   .hist{margin-top:.7rem;font-size:.9rem}
   .hist .item{display:flex;justify-content:space-between;gap:.6rem;padding:.6rem 0;border-top:1px solid var(--line)}
   .hist .item:first-child{border-top:none}
+  .delx{min-height:32px;min-width:32px;padding:0 .5rem;border-radius:8px;background:#fff;color:var(--z5);
+    border:1px solid #E6C3B5;font-size:.85rem;font-weight:600;flex-shrink:0;align-self:center}
+  .delx:hover{background:#FBEDE7}
+  .resulttbl .delx{min-height:24px;min-width:24px;padding:0 .3rem;font-size:.72rem;margin-left:.25rem}
+  .protodel{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.8rem}
+  .protodel .delx{min-height:38px}
   .hist b{font-variant-numeric:tabular-nums}
   .muted{color:var(--muted)}
   /* ---------- Connexion ---------- */
@@ -1146,6 +1152,33 @@ async function loadHistory() {
   $('#histProto').innerHTML = protoHtml || '<p class="muted">Aucun résultat enregistré pour l’instant.</p>';
 }
 
+/* =====================================================================
+   Suppression par l'adhérent (erreur de saisie, séance ratée…)
+   ===================================================================== */
+function delX(table, ids, label, text, point) {
+  return '<button type="button" class="delx" data-table="' + table + '" data-ids="' + ids.join(',') + '"' +
+    (point ? ' data-point="' + point + '"' : '') + ' data-label="' + escapeHtml(label) + '" title="Supprimer" aria-label="Supprimer ' +
+    escapeHtml(label) + '">' + escapeHtml(text || '✕') + '</button>';
+}
+$('section[data-panel="histo"]').addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button.delx'); if (!b) return;
+  const ids = b.dataset.ids.split(',').map(Number).filter(Boolean);
+  if (!ids.length || !confirm('Supprimer ' + b.dataset.label + ' ?\n\nCette suppression est définitive.')) return;
+  b.disabled = true;
+  const col = b.dataset.table === 'protocol_test_results' ? 'participant_id' : 'user_id';
+  const { data, error } = await sb.from(b.dataset.table).delete().in('id', ids).eq(col, me.id).select('id');
+  if (error || !data || !data.length) {
+    b.disabled = false;
+    toast(error ? 'Erreur : ' + error.message : 'Suppression impossible — préviens ton coach.');
+    return;
+  }
+  // test en cours de passation supprimé en entier : la reprise automatique n'a plus lieu d'être
+  const saved = readProtocolFlag();
+  if (b.dataset.point && saved && saved.p === b.dataset.point && $('#protoRun').hidden) clearProtocolFlag();
+  toast('Supprimé ✔');
+  loadHistory();
+});
+
 /* Temps passé dans chaque zone d'effort (repos, Z1…Z5) pendant une séance. */
 function zonesLine(zs) {
   const secs = [0, 1, 2, 3, 4, 5].map(i => Number((zs || {})[i]) || 0), total = secs.reduce((a, b) => a + b, 0);
@@ -1162,6 +1195,7 @@ function renderHrHist(rows) {
     '<div class="item" style="flex-wrap:wrap"><span>' + frDate(r.started_at) + ' · ' + mmss(r.duration_s) +
     '</span><span class="muted">FC moy <b>' + (r.hr_avg ?? '—') + '</b> · pic <b>' + (r.hr_peak ?? '—') +
     '</b> · RMSSD <b>' + (r.rmssd ?? '—') + '</b></span>' +
+    delX('hr_sessions', [r.id], 'la séance capteur du ' + frDate(r.started_at)) +
     '<div style="flex-basis:100%">' + zonesLine(r.zone_seconds) + '</div></div>'
   ).join('');
 }
@@ -1181,7 +1215,8 @@ function renderMeasHist(rows) {
       const val = d.ms != null ? d.ms + ' ms' : (d.accuracy != null ? d.accuracy + ' %' : (d.score ?? '—'));
       desc = 'Cognitif (' + lbl + ') — <b>' + val + '</b>';
     }
-    return '<div class="item"><span>' + desc + '</span><span class="muted">' + frDate(r.recorded_at) + '</span></div>';
+    return '<div class="item"><span>' + desc + '</span><span class="muted" style="margin-left:auto">' + frDate(r.recorded_at) + '</span>' +
+      delX('measurements', [r.id], 'cette mesure du ' + frDate(r.recorded_at)) + '</div>';
   }).join('');
 }
 
@@ -1647,9 +1682,18 @@ async function loadProtocolHistory() {
   return '<table class="resulttbl"><thead><tr><th>Test</th><th>T0</th><th>T1</th><th>T2</th><th>T3</th></tr></thead><tbody>' +
     PROTO_TEST_ORDER.filter(t => byTest[t]).map(t =>
       '<tr><td>' + PROTO_TEST_LABELS[t] + '</td>' +
-      ['T0', 'T1', 'T2', 'T3'].map(pt => '<td>' + (byTest[t][pt] ? formatProtoData(t, byTest[t][pt].data) : '—') + '</td>').join('') +
+      ['T0', 'T1', 'T2', 'T3'].map(pt => '<td>' + (byTest[t][pt] ? formatProtoData(t, byTest[t][pt].data) +
+        delX('protocol_test_results', [byTest[t][pt].id], 'le résultat « ' + PROTO_TEST_LABELS[t] + ' » du test ' + pt, '✕') : '—') + '</td>').join('') +
       '</tr>'
-    ).join('') + '</tbody></table>';
+    ).join('') + '</tbody></table>' +
+    '<div class="protodel">' + ['T0', 'T1', 'T2', 'T3'].map(pt => {
+      const rows = data.filter(r => r.point_de_test === pt);
+      if (!rows.length) return '';
+      const d = rows.map(r => r.date_test).filter(Boolean).sort().pop();
+      return delX('protocol_test_results', rows.map(r => r.id),
+        'tout le test ' + pt + (d ? ' du ' + frDate(d + 'T12:00:00') : '') + ' (' + rows.length + ' résultat' + (rows.length > 1 ? 's' : '') + ')',
+        'Supprimer le test ' + pt, pt);
+    }).join('') + '</div>';
 }
 
 /* =====================================================================
