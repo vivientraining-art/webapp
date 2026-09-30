@@ -383,6 +383,11 @@
   .modecard p{color:var(--muted);font-size:.85rem;margin:0;line-height:1.45}
   .modecard .ic{font-size:1.7rem}
   #spectator{max-width:1100px;margin:0 auto;padding:1rem}
+  #exportView{max-width:720px;margin:0 auto;padding:1rem}
+  #exportView p{color:var(--muted);font-size:.9rem;line-height:1.55;margin:.2rem 0 .9rem}
+  #exportView select{font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);
+    border-radius:8px;padding:.5rem .6rem;min-height:44px;margin-right:.6rem}
+  #expMsg{min-height:1.2em}
   #specGrid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));margin-bottom:1.4rem}
   .speccard{background:var(--linen);border:1px solid var(--line);border-left:7px solid var(--z0);
     border-radius:14px;padding:.85rem .95rem;transition:opacity .2s ease;
@@ -431,6 +436,11 @@
       <div class="ic">👁️</div>
       <h3>Mode spectateur</h3>
       <p>Je regarde en direct les adhérents qui diffusent depuis leur téléphone, et leurs stats au fil de l'eau.</p>
+    </div>
+    <div class="modecard" id="modeExport" role="button" tabindex="0">
+      <div class="ic">📤</div>
+      <h3>Export des données</h3>
+      <p>Je télécharge les résultats du protocole Force + Cardio de tous les adhérents, en CSV pour Excel.</p>
     </div>
   </div>
 </div>
@@ -483,6 +493,25 @@
       <h3>Stats enregistrées en direct</h3>
       <div id="specFeed"><div class="specempty">En attente…</div></div>
     </div>
+  </div>
+</section>
+
+<section id="exportView" style="display:none">
+  <div style="margin:.2rem 0 1rem">
+    <button class="btn-soft" id="expBack">← Changer de mode</button>
+  </div>
+  <div class="specfeed">
+    <h3>Protocole Force + Cardio</h3>
+    <p>Une ligne par adhérent et par point de test, une colonne par valeur brute (préhension, pompes, wall-sit,
+      rowing, RDL, AMRAP, RFC). Aucun score calculé. Séparateur point-virgule et décimales à virgule, pour une
+      ouverture directe dans Excel.</p>
+    <select id="expPoint">
+      <option value="">Tous les points de test</option>
+      <option value="T0">T0</option><option value="T1">T1</option>
+      <option value="T2">T2</option><option value="T3">T3</option>
+    </select>
+    <button class="btn-rec" id="expProto">Télécharger le CSV</button>
+    <p id="expMsg"></p>
   </div>
 </section>
 
@@ -3328,6 +3357,7 @@ function leaveSpectator() {
 function chooseCreator() {
   $('#modeSelect').style.display = 'none';
   leaveSpectator();
+  $('#exportView').style.display = 'none';
   const acts = document.querySelector('header .actions'); if (acts) acts.style.display = '';
   $('#clock').style.display = '';
   $('#grp').style.display = '';
@@ -3335,14 +3365,92 @@ function chooseCreator() {
 }
 $('#modeCreator').addEventListener('click', chooseCreator);
 $('#modeSpectator').addEventListener('click', enterSpectator);
-[$('#modeCreator'), $('#modeSpectator')].forEach(c => c.addEventListener('keydown', (e) => {
+$('#modeExport').addEventListener('click', enterExport);
+[$('#modeCreator'), $('#modeSpectator'), $('#modeExport')].forEach(c => c.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); }
 }));
 
 $('#specBack').addEventListener('click', showModeMenu);
+$('#expBack').addEventListener('click', showModeMenu);
+
+function enterExport() {
+  $('#modeSelect').style.display = 'none';
+  leaveSpectator();
+  $('#exportView').style.display = '';
+  $('#grid').style.display = 'none';
+  $('#empty').style.display = 'none';
+  const acts = document.querySelector('header .actions'); if (acts) acts.style.display = 'none';
+  $('#clock').style.display = 'none';
+  $('#grp').style.display = 'none';
+  $('#expMsg').textContent = '';
+}
+
+/* --- Export CSV du protocole Force + Cardio : une ligne par adhérent et par
+       point de test, valeurs brutes uniquement. --- */
+const EXPORT_COLUMNS = [
+  ['prehension_droite_kg', 'grip', 'force_main_droite_kg'],
+  ['prehension_gauche_kg', 'grip', 'force_main_gauche_kg'],
+  ['pompes_reps', 'pompes', 'pompes_reps'],
+  ['pompes_variante', 'pompes', 'pompes_variante'],
+  ['wallsit_s', 'wallsit', 'wallsit_secondes'],
+  ['rowing_reps', 'rowing', 'rowing_reps'],
+  ['rowing_modalite', 'rowing', 'rowing_modalite'],
+  ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
+  ['rdl_reps', 'rdl', 'rdl_reps'],
+  ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'],
+  ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],
+  ['amrap_fc_moy', 'amrap_cardio', 'fc_moy_amrap'],
+  ['amrap_fc_pic', 'amrap_cardio', 'fc_pic_amrap'],
+  ['rfc_fc_fin_effort', 'rfc', 'fc_pic'],
+  ['rfc_fc_2min', 'rfc', 'fc_2min'],
+  ['rfc_baisse_bpm', 'rfc', 'rfc_2min'],
+];
+
+function csvCell(v) {
+  if (v == null) return '';
+  if (typeof v === 'number') return String(v).replace('.', ',');
+  return String(v).replace(/[;\r\n]+/g, ' ');
+}
+
+$('#expProto').addEventListener('click', async () => {
+  const pt = $('#expPoint').value;
+  $('#expProto').disabled = true;
+  $('#expMsg').textContent = 'Préparation…';
+  let q = specSb.from('protocol_test_results').select('participant_id,point_de_test,date_test,test_type,data');
+  if (pt) q = q.eq('point_de_test', pt);
+  const [res, profs] = await Promise.all([q, specSb.from('profiles').select('id,prenom,email')]);
+  $('#expProto').disabled = false;
+  if (res.error || profs.error) { $('#expMsg').textContent = 'Erreur : ' + (res.error || profs.error).message; return; }
+  if (!res.data.length) { $('#expMsg').textContent = 'Aucun résultat à exporter pour ce choix.'; return; }
+
+  const who = {};
+  profs.data.forEach(p => { who[p.id] = p; });
+  const rows = {};
+  res.data.forEach(r => {
+    const k = r.participant_id + '|' + r.point_de_test;
+    const row = rows[k] || (rows[k] = { participant_id: r.participant_id, point_de_test: r.point_de_test, date_test: r.date_test, tests: {} });
+    if (r.date_test < row.date_test) row.date_test = r.date_test;
+    row.tests[r.test_type] = r.data || {};
+  });
+  const list = Object.values(rows).sort((a, b) => {
+    const na = (who[a.participant_id] || {}).prenom || '', nb = (who[b.participant_id] || {}).prenom || '';
+    return na.localeCompare(nb, 'fr') || a.point_de_test.localeCompare(b.point_de_test);
+  });
+
+  let csv = 'prenom;email;point_de_test;date_test;' + EXPORT_COLUMNS.map(c => c[0]).join(';') + '\n';
+  list.forEach(row => {
+    const p = who[row.participant_id] || {};
+    csv += [csvCell(p.prenom), csvCell(p.email), row.point_de_test, row.date_test]
+      .concat(EXPORT_COLUMNS.map(([, type, key]) => csvCell((row.tests[type] || {})[key])))
+      .join(';') + '\n';
+  });
+  $('#expMsg').textContent = list.length + ' ligne' + (list.length > 1 ? 's' : '') + ' exportée' + (list.length > 1 ? 's' : '') + '.';
+  download(csv, 'protocole_force_cardio_' + (pt || 'tous') + '_' + stamp() + '.csv');
+});
 
 function enterSpectator() {
   $('#modeSelect').style.display = 'none';
+  $('#exportView').style.display = 'none';
   $('#spectator').style.display = '';
   $('#grid').style.display = 'none';
   $('#empty').style.display = 'none';

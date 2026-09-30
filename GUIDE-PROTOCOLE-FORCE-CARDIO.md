@@ -44,11 +44,17 @@ Onglet **Protocole test** :
 
 ## Côté coach
 
-L'onglet **Vue coach** (dans le même espace adhérent) indique, pour chaque
-adhérent, les points de test déjà complétés (ex. "Protocole : T0, T1"). Pour
-le détail complet d'un adhérent, va dans son propre onglet Historique (ou
-interroge directement la table `protocol_test_results` dans Supabase si tu
-veux exporter/analyser plus finement).
+L'export se fait depuis l'**espace coach** (`moniteur-groupe-polar.html`), pas
+depuis l'espace adhérent : après la connexion coach, choisis la carte
+**Export des données**, filtre éventuellement un point de test (T0…T3), puis
+**Télécharger le CSV**.
+
+Le fichier contient une ligne par adhérent et par point de test, avec une
+colonne par valeur brute : préhension, pompes, wall-sit, rowing, RDL, AMRAP
+(tours, station, FC moyenne/pic) et RFC. Aucun score n'est calculé. Séparateur
+point-virgule et décimales à virgule : il s'ouvre directement dans Excel en
+français. Sur iPad, la feuille de partage propose « Enregistrer dans
+Fichiers ».
 
 ## Limite à connaître
 

@@ -129,8 +129,6 @@
     z-index:50;max-width:90vw;text-align:center;box-shadow:var(--sh-2);
   }
   #toast.show{opacity:1}
-  .coachrow{display:flex;justify-content:space-between;gap:.6rem;padding:.75rem 0;border-top:1px solid var(--line);flex-wrap:wrap}
-  .coachrow:first-child{border-top:none}
   .config-warn{background:#FBE3E0;border:1px solid #E0A89F;color:#8A3024;border-radius:var(--r-md);padding:1rem;margin:1rem;font-size:.9rem;line-height:1.5}
   code{background:#0001;padding:.1rem .3rem;border-radius:4px;font-size:.85em}
   .checkrow{display:flex;gap:.55rem;align-items:flex-start;text-align:left;font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:.9rem}
@@ -251,7 +249,6 @@
       <button class="tab" data-tab="histo">Historique</button>
       <button class="tab" data-tab="progression">Progression</button>
       <button class="tab" data-tab="profil">Mon profil</button>
-      <button class="tab" data-tab="coach" id="tabCoach" hidden>Vue coach</button>
     </div>
 
     <!-- ---- Saisie manuelle ---- -->
@@ -454,14 +451,6 @@
           et l'ensemble de tes mesures (séances, tests, profil). Cette action est <strong>irréversible</strong>.
           Détail des données collectées et de tes droits : <a href="politique-confidentialite.html" target="_blank" rel="noopener">politique de confidentialité</a>.</p>
         <button class="btn-danger" id="btnDelete">Supprimer mon compte et mes données</button>
-      </div>
-    </section>
-
-    <!-- ---- Vue coach ---- -->
-    <section data-panel="coach" hidden>
-      <h2>Vue coach — tous les adhérents</h2>
-      <div class="panel">
-        <div id="coachList"><p class="muted">Chargement…</p></div>
       </div>
     </section>
   </main>
@@ -714,7 +703,6 @@ async function onSignedIn(user) {
   setSeg('#pSexe', profile.sexe);
   $('#pPrenom').value = profile.prenom || '';
   $('#pFcMax').value = profile.fc_max || 190;
-  if (profile.role === 'coach') $('#tabCoach').hidden = false;
   ensureChannel();
   loadHistory();
   restoreLiveSession();
@@ -757,7 +745,6 @@ $('#tabs').addEventListener('click', (e) => {
   $$('section[data-panel]').forEach(s => s.hidden = s.dataset.panel !== tab);
   if (tab === 'histo') loadHistory();
   if (tab === 'progression') loadCharts();
-  if (tab === 'coach') loadCoach();
 });
 
 /* =====================================================================
@@ -1108,43 +1095,6 @@ function renderMeasHist(rows) {
       desc = 'Cognitif (' + lbl + ') — <b>' + val + '</b>';
     }
     return '<div class="item"><span>' + desc + '</span><span class="muted">' + frDate(r.recorded_at) + '</span></div>';
-  }).join('');
-}
-
-/* =====================================================================
-   Vue coach
-   ===================================================================== */
-async function loadCoach() {
-  if (!sb || !me || profile.role !== 'coach') return;
-  const el = $('#coachList');
-  const { data: members, error } = await sb.from('profiles').select('*').order('prenom');
-  if (error) { el.innerHTML = '<p class="muted">Erreur : ' + error.message + '</p>'; return; }
-  const [hr, meas, proto] = await Promise.all([
-    sb.from('hr_sessions').select('user_id,started_at,hr_avg,rmssd').order('started_at', { ascending: false }),
-    sb.from('measurements').select('user_id,type,data,recorded_at').order('recorded_at', { ascending: false }),
-    sb.from('protocol_test_results').select('participant_id,point_de_test'),
-  ]);
-  const sessBy = {}, measBy = {}, protoBy = {};
-  (hr.data || []).forEach(r => { (sessBy[r.user_id] = sessBy[r.user_id] || []).push(r); });
-  (meas.data || []).forEach(r => { (measBy[r.user_id] = measBy[r.user_id] || []).push(r); });
-  (proto.data || []).forEach(r => { (protoBy[r.participant_id] = protoBy[r.participant_id] || new Set()).add(r.point_de_test); });
-  const lastT = (arr, type) => (arr || []).find(r => r.type === type);
-
-  el.innerHTML = members.map(m => {
-    const sess = sessBy[m.id] || [], mm = measBy[m.id] || [];
-    const vo2 = lastT(mm, 'vo2max'), hrr = lastT(mm, 'hrr'), force = lastT(mm, 'force');
-    const protoPoints = protoBy[m.id];
-    const lines = [];
-    lines.push('<b>' + sess.length + '</b> séance' + (sess.length > 1 ? 's' : '') + (sess[0] ? ' · dernière ' + frDate(sess[0].started_at) : ''));
-    if (vo2) lines.push('VO2max ' + vo2.data.vo2max + ' · ' + frDate(vo2.recorded_at));
-    if (hrr) lines.push('HRR −' + hrr.data.hrr60 + ' bpm · ' + frDate(hrr.recorded_at));
-    if (force) lines.push('Force ' + force.data.exercice + ' 1RM ' + force.data.e1rm + ' kg');
-    if (protoPoints) lines.push('Protocole : ' + ['T0', 'T1', 'T2', 'T3'].filter(p => protoPoints.has(p)).join(', '));
-    if (!sess.length && !mm.length && !protoPoints) lines.length = 0, lines.push('Aucune donnée');
-    return '<div class="coachrow"><span><b>' + (m.prenom || m.email) +
-      '</b>' + (m.role === 'coach' ? ' <span class="muted">(coach)</span>' : '') +
-      '<br><span class="muted" style="font-size:.8rem">' + m.email + '</span></span>' +
-      '<span class="muted" style="font-size:.83rem;text-align:right;max-width:62%">' + lines.join('<br>') + '</span></div>';
   }).join('');
 }
 
