@@ -57,6 +57,13 @@ Onglet **Protocole test** :
    l'app, rien n'est perdu** : au retour, le protocole reprend automatiquement
    à l'étape exacte où l'adhérent s'était arrêté (le point de test choisi est
    mémorisé sur l'appareil, et chaque étape déjà validée est déjà en base).
+   Pendant le test, deux boutons restent disponibles en haut :
+   - **Reconnecter le capteur** : si le capteur décroche (l'état passe en
+     rouge « Capteur déconnecté »), un toucher le reconnecte sans quitter le
+     test ; si ça échoue, un second toucher rouvre la liste Bluetooth. Pendant
+     la coupure, aucune FC n'est comptée (pas de valeur figée dans la moyenne).
+   - **Arrêter le test** : interrompt la passation (avec confirmation). Les
+     étapes déjà validées restent enregistrées, ainsi que la FC déjà mesurée.
 5. **Refaire un test** : une fois le protocole terminé, « Commencer le
    protocole » repart de la première étape. Si des résultats existent déjà pour
    ce point de test, l'app demande confirmation : les nouveaux résultats

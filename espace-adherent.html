@@ -103,6 +103,13 @@
     border:1px solid #E6C3B5;font-size:.85rem;font-weight:600;flex-shrink:0;align-self:center}
   .delx:hover{background:#FBEDE7}
   .resulttbl .delx{min-height:24px;min-width:24px;padding:0 .3rem;font-size:.72rem;margin-left:.25rem}
+  .prototools{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:-.3rem 0 .9rem}
+  .prototools button{min-height:40px;padding:.4rem .85rem;font-size:.9rem}
+  .sensorstate{font-size:.82rem;color:var(--muted)}
+  .sensorstate::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#B9C1BB;margin-right:.35rem}
+  .sensorstate.ok::before{background:var(--z3)}
+  .sensorstate.lost{color:var(--z5);font-weight:600}
+  .sensorstate.lost::before{background:var(--z5)}
   .protodel{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.8rem}
   .protodel .delx{min-height:38px}
   .hist b{font-variant-numeric:tabular-nums}
@@ -375,6 +382,12 @@
           <span class="hrbig" id="pHrBig" style="font-size:1.8rem">–</span>
           <span class="hrunit">bpm</span>
           <span class="zbadge" id="pZBadge" style="margin-left:.6rem">—</span>
+        </div>
+        <div class="prototools">
+          <span class="sensorstate" id="pSensorState">Capteur non connecté</span>
+          <div class="spacer"></div>
+          <button class="btn-soft" id="protoReconnect">Connecter le capteur</button>
+          <button class="btn-danger" id="protoStop">Arrêter le test</button>
         </div>
         <div class="steps" id="protoSteps"></div>
         <div class="stepcard" id="protoCard"></div>
@@ -949,9 +962,16 @@ async function connectSensor() {
     });
   } catch (e) { return false; }
   live.device = device;
-  device.addEventListener('gattserverdisconnected', () => { toast('Capteur déconnecté.'); });
+  device.addEventListener('gattserverdisconnected', () => {
+    if (live.device !== device) return;
+    live.hr = null;              // ne pas compter une FC figée pendant la coupure
+    renderLive();
+    setSensorState('lost');
+    toast('Capteur déconnecté — touche « Reconnecter le capteur ».');
+  });
   try {
     await connectGatt();
+    setSensorState('ok');
     toast((device.name || 'Capteur') + ' connecté');
     $('#btnStart').disabled = false;
     $('#btnHrr').disabled = false;
@@ -962,6 +982,50 @@ async function connectSensor() {
 }
 $('#btnConnect').addEventListener('click', connectSensor);
 $('#protoConnect').addEventListener('click', connectSensor);
+
+/* État du capteur affiché pendant le protocole : 'none' | 'ok' | 'lost'. */
+function setSensorState(state) {
+  const el = $('#pSensorState'); if (!el) return;
+  el.className = 'sensorstate' + (state === 'none' ? '' : ' ' + state);
+  el.textContent = state === 'ok' ? 'Capteur connecté' : state === 'lost' ? 'Capteur déconnecté' : 'Capteur non connecté';
+  const b = $('#protoReconnect');
+  b.textContent = state === 'none' ? 'Connecter le capteur' : 'Reconnecter le capteur';
+  b.className = state === 'lost' ? 'btn-primary' : 'btn-soft';
+}
+
+/* Reconnexion : d'abord au même capteur, sans repasser par la liste Bluetooth ;
+   si ça échoue, le toucher suivant rouvre la liste (le navigateur exige un
+   geste de l'utilisateur pour l'afficher). */
+let reconnectPicker = false;
+$('#protoReconnect').addEventListener('click', async () => {
+  const b = $('#protoReconnect');
+  if (!live.device || reconnectPicker) { reconnectPicker = false; await connectSensor(); return; }
+  b.disabled = true; b.textContent = 'Reconnexion…';
+  try {
+    try { live.device.gatt.disconnect(); } catch (e) {}
+    await Promise.race([connectGatt(), new Promise((_, rej) => setTimeout(() => rej(new Error('délai')), 6000))]);
+    setSensorState('ok');
+    toast('Capteur reconnecté ✔');
+  } catch (e) {
+    reconnectPicker = true;
+    setSensorState('lost');
+    b.textContent = 'Choisir le capteur';
+    toast('Reconnexion impossible — touche « Choisir le capteur » (capteur bien porté et proche).');
+  } finally { b.disabled = false; }
+});
+
+$('#protoStop').addEventListener('click', async () => {
+  if (!confirm('Arrêter le test en cours ?\n\nLes étapes déjà enregistrées sont conservées (tu peux les supprimer dans ' +
+      'l’Historique). Pour recommencer, touche ensuite « Commencer le protocole ».')) return;
+  stopProtoTimers();
+  protoPhase = 'content';
+  protoRfcStarted = false;
+  clearProtocolFlag();
+  await stopHrSession(true);   // la FC déjà enregistrée est gardée comme séance
+  $('#protoRun').hidden = true;
+  $('#protoHome').hidden = false;
+  toast('Test arrêté.');
+});
 
 async function connectGatt() {
   const server = await live.device.gatt.connect();
@@ -1406,6 +1470,7 @@ async function beginProtocol() {
   saveProtocolFlag();
   startHrSession();
   $('#protoHome').hidden = true;
+  setSensorState(live.device && live.device.gatt && live.device.gatt.connected ? 'ok' : live.device ? 'lost' : 'none');
   $('#protoRun').hidden = false;
   renderProtoStep();
 }
