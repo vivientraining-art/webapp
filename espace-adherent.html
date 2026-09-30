@@ -110,7 +110,7 @@
   .login .card>svg{margin-bottom:.7rem}
   .login h2{margin-bottom:.45rem}
   .login p{color:var(--muted);font-size:.9rem;line-height:1.55;margin-bottom:1.15rem}
-  .login input{width:100%;max-width:none;margin-bottom:.8rem}
+  .login input,.login select{width:100%;max-width:none;margin-bottom:.8rem}
   .login button{width:100%}
   /* ---------- FC en direct ---------- */
   .hrbig{font-variant-numeric:tabular-nums;font-size:3.6rem;font-weight:700;line-height:1;letter-spacing:-.01em}
@@ -179,6 +179,12 @@
   #consentGate p{color:var(--muted);font-size:.9rem;line-height:1.6;margin-bottom:1.05rem}
   #consentGate .row{display:flex;gap:.6rem;flex-wrap:wrap}
   #consentGate .row button{flex:1;min-width:150px}
+  #identityGate{position:fixed;inset:0;z-index:69;background:rgba(31,58,45,.96);display:none;align-items:center;justify-content:center;padding:1.2rem}
+  #identityGate .card{background:var(--linen);border:1px solid var(--line);border-radius:20px;padding:1.7rem;max-width:470px;width:100%;box-shadow:var(--sh-2)}
+  #identityGate h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.2rem;margin-bottom:.6rem}
+  #identityGate p{color:var(--muted);font-size:.9rem;line-height:1.6;margin-bottom:1.05rem}
+  #identityGate input,#identityGate select{width:100%;max-width:none;margin-bottom:.8rem}
+  #identityGate .row button{width:100%}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -194,7 +200,14 @@
     </svg>
     <h2>Espace adhérent</h2>
     <p id="loginIntro">Connectez-vous avec votre e-mail et votre mot de passe.</p>
-    <input type="text" id="loginPrenom" placeholder="Votre prénom" autocomplete="given-name" hidden>
+    <input type="text" id="loginPrenom" placeholder="Votre prénom" autocomplete="given-name" maxlength="40" hidden>
+    <input type="text" id="loginNom" placeholder="Votre nom" autocomplete="family-name" maxlength="60" hidden>
+    <select id="loginCours" hidden>
+      <option value="">Votre cours…</option>
+      <option value="Gironville">Gironville</option>
+      <option value="Milly">Milly</option>
+      <option value="Boutigny">Boutigny</option>
+    </select>
     <input type="email" id="loginEmail" placeholder="votre@email.fr" autocomplete="email" inputmode="email">
     <input type="password" id="loginPassword" placeholder="Mot de passe (6 caractères min.)" autocomplete="current-password">
     <div class="checkrow" id="consentRow" hidden>
@@ -432,7 +445,16 @@
       <div class="panel">
         <div class="formrow">
           <div class="field">Prénom
-            <input type="text" id="pPrenom" maxlength="24"></div>
+            <input type="text" id="pPrenom" maxlength="40"></div>
+          <div class="field">Nom
+            <input type="text" id="pNom" maxlength="60"></div>
+          <div class="field">Cours
+            <select id="pCours">
+              <option value="">—</option>
+              <option value="Gironville">Gironville</option>
+              <option value="Milly">Milly</option>
+              <option value="Boutigny">Boutigny</option>
+            </select></div>
           <div class="field">FC max (bpm)
             <input type="number" id="pFcMax" min="120" max="230" step="1" inputmode="numeric"></div>
           <div class="field">Sexe
@@ -454,6 +476,24 @@
       </div>
     </section>
   </main>
+</div>
+
+<div id="identityGate">
+  <div class="card">
+    <h2>Complète ton profil</h2>
+    <p>Pour que ton coach retrouve tes résultats dans le bon groupe, indique ton prénom, ton nom et ton cours.</p>
+    <input type="text" id="igPrenom" placeholder="Prénom" autocomplete="given-name" maxlength="40">
+    <input type="text" id="igNom" placeholder="Nom" autocomplete="family-name" maxlength="60">
+    <select id="igCours">
+      <option value="">Ton cours…</option>
+      <option value="Gironville">Gironville</option>
+      <option value="Milly">Milly</option>
+      <option value="Boutigny">Boutigny</option>
+    </select>
+    <div class="row">
+      <button class="btn-primary" id="igSave">Enregistrer</button>
+    </div>
+  </div>
 </div>
 
 <div id="consentGate">
@@ -552,6 +592,7 @@ const mmss = (s) => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(M
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+const COURS = ['Gironville', 'Milly', 'Boutigny'];
 
 /* =====================================================================
    État utilisateur
@@ -623,6 +664,8 @@ $('#switchMode').addEventListener('click', (e) => {
   authMode = authMode === 'signin' ? 'signup' : 'signin';
   const signup = authMode === 'signup';
   $('#loginPrenom').hidden = !signup;
+  $('#loginNom').hidden = !signup;
+  $('#loginCours').hidden = !signup;
   $('#consentRow').hidden = !signup;
   $('#loginBtn').textContent = signup ? 'Créer mon compte' : 'Se connecter';
   $('#loginIntro').textContent = signup
@@ -663,11 +706,15 @@ $('#loginBtn').addEventListener('click', async () => {
   $('#loginMsg').textContent = '';
   try {
     if (authMode === 'signup') {
-      if (!$('#consentCheck').checked) { toast('Cochez la case de consentement pour créer le compte.'); return; }
       const prenom = $('#loginPrenom').value.trim();
+      const nom = $('#loginNom').value.trim();
+      const cours = $('#loginCours').value;
+      if (!prenom || !nom) { toast('Renseignez votre prénom et votre nom.'); return; }
+      if (!COURS.includes(cours)) { toast('Choisissez votre cours.'); return; }
+      if (!$('#consentCheck').checked) { toast('Cochez la case de consentement pour créer le compte.'); return; }
       const { data, error } = await sb.auth.signUp({
         email, password,
-        options: { data: { prenom, consent_at: new Date().toISOString() }, emailRedirectTo: location.href.split('#')[0] }
+        options: { data: { prenom, nom, cours, consent_at: new Date().toISOString() }, emailRedirectTo: location.href.split('#')[0] }
       });
       if (error) { console.error('signUp', error); $('#loginMsg').textContent = 'Erreur : ' + describeError(error); return; }
       if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
@@ -697,17 +744,48 @@ async function onSignedIn(user) {
   $('#appView').hidden = false;
   await loadProfile();
   if (consentNeeded()) $('#consentGate').style.display = 'flex';
-  $('#whoBox').innerHTML = '<b>' + (profile.prenom || me.email) + '</b><br>' + me.email;
+  if (identityNeeded()) {
+    $('#igPrenom').value = profile.prenom || '';
+    $('#igNom').value = profile.nom || '';
+    $('#igCours').value = profile.cours || '';
+    $('#identityGate').style.display = 'flex';
+  }
+  renderWho();
   // pré-remplir le sexe du test VO2max et du profil
   setSeg('#vSex', profile.sexe);
   setSeg('#pSexe', profile.sexe);
   $('#pPrenom').value = profile.prenom || '';
+  $('#pNom').value = profile.nom || '';
+  $('#pCours').value = profile.cours || '';
   $('#pFcMax').value = profile.fc_max || 190;
   ensureChannel();
   loadHistory();
   restoreLiveSession();
   resumeProtocolIfAny();
 }
+
+function renderWho() {
+  const full = [profile.prenom, profile.nom].filter(Boolean).join(' ') || me.email;
+  $('#whoBox').innerHTML = '<b>' + escapeHtml(full) + '</b><br>' +
+    (profile.cours ? escapeHtml(profile.cours) + ' · ' : '') + escapeHtml(me.email);
+}
+function identityNeeded() {
+  return !profile || !profile.prenom || !profile.nom || !COURS.includes(profile.cours);
+}
+$('#igSave').addEventListener('click', async () => {
+  const prenom = $('#igPrenom').value.trim(), nom = $('#igNom').value.trim(), cours = $('#igCours').value;
+  if (!prenom || !nom) { toast('Renseigne ton prénom et ton nom.'); return; }
+  if (!COURS.includes(cours)) { toast('Choisis ton cours.'); return; }
+  $('#igSave').disabled = true;
+  const { error } = await sb.from('profiles').update({ prenom, nom, cours }).eq('id', me.id);
+  $('#igSave').disabled = false;
+  if (error) { toast('Erreur : ' + error.message); return; }
+  Object.assign(profile, { prenom, nom, cours });
+  $('#pPrenom').value = prenom; $('#pNom').value = nom; $('#pCours').value = cours;
+  renderWho();
+  $('#identityGate').style.display = 'none';
+  toast('Profil enregistré ✔');
+});
 
 function consentNeeded() {
   if (profile && profile.consent_at) return false;
@@ -804,12 +882,16 @@ $('#vSave').addEventListener('click', async () => {
    ===================================================================== */
 $('#pSave').addEventListener('click', async () => {
   const prenom = $('#pPrenom').value.trim();
+  const nom = $('#pNom').value.trim();
+  const cours = $('#pCours').value;
   const fc_max = parseInt($('#pFcMax').value, 10) || 190;
   const sexe = getSeg('#pSexe') || 'H';
-  const { error } = await sb.from('profiles').update({ prenom, fc_max, sexe }).eq('id', me.id);
+  if (!prenom || !nom) { toast('Le prénom et le nom sont obligatoires.'); return; }
+  if (!COURS.includes(cours)) { toast('Choisis ton cours.'); return; }
+  const { error } = await sb.from('profiles').update({ prenom, nom, cours, fc_max, sexe }).eq('id', me.id);
   if (error) { toast('Erreur : ' + error.message); return; }
-  profile.prenom = prenom; profile.fc_max = fc_max; profile.sexe = sexe;
-  $('#whoBox').innerHTML = '<b>' + (prenom || me.email) + '</b><br>' + me.email;
+  Object.assign(profile, { prenom, nom, cours, fc_max, sexe });
+  renderWho();
   toast('Profil enregistré ✔');
 });
 

@@ -16,6 +16,8 @@ n'est pas déjà fait :
    administré par le coach mais auto-saisi).
 3. `supabase-migration-5-rfc-amrap.sql` — autorise le nouveau type de test
    "rfc" (récupération de la fréquence cardiaque après l'AMRAP).
+4. `supabase-migration-6-nom-cours.sql` — ajoute le nom et le cours
+   (Gironville, Milly, Boutigny) au profil de chaque adhérent.
 
 ## Côté adhérent
 
@@ -44,14 +46,25 @@ Onglet **Protocole test** :
 
 ## Côté coach
 
-L'export se fait depuis l'**espace coach** (`moniteur-groupe-polar.html`), pas
-depuis l'espace adhérent : après la connexion coach, choisis la carte
-**Export des données**, filtre éventuellement un point de test (T0…T3), puis
-**Télécharger le CSV**.
+Tout se passe dans l'**espace coach** (`moniteur-groupe-polar.html`), qui n'a
+plus qu'un seul écran :
+- filtre **Cours** (Tous / Gironville / Milly / Boutigny) et filtre **Date** ;
+- les données sont affichées **par date, puis par cours**, une ligne par
+  adhérent (séances capteur, résultats du protocole, autres mesures) ;
+- le bloc **En direct** montre la FC des adhérents en séance (filtré lui aussi
+  par cours) ; les données se rechargent automatiquement quand un adhérent
+  enregistre quelque chose, ou via **Rafraîchir** ;
+- **Exporter la sélection (CSV)** télécharge exactement ce qui est filtré.
 
-Le fichier contient une ligne par adhérent et par point de test, avec une
-colonne par valeur brute : préhension, pompes, wall-sit, rowing, RDL, AMRAP
-(tours, station, FC moyenne/pic) et RFC. Aucun score n'est calculé. Séparateur
+Chaque adhérent doit renseigner **nom, prénom et cours** (obligatoire à
+l'inscription ; les comptes existants le saisissent à leur prochaine
+connexion). Nécessite `supabase-migration-6-nom-cours.sql`. Un adhérent sans
+cours apparaît dans le groupe « Sans cours ».
+
+Le fichier CSV contient une ligne par adhérent, par date et par point de test,
+avec date, cours, nom, prénom, résumé FC du jour, puis une colonne par valeur
+brute : préhension, pompes, wall-sit, rowing, RDL, AMRAP (tours, station, FC
+moyenne/pic) et RFC. Aucun score n'est calculé. Séparateur
 point-virgule et décimales à virgule : il s'ouvre directement dans Excel en
 français. Sur iPad, la feuille de partage propose « Enregistrer dans
 Fichiers ».
