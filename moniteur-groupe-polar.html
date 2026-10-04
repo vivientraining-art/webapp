@@ -89,6 +89,20 @@
     background:#fff;color:var(--terra-deep);border:1px solid #E6C3B5;vertical-align:1px}
   .del:hover{background:#FBEDE7}
   #btnDelMode.on{background:var(--terra-deep);color:#fff;border-color:var(--terra-deep)}
+  .edit{min-height:0;padding:.05rem .45rem;margin-left:.3rem;border-radius:7px;font-size:.78rem;line-height:1.5;
+    background:#fff;color:var(--pine);border:1px solid #BFD0C5;vertical-align:1px}
+  .edit:hover{background:#EEF4F0}
+  #editDlg{border:none;border-radius:16px;padding:0;width:min(440px,calc(100vw - 2rem));box-shadow:var(--sh-2);color:var(--ink);background:var(--linen)}
+  #editDlg::backdrop{background:rgba(31,58,45,.55)}
+  #editDlg form{padding:1.2rem 1.2rem 1rem}
+  #editDlg h3{font-family:'Libre Baskerville',Georgia,serif;font-size:1.05rem;margin-bottom:.2rem}
+  #editDlg .sub{font-size:.85rem;color:var(--muted);margin-bottom:.9rem}
+  #editDlg label.f{display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:.7rem}
+  #editDlg label.f input,#editDlg label.f select{display:block;width:100%;margin-top:.25rem;text-transform:none;letter-spacing:0;font-weight:400}
+  #editDlg label.c{display:flex;gap:.5rem;align-items:center;font-size:.92rem;margin-bottom:.7rem}
+  #editDlg label.c input{width:20px;height:20px;min-height:0}
+  #editDlg .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 .7rem}
+  #editDlg .acts{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.4rem}
   .empty{color:var(--muted);font-size:.92rem}
   /* ---- Connexion ---- */
   #authGate{position:fixed;inset:0;z-index:80;background:var(--forest);color:#F4F0E6;display:flex;flex-direction:column;
@@ -142,7 +156,7 @@
       </div>
       <select id="fDate" aria-label="Date"><option value="">Toutes les dates</option></select>
       <div class="spacer"></div>
-      <button class="btn-soft" id="btnDelMode" aria-pressed="false">Supprimer des tests</button>
+      <button class="btn-soft" id="btnDelMode" aria-pressed="false">Modifier / supprimer</button>
       <button class="btn-soft" id="btnRefresh">Rafraîchir</button>
       <button class="btn-primary" id="btnExport">Exporter la sélection (CSV)</button>
     </div>
@@ -156,6 +170,16 @@
 
   <div id="dataView"></div>
 </main>
+
+<dialog id="editDlg"><form method="dialog" id="editForm">
+  <h3 id="editTitle"></h3>
+  <p class="sub" id="editSub"></p>
+  <div id="editFields"></div>
+  <div class="acts">
+    <button type="button" class="btn-soft" id="editCancel">Annuler</button>
+    <button type="submit" class="btn-primary" id="editSave">Enregistrer</button>
+  </div>
+</form></dialog>
 
 <div id="toast" role="status"></div>
 
@@ -254,6 +278,7 @@ async function checkCoach(user) {
 let profiles = {};          // id -> profil
 let entries = new Map();    // "uid|AAAA-MM-JJ" -> { uid, date, hr: [], proto: { T0: { type: data } }, meas: [] }
 let fCours = '', fDate = '';
+let protoRows = {};          // id -> ligne protocol_test_results (pour la modification)
 
 async function fetchAll(table, cols) {
   const out = [];
@@ -313,7 +338,9 @@ async function loadData() {
     return entries.get(k);
   };
   hrs.forEach(r => entry(r.user_id, dayKey(r.started_at)).hr.push(r));
+  protoRows = {};
   protos.forEach(r => {
+    protoRows[r.id] = r;
     const e = entry(r.participant_id, r.date_test);
     (e.proto[r.point_de_test] = e.proto[r.point_de_test] || {})[r.test_type] = r.data || {};
     (e.protoIds[r.point_de_test] = e.protoIds[r.point_de_test] || {})[r.test_type] = r.id;
@@ -400,6 +427,11 @@ function delBtn(table, ids, label, title) {
     '" data-label="' + esc(label) + '" title="' + esc(title) + '">✕' + (title.startsWith('Tout') ? ' tout' : '') + '</button>';
 }
 
+function editBtn(kind, id, title) {
+  if (!delMode) return '';
+  return '<button type="button" class="edit" data-edit="' + kind + '" data-id="' + esc(id) + '" title="' + esc(title) + '">✎</button>';
+}
+
 function rowHTML(e) {
   const lines = [], who = nameOf(e.uid), when = dayLabel(e.date);
   const h = hrSummary(e.hr);
@@ -414,6 +446,7 @@ function rowHTML(e) {
     lines.push('<b>Protocole ' + esc(pt) + '</b>' +
       delBtn('protocol_test_results', types.map(t => ids[t]), 'tout le protocole ' + pt + ' de ' + who + ' du ' + when, 'Tout le protocole ' + pt) +
       ' · ' + types.map(t => PROTO_LABELS[t] + ' ' + esc(protoValue(t, tests[t])) +
+        editBtn('proto', ids[t], 'Modifier ce test') +
         delBtn('protocol_test_results', [ids[t]], 'le test ' + PROTO_LABELS[t] + ' (' + pt + ') de ' + who + ' du ' + when, 'Supprimer ce test')).join(' · '));
   });
   const m = e.meas.filter(r => measValue(r));
@@ -422,7 +455,7 @@ function rowHTML(e) {
   const p = profiles[e.uid] || {}, age = ageAt(p.date_naissance, e.date);
   const info = [p.date_naissance ? GENRE_LABEL[p.sexe] : null, age != null ? age + ' ans' : null,
     age != null ? 'FC max ' + tanaka(age) + ' (Tanaka)' : null].filter(Boolean).join(' · ');
-  return '<div class="arow"><div class="nm">' + esc(nameOf(e.uid)) +
+  return '<div class="arow"><div class="nm">' + esc(nameOf(e.uid)) + editBtn('profile', e.uid, 'Modifier le profil') +
     (info ? ' <span class="muted" style="font-weight:400;font-size:.85rem">' + esc(info) + '</span>' : '') + '</div>' +
     lines.map(l => '<div class="ln">' + l + '</div>').join('') + '</div>';
 }
@@ -467,7 +500,7 @@ $('#btnDelMode').addEventListener('click', () => {
   delMode = !delMode;
   $('#btnDelMode').classList.toggle('on', delMode);
   $('#btnDelMode').setAttribute('aria-pressed', String(delMode));
-  $('#btnDelMode').textContent = delMode ? 'Terminer la suppression' : 'Supprimer des tests';
+  $('#btnDelMode').textContent = delMode ? 'Terminer les corrections' : 'Modifier / supprimer';
   render();
 });
 $('#dataView').addEventListener('click', async (ev) => {
@@ -484,6 +517,117 @@ $('#dataView').addEventListener('click', async (ev) => {
   }
   toast(data.length > 1 ? data.length + ' éléments supprimés' : 'Supprimé ✔');
   await loadData();
+});
+
+/* =====================================================================
+   Modification par le coach — corriger une erreur de saisie d'un adhérent
+   ===================================================================== */
+const STATIONS = ['jacks', 'squats', 'skatings', 'sprawls', 'burpee', 'pompes', 'supermans', 'climbers', 'squat jumps'];
+const EDIT_FIELDS = {   // [clé, libellé, type, options]
+  grip: [['force_main_droite_kg', 'Main droite (kg)', 'number'], ['force_main_gauche_kg', 'Main gauche (kg)', 'number']],
+  pompes: [['pompes_reps', 'Répétitions', 'number'], ['pompes_variante', 'Variante', 'select', ['genoux', 'classique']]],
+  wallsit: [['wallsit_secondes', 'Durée tenue (s)', 'number']],
+  rowing: [['rowing_reps', 'Répétitions', 'number'], ['rowing_modalite', 'Modalité', 'text'], ['rowing_charge_kg', 'Charge (kg)', 'number']],
+  rdl: [['rdl_reps', 'Répétitions', 'number']],
+  amrap_cardio: [['amrap_tours_complets', 'Tours complets', 'number'], ['amrap_derniere_station', 'Dernière station', 'select', STATIONS],
+    ['no_impact', 'No impact (sans saut)', 'checkbox'], ['duree_min', 'Durée (min)', 'number'],
+    ['fc_moy_amrap', 'FC moyenne', 'number'], ['fc_pic_amrap', 'FC pic', 'number']],
+  rfc: [['fc_pic', 'FC fin d’effort', 'number'], ['fc_2min', 'FC à 2 min', 'number']],
+};
+let editSave = null;
+
+function fieldHTML([key, label, type, options], val) {
+  if (type === 'checkbox') return '<label class="c"><input type="checkbox" name="' + key + '"' + (val ? ' checked' : '') + '> ' + esc(label) + '</label>';
+  if (type === 'select') {
+    const opts = options.slice(); if (val != null && val !== '' && !opts.includes(val)) opts.unshift(val);
+    return '<label class="f">' + esc(label) + '<select name="' + key + '"><option value="">—</option>' +
+      opts.map(o => '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select></label>';
+  }
+  return '<label class="f">' + esc(label) + '<input name="' + key + '" type="' + type + '"' + (type === 'number' ? ' step="any" inputmode="decimal"' : '') +
+    ' value="' + esc(val == null ? '' : val) + '"></label>';
+}
+function openEditor(title, sub, html, onSave) {
+  $('#editTitle').textContent = title;
+  $('#editSub').textContent = sub;
+  $('#editFields').innerHTML = html;
+  editSave = onSave;
+  $('#editDlg').showModal();
+}
+$('#editCancel').addEventListener('click', () => $('#editDlg').close());
+$('#editForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  if (!editSave) return;
+  $('#editSave').disabled = true;
+  try { if (await editSave(new FormData($('#editForm')), $('#editForm'))) { $('#editDlg').close(); await loadData(); } }
+  finally { $('#editSave').disabled = false; }
+});
+
+function editProto(id) {
+  const r = protoRows[id]; if (!r) return;
+  const d = r.data || {}, defs = EDIT_FIELDS[r.test_type] || [];
+  const html = '<div class="grid2">' +
+      fieldHTML(['point_de_test', 'Point de test', 'select', ['T0', 'T1', 'T2', 'T3']], r.point_de_test) +
+      fieldHTML(['date_test', 'Date', 'date'], r.date_test) + '</div>' +
+    '<div class="grid2">' + defs.filter(f => f[2] !== 'checkbox').map(f => fieldHTML(f, d[f[0]])).join('') + '</div>' +
+    defs.filter(f => f[2] === 'checkbox').map(f => fieldHTML(f, d[f[0]])).join('');
+  openEditor('Modifier : ' + PROTO_LABELS[r.test_type], nameOf(r.participant_id), html, async (fd, form) => {
+    const data = Object.assign({}, d);   // garde les autres valeurs (ordre de passage…)
+    for (const [key, , type] of defs) {
+      if (type === 'checkbox') { data[key] = form.elements[key].checked; continue; }
+      const raw = String(fd.get(key) || '').trim();
+      if (raw === '') { delete data[key]; continue; }
+      if (type === 'number') {
+        const n = parseFloat(raw.replace(',', '.'));
+        if (!isFinite(n)) { toast('Valeur invalide : ' + PROTO_LABELS[r.test_type] + ' — ' + key); return false; }
+        data[key] = n;
+      } else data[key] = raw;
+    }
+    if (r.test_type === 'rfc') {   // la baisse de FC suit les deux mesures
+      if (data.fc_pic != null && data.fc_2min != null) data.rfc_2min = data.fc_pic - data.fc_2min; else delete data.rfc_2min;
+    }
+    const point = fd.get('point_de_test') || r.point_de_test, date = fd.get('date_test') || r.date_test;
+    const { data: res, error } = await sb.from('protocol_test_results')
+      .update({ data, point_de_test: point, date_test: date }).eq('id', r.id).select('id');
+    if (error) {
+      toast(error.code === '23505' ? 'Cet adhérent a déjà un résultat ' + PROTO_LABELS[r.test_type] + ' en ' + point + ' — supprime-le d’abord.'
+        : 'Erreur : ' + error.message);
+      return false;
+    }
+    if (!res || !res.length) { toast('Modification refusée — exécute la migration 10 dans Supabase.'); return false; }
+    toast('Résultat corrigé ✔');
+    return true;
+  });
+}
+
+function editProfile(uid) {
+  const p = profiles[uid] || {};
+  const html = '<div class="grid2">' + fieldHTML(['prenom', 'Prénom', 'text'], p.prenom) + fieldHTML(['nom', 'Nom', 'text'], p.nom) +
+    fieldHTML(['cours', 'Cours', 'select', COURS], p.cours) +
+    fieldHTML(['sexe', 'Genre', 'select', ['F', 'H']], p.date_naissance ? p.sexe : '') + '</div>' +
+    fieldHTML(['date_naissance', 'Date de naissance', 'date'], p.date_naissance);
+  openEditor('Modifier le profil', p.email || '', html, async (fd) => {
+    const prenom = String(fd.get('prenom') || '').trim(), nom = String(fd.get('nom') || '').trim();
+    const cours = fd.get('cours') || null, sexe = fd.get('sexe'), naissance = fd.get('date_naissance') || null;
+    if (!prenom || !nom) { toast('Prénom et nom obligatoires.'); return false; }
+    const upd = { prenom, nom, cours, date_naissance: naissance };
+    if (sexe === 'F' || sexe === 'H') upd.sexe = sexe;
+    if (naissance) {
+      const age = ageAt(naissance, dayKey(Date.now()));
+      if (age == null || age < 5 || age > 100) { toast('Date de naissance invalide.'); return false; }
+      upd.fc_max = tanaka(age);   // FC max de Tanaka recalculée
+    }
+    const { data: res, error } = await sb.from('profiles').update(upd).eq('id', uid).select('id');
+    if (error) { toast('Erreur : ' + error.message); return false; }
+    if (!res || !res.length) { toast('Modification refusée — exécute la migration 10 dans Supabase.'); return false; }
+    toast('Profil corrigé ✔');
+    return true;
+  });
+}
+
+$('#dataView').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button.edit'); if (!b) return;
+  if (b.dataset.edit === 'proto') editProto(Number(b.dataset.id));
+  else editProfile(b.dataset.id);
 });
 
 /* =====================================================================

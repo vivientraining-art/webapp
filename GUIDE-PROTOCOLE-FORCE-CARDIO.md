@@ -26,6 +26,8 @@ n'est pas déjà fait :
    oubliée (colonnes nom, cours, date de naissance…) et rend la création de
    compte robuste : elle ne peut plus échouer avec « Erreur base de données à
    la création ». Sans risque, peut être relancée.
+8. `supabase-migration-10-modification-coach.sql` — autorise le compte coach à
+   corriger les résultats et les profils des adhérents.
 
 ## FC max : formule de Tanaka
 
@@ -110,10 +112,12 @@ plus qu'un seul écran :
 - le **temps passé dans chaque zone d'effort** (repos < 50 %, Z1 50–60 %,
   Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 % de la FC max de Tanaka) est
   affiché sous les séances capteur de chaque adhérent, avec une barre colorée ;
-- **Supprimer des tests** active un mode suppression : une croix ✕ apparaît
-  à côté de chaque test (✕ tout supprime un point de test entier), des séances
-  capteur et des mesures. Chaque suppression demande une confirmation et est
-  définitive. Recliquer sur « Terminer la suppression » masque les croix.
+- **Modifier / supprimer** active le mode correction : un crayon ✎ apparaît
+  à côté du nom de chaque adhérent (nom, prénom, cours, genre, date de
+  naissance) et de chaque test (valeurs, point de test, date), et une croix ✕
+  pour supprimer. Les autres valeurs du test sont conservées ; la RFC est
+  recalculée si on corrige une FC, la FC max si on corrige la date de
+  naissance. « Terminer les corrections » masque les boutons.
 
 Chaque adhérent doit renseigner **nom, prénom, cours, genre et date de naissance** (obligatoire à
 l'inscription ; les comptes existants le saisissent à leur prochaine
