@@ -156,6 +156,12 @@
     border-radius:var(--r-md);padding:.9rem 1.05rem;margin:.8rem 0 1rem;font-size:.92rem;line-height:1.6;
   }
   .protocole-box b{color:var(--forest)}
+  .noimpact{display:flex;gap:.6rem;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:10px;
+    padding:.7rem .85rem;margin:.8rem 0;font-size:.92rem;line-height:1.4;cursor:pointer}
+  .noimpact input{width:22px;min-width:0;height:22px;min-height:0;padding:0;margin:0;flex:none;accent-color:var(--pine)}
+  .circuit{columns:2;column-gap:1.4rem;padding-left:1.4rem;margin:.6rem 0 1rem;font-size:.95rem;line-height:1.8}
+  .circuit li.alt{color:var(--pine)}
+  @media (max-width:520px){.circuit{columns:1;line-height:1.65}}
   .stepcard{background:var(--linen);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.3rem;box-shadow:var(--sh-1)}
   .stepmeta{color:var(--muted);font-size:.82rem;margin-bottom:.3rem}
   .rest-box{text-align:center;padding:1rem 0}
@@ -1365,16 +1371,29 @@ const TEST_DEFS = {
     ],
   },
   amrap_cardio: {
-    label: 'AMRAP Cardio 10 min',
+    label: 'AMRAP Cardio 20 min',
     category: 'Cardio',
-    protocole: "Circuit fixe en boucle continue pendant 10 min, à répéter sans interruption : 10 jumping jacks, " +
-      "10 mountain climbers (5/jambe), 8 squats, 5 pompes. Le partenaire compte les tours à voix haute. Au signal " +
-      "stop, noter le nombre de tours complets + la dernière station atteinte dans le tour en cours.",
+    protocole: "Circuit fixe à enchaîner en boucle pendant 20 min, sans interruption (le partenaire compte les tours " +
+      "à voix haute). Au signal stop, noter le nombre de tours complets + la dernière station atteinte dans le tour en cours.",
+    // [nom de la station, répétitions, variante sans saut (option « No impact »)]
+    circuit: [
+      ['Jumping jacks', 20, 'Step jacks — sans saut'],
+      ['Squats', 10],
+      ['Skatings', 10],
+      ['Sprawls', 5],
+      ['Burpee', 1, 'Burpee sans saut — on recule les pieds un par un'],
+      ['Pompes', 5],
+      ['Supermans', 5],
+      ['Mountain climbers', 20],
+      ['Squat jumps', 5, 'Squats sans saut'],
+    ],
+    noImpact: true,
     fields: [
       { key: 'amrap_tours_complets', label: 'Tours complets', type: 'number', step: '1' },
-      { key: 'amrap_derniere_station', label: 'Dernière station atteinte', type: 'select', options: ['jacks', 'climbers', 'squats', 'pompes'] },
+      { key: 'amrap_derniere_station', label: 'Dernière station atteinte', type: 'select',
+        options: ['jacks', 'squats', 'skatings', 'sprawls', 'burpee', 'pompes', 'supermans', 'climbers', 'squat jumps'] },
     ],
-    timedSeconds: 600,
+    timedSeconds: 1200,
   },
 };
 /* Circuit des ateliers de force, passé en rotation : chaque participant démarre
@@ -1407,7 +1426,7 @@ function renderProtoOrder() {
     '<li>Échauffement général 8–10 min <span class="muted">(non noté)</span></li>' +
     order.map((k, n) => '<li><b>Atelier ' + (n + 1) + '</b> — ' + escapeHtml(TEST_DEFS[k].label) + ' <span class="muted">→ ' +
       (n === order.length - 1 ? 'repos long 3–5 min' : 'repos 75 s, puis atelier suivant') + '</span></li>').join('') +
-    '<li>AMRAP Cardio 10 min <span class="muted">→ FC pic/moyenne enregistrées automatiquement</span></li>' +
+    '<li>AMRAP Cardio 20 min <span class="muted">→ FC pic/moyenne enregistrées automatiquement</span></li>' +
     '<li>Récupération FC (RFC) — 2 min <span class="muted">immobile, mesure automatique</span></li>' +
     '<li>Retour au calme <span class="muted">(non noté)</span></li>';
 }
@@ -1672,13 +1691,22 @@ function renderProtoStep() {
       '<input type="' + f.type + '" id="ptf_' + f.key + '" step="' + (f.step || 'any') + '" value="' + escapeHtml(val) + '"></div>';
   }).join('');
 
+  let circuitHtml = '';
+  if (def.circuit) {
+    const ni = !!prev.no_impact;
+    circuitHtml =
+      (def.noImpact ? '<label class="noimpact"><input type="checkbox" id="ptNoImpact"' + (ni ? ' checked' : '') + '> ' +
+        '<span><b>No impact</b> — je ne fais pas les sauts (jumping jacks, squat jumps, burpee)</span></label>' : '') +
+      '<ol class="circuit" id="ptCircuit">' + circuitItems(def, ni) + '</ol>';
+  }
+
   let timerHtml = '';
   if (def.timedSeconds) {
     timerHtml =
       '<div class="rest-box" style="margin-bottom:1rem">' +
         '<div class="rest-count" id="protoAmrapCount">' + mmss(protoAmrapRemaining || def.timedSeconds) + '</div>' +
         '<div class="rest-controls">' +
-          '<button class="btn-soft" id="protoAmrapStart">' + (protoAmrapRunning ? 'En cours…' : 'Démarrer les 10 min') + '</button>' +
+          '<button class="btn-soft" id="protoAmrapStart">' + (protoAmrapRunning ? 'En cours…' : 'Démarrer les ' + def.timedSeconds / 60 + ' min') + '</button>' +
           '<button class="btn-soft" id="protoAmrapReset">Réinitialiser</button>' +
         '</div>' +
       '</div>';
@@ -1690,10 +1718,14 @@ function renderProtoStep() {
       ' · <span class="typebadge">' + escapeHtml(def.category) + '</span></div>' +
     '<h3 style="margin-top:.5rem">' + escapeHtml(def.label) + '</h3>' +
     '<div class="protocole-box"><b>Protocole —</b> ' + escapeHtml(def.protocole) + '</div>' +
+    circuitHtml +
     timerHtml +
     '<div class="formrow">' + fieldsHtml + '</div>' +
     '<div class="formrow" style="margin-top:1.1rem"><button class="btn-primary" id="protoTestSave">Enregistrer et continuer</button></div>';
 
+  if (def.noImpact) {
+    $('#ptNoImpact').addEventListener('change', () => { $('#ptCircuit').innerHTML = circuitItems(def, $('#ptNoImpact').checked); });
+  }
   if (def.timedSeconds) {
     if (protoAmrapRemaining === 0) protoAmrapRemaining = def.timedSeconds;
     $('#protoAmrapStart').addEventListener('click', () => {
@@ -1707,7 +1739,7 @@ function renderProtoStep() {
         const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(protoAmrapRemaining);
         if (protoAmrapRemaining === 0) {
           clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
-          toast('10 minutes écoulées — note ton résultat.');
+          toast(def.timedSeconds / 60 + ' minutes écoulées — note ton résultat.');
           const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Terminé';
         }
       }, 1000);
@@ -1717,7 +1749,7 @@ function renderProtoStep() {
       protoAmrapRemaining = def.timedSeconds;
       protoAmrapHr = { sum: 0, n: 0, max: 0 };
       const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(protoAmrapRemaining);
-      const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Démarrer les 10 min';
+      const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Démarrer les ' + def.timedSeconds / 60 + ' min';
     });
   }
 
@@ -1731,6 +1763,8 @@ function renderProtoStep() {
       }
       data[f.key] = f.type === 'number' ? parseFloat(raw) : raw;
     }
+    if (def.noImpact) data.no_impact = $('#ptNoImpact').checked;
+    if (def.timedSeconds) data.duree_min = def.timedSeconds / 60;   // distingue l'ancien AMRAP de 10 min
     if (step.atelier) data.ordre_passage = step.atelier;   // position dans la rotation (1 = atelier de départ)
     if (step.key === 'amrap_cardio' && protoAmrapHr.n > 0) {
       data.fc_moy_amrap = Math.round(protoAmrapHr.sum / protoAmrapHr.n);
@@ -1760,6 +1794,13 @@ function renderProtoStep() {
   });
 }
 
+function circuitItems(def, noImpact) {
+  return def.circuit.map(([nom, reps, sansSaut]) => {
+    const alt = noImpact && sansSaut;
+    return '<li' + (alt ? ' class="alt"' : '') + '><b>' + reps + '</b> ' + escapeHtml(alt ? sansSaut : nom) + '</li>';
+  }).join('');
+}
+
 function formatProtoData(testType, data) {
   data = data || {};
   switch (testType) {
@@ -1769,6 +1810,7 @@ function formatProtoData(testType, data) {
     case 'rowing': return (data.rowing_reps ?? '—') + ' reps' + (data.rowing_modalite ? ' · ' + data.rowing_modalite : '') + (data.rowing_charge_kg != null ? ' · ' + data.rowing_charge_kg + ' kg' : '');
     case 'rdl': return (data.rdl_reps ?? '—') + ' reps';
     case 'amrap_cardio': return (data.amrap_tours_complets ?? '—') + ' tours (arrêt : ' + (data.amrap_derniere_station ?? '—') + ')' +
+      ' · ' + (data.duree_min || 10) + ' min' + (data.no_impact ? ' · no impact' : '') +
       (data.fc_pic_amrap != null ? ' · FC pic ' + data.fc_pic_amrap : '') + (data.fc_moy_amrap != null ? ' / moy ' + data.fc_moy_amrap : '');
     case 'rfc': return data.rfc_2min != null
       ? '−' + data.rfc_2min + ' bpm (' + data.fc_pic + ' → ' + data.fc_2min + ')'

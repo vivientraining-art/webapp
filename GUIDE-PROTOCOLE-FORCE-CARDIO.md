@@ -58,7 +58,15 @@ Onglet **Protocole test** :
 3. **Commencer le protocole** : l'app guide dans l'ordre prévu (échauffement,
    préhension, pompes, wall-sit, rowing, RDL, repos, AMRAP cardio, récupération
    FC, retour au calme), avec minuteurs de repos intégrés (60–90 s, puis
-   3–5 min avant le cardio) et chrono de 10 min pour l'AMRAP.
+   3–5 min avant le cardio) et chrono de **20 min** pour l'AMRAP.
+   - Circuit de l'AMRAP, en boucle : 20 jumping jacks, 10 squats, 10 skatings,
+     5 sprawls, 1 burpee, 5 pompes, 5 supermans, 20 mountain climbers,
+     5 squat jumps.
+   - Case **No impact** : pour ceux qui ne peuvent pas sauter, les jumping
+     jacks deviennent des step jacks, les squat jumps des squats et le burpee
+     se fait sans saut. Le choix est enregistré avec le résultat (colonne
+     `amrap_no_impact`), ainsi que la durée (`amrap_duree_min` : 20 ; vide
+     pour les anciens AMRAP de 10 min, à ne pas comparer directement).
    - Si un capteur est connecté, la FC pic et la FC moyenne pendant l'AMRAP
      sont enregistrées automatiquement avec le résultat du test.
    - Juste après l'AMRAP, un chrono de **2 minutes de récupération** démarre
