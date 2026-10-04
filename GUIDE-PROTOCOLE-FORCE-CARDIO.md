@@ -22,6 +22,10 @@ n'est pas déjà fait :
    naissance ; la FC max est calculée avec la formule de Tanaka.
 6. `supabase-migration-8-suppression-coach.sql` — autorise le compte coach à
    supprimer des tests depuis l'espace coach.
+7. `supabase-migration-9-reparation-inscription.sql` — rattrape une migration
+   oubliée (colonnes nom, cours, date de naissance…) et rend la création de
+   compte robuste : elle ne peut plus échouer avec « Erreur base de données à
+   la création ». Sans risque, peut être relancée.
 
 ## FC max : formule de Tanaka
 
