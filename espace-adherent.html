@@ -1338,10 +1338,11 @@ const TEST_DEFS = {
   pompes: {
     label: 'Pecs — Pompes 1 min',
     category: 'Force — Haut du corps',
-    protocole: "Max de répétitions techniques en 1 minute, variante genoux ou classique au choix du participant.",
+    protocole: "Max de répétitions techniques en 1 minute. Trois variantes : 1. genoux sans gainage, 2. genoux avec " +
+      "gainage, 3. jambes tendues. Choisir celle que l'on tient proprement 1 minute, et garder la même à chaque point de test.",
     fields: [
       { key: 'pompes_reps', label: 'Répétitions', type: 'number', step: '1' },
-      { key: 'pompes_variante', label: 'Variante', type: 'select', options: ['genoux', 'classique'] },
+      { key: 'pompes_variante', label: 'Variante', type: 'select', options: ['genoux sans gainage', 'genoux avec gainage', 'jambes tendues'] },
     ],
   },
   wallsit: {

@@ -104,6 +104,29 @@
   #editDlg .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 .7rem}
   #editDlg .acts{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.4rem}
   .empty{color:var(--muted);font-size:.92rem}
+  #fView button{padding:.5rem .8rem}
+  .recaphead{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin-bottom:.4rem}
+  .recaphead h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.15rem;margin:0}
+  .recapnote{font-size:.82rem;color:var(--muted);line-height:1.5;margin-bottom:.3rem}
+  .rtbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:.5rem}
+  .rtbl{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums;min-width:560px}
+  .rtbl th,.rtbl td{padding:.45rem .5rem;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+  .rtbl th:first-child,.rtbl td:first-child{text-align:left}
+  .rtbl thead th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+  .rtbl td b{font-size:.98rem}
+  .rtbl small{display:block;color:var(--muted);font-size:.72rem}
+  .rtbl tr.count td{background:#F4EFE4;font-weight:600}
+  .evo.up{color:#3E7D45;font-weight:700}
+  .evo.down{color:var(--terra-deep);font-weight:700}
+  @media print{
+    @page{margin:12mm}
+    body{background:#fff}
+    header,#livePanel,#filtersPanel,.noprint,#toast,#editDlg{display:none!important}
+    .wrap{max-width:none;padding:0}
+    .panel{box-shadow:none;break-inside:avoid;border-color:#ccc}
+    .rtbl{min-width:0;font-size:9.5pt}
+    .rtbl-wrap{overflow:visible}
+  }
   /* ---- Connexion ---- */
   #authGate{position:fixed;inset:0;z-index:80;background:var(--forest);color:#F4F0E6;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:1.2rem;text-align:center;padding:1.5rem}
@@ -146,8 +169,12 @@
 </header>
 
 <main class="wrap">
-  <div class="panel">
+  <div class="panel" id="filtersPanel">
     <div class="filters">
+      <div class="seg" id="fView">
+        <button type="button" data-v="detail" class="sel">Détail</button>
+        <button type="button" data-v="recap">Récap des groupes</button>
+      </div>
       <div class="seg" id="fCours">
         <button type="button" data-c="" class="sel">Tous</button>
         <button type="button" data-c="Gironville">Gironville</button>
@@ -277,7 +304,7 @@ async function checkCoach(user) {
    ===================================================================== */
 let profiles = {};          // id -> profil
 let entries = new Map();    // "uid|AAAA-MM-JJ" -> { uid, date, hr: [], proto: { T0: { type: data } }, meas: [] }
-let fCours = '', fDate = '';
+let fCours = '', fDate = '', view = 'detail';
 let protoRows = {};          // id -> ligne protocol_test_results (pour la modification)
 
 async function fetchAll(table, cols) {
@@ -461,6 +488,7 @@ function rowHTML(e) {
 }
 
 function render() {
+  if (view === 'recap') { renderRecap(); renderLive(); return; }
   const list = selected();
   const nbAdh = new Set(list.map(e => e.uid)).size;
   const nbDays = new Set(list.map(e => e.date)).size;
@@ -491,6 +519,12 @@ $('#fCours').addEventListener('click', (e) => {
 });
 $('#fDate').addEventListener('change', () => { fDate = $('#fDate').value; render(); });
 $('#btnRefresh').addEventListener('click', loadData);
+$('#fView').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  $$('#fView button').forEach(x => x.classList.toggle('sel', x === b));
+  view = b.dataset.v;
+  render();
+});
 
 /* =====================================================================
    Suppression de tests — mode activé volontairement, confirmation à chaque fois
@@ -522,10 +556,11 @@ $('#dataView').addEventListener('click', async (ev) => {
 /* =====================================================================
    Modification par le coach — corriger une erreur de saisie d'un adhérent
    ===================================================================== */
+const POMPES_VARIANTES = ['genoux sans gainage', 'genoux avec gainage', 'jambes tendues'];
 const STATIONS = ['jacks', 'squats', 'skatings', 'sprawls', 'burpee', 'pompes', 'supermans', 'climbers', 'squat jumps'];
 const EDIT_FIELDS = {   // [clé, libellé, type, options]
   grip: [['force_main_droite_kg', 'Main droite (kg)', 'number'], ['force_main_gauche_kg', 'Main gauche (kg)', 'number']],
-  pompes: [['pompes_reps', 'Répétitions', 'number'], ['pompes_variante', 'Variante', 'select', ['genoux', 'classique']]],
+  pompes: [['pompes_reps', 'Répétitions', 'number'], ['pompes_variante', 'Variante', 'select', POMPES_VARIANTES]],
   wallsit: [['wallsit_secondes', 'Durée tenue (s)', 'number']],
   rowing: [['rowing_reps', 'Répétitions', 'number'], ['rowing_modalite', 'Modalité', 'text'], ['rowing_charge_kg', 'Charge (kg)', 'number']],
   rdl: [['rdl_reps', 'Répétitions', 'number']],
@@ -629,6 +664,152 @@ $('#dataView').addEventListener('click', (ev) => {
   if (b.dataset.edit === 'proto') editProto(Number(b.dataset.id));
   else editProfile(b.dataset.id);
 });
+
+/* =====================================================================
+   Récap des performances par groupe (cours) et par point de test
+   ===================================================================== */
+const POINTS = ['T0', 'T1', 'T2', 'T3'];
+// Anciens libellés de variante de pompes → libellés actuels
+const POMPES_ALIAS = { classique: 'jambes tendues', genoux: 'genoux (ancien libellé)' };
+const pompesVar = (d) => POMPES_ALIAS[d.pompes_variante] || d.pompes_variante || 'variante non précisée';
+const num = (x) => (x == null || x === '' || !isFinite(Number(x))) ? null : Number(x);
+const r1 = (x) => Math.round(x * 10) / 10;
+/* better : 1 = plus c'est haut, mieux c'est ; 0 = indicateur neutre (FC) */
+const RECAP_INDICATORS = [
+  { label: 'Préhension main droite', unit: 'kg', type: 'grip', get: d => num(d.force_main_droite_kg), better: 1 },
+  { label: 'Préhension main gauche', unit: 'kg', type: 'grip', get: d => num(d.force_main_gauche_kg), better: 1 },
+  ...POMPES_VARIANTES.concat('genoux (ancien libellé)', 'variante non précisée').map(vr => (
+    { label: 'Pompes — ' + vr, unit: 'reps', type: 'pompes', get: d => pompesVar(d) === vr ? num(d.pompes_reps) : null, better: 1, optional: true })),
+  { label: 'Wall-sit', unit: 's', type: 'wallsit', get: d => num(d.wallsit_secondes), better: 1 },
+  { label: 'Rowing', unit: 'reps', type: 'rowing', get: d => num(d.rowing_reps), better: 1 },
+  { label: 'RDL', unit: 'reps', type: 'rdl', get: d => num(d.rdl_reps), better: 1 },
+  { label: 'AMRAP 20 min — tours complets', unit: 'tours', type: 'amrap_cardio', get: d => (d.duree_min || 10) === 20 ? num(d.amrap_tours_complets) : null, better: 1 },
+  { label: 'AMRAP 10 min (ancien format) — tours', unit: 'tours', type: 'amrap_cardio', get: d => (d.duree_min || 10) === 10 ? num(d.amrap_tours_complets) : null, better: 1, optional: true },
+  { label: 'AMRAP — FC moyenne', unit: 'bpm', type: 'amrap_cardio', get: d => num(d.fc_moy_amrap), better: 0 },
+  { label: 'AMRAP — FC pic', unit: 'bpm', type: 'amrap_cardio', get: d => num(d.fc_pic_amrap), better: 0 },
+  { label: 'RFC — baisse de FC en 2 min', unit: 'bpm', type: 'rfc', get: d => num(d.rfc_2min), better: 1 },
+];
+
+function stats(vals) {
+  if (!vals.length) return null;
+  const a = vals.slice().sort((x, y) => x - y), n = a.length, mean = a.reduce((s, x) => s + x, 0) / n;
+  const median = n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2;
+  const sd = n > 1 ? Math.sqrt(a.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1)) : 0;
+  return { n, mean, median, sd, min: a[0], max: a[n - 1] };
+}
+
+/* Résultats retenus : filtre cours + date de la barre du haut. */
+function recapRows() {
+  return Object.values(protoRows).filter(r => (!fDate || r.date_test === fDate) && (!fCours || coursOf(r.participant_id) === fCours));
+}
+
+/* Calcule le récap d'un ensemble de résultats (un groupe, ou tous). */
+function computeRecap(rows) {
+  const byPoint = {};   // point -> uid -> type -> data
+  rows.forEach(r => (((byPoint[r.point_de_test] = byPoint[r.point_de_test] || {})[r.participant_id] =
+    byPoint[r.point_de_test][r.participant_id] || {})[r.test_type] = r.data || {}));
+  const points = POINTS.filter(p => byPoint[p]);
+  const counts = {}; points.forEach(p => { counts[p] = Object.keys(byPoint[p]).length; });
+  const noImpact = {}; points.forEach(p => { noImpact[p] = Object.values(byPoint[p]).filter(t => t.amrap_cardio && t.amrap_cardio.no_impact).length; });
+  const lines = RECAP_INDICATORS.map(ind => {
+    const per = {}, vals = {};
+    points.forEach(p => {
+      vals[p] = {};
+      Object.entries(byPoint[p]).forEach(([uid, t]) => { const x = t[ind.type] ? ind.get(t[ind.type]) : null; if (x != null) vals[p][uid] = x; });
+      per[p] = stats(Object.values(vals[p]));
+    });
+    const present = points.filter(p => per[p]);
+    let evo = null;   // premier → dernier point, sur les adhérents présents aux deux (comparaison appariée)
+    if (present.length >= 2) {
+      const a = present[0], b = present[present.length - 1];
+      const ids = Object.keys(vals[a]).filter(u => u in vals[b]);
+      if (ids.length) {
+        const diff = ids.reduce((s, u) => s + vals[b][u] - vals[a][u], 0) / ids.length;
+        const base = ids.reduce((s, u) => s + vals[a][u], 0) / ids.length;
+        evo = { from: a, to: b, n: ids.length, diff, pct: base ? diff / base * 100 : null };
+      }
+    }
+    return { ind, per, evo, has: present.length > 0 };
+  }).filter(l => l.has || !l.ind.optional);
+  return { points, counts, noImpact, lines };
+}
+
+function evoHTML(ind, evo) {
+  if (!evo) return '—';
+  const sign = evo.diff > 0 ? '+' : evo.diff < 0 ? '−' : '±';
+  const cls = !ind.better || !evo.diff ? '' : evo.diff > 0 ? ' up' : ' down';
+  return '<span class="evo' + cls + '">' + sign + frNum(r1(Math.abs(evo.diff))) +
+    (evo.pct != null ? ' (' + sign + frNum(Math.round(Math.abs(evo.pct))) + ' %)' : '') + '</span>' +
+    '<small>' + evo.from + ' → ' + evo.to + ' · n = ' + evo.n + '</small>';
+}
+
+function recapTable(title, rec) {
+  if (!rec.points.length) return '';
+  const th = rec.points.map(p => '<th>' + p + '</th>').join('');
+  const body =
+    '<tr class="count"><td>Adhérents testés</td>' + rec.points.map(p => '<td>' + rec.counts[p] + '</td>').join('') + '<td></td></tr>' +
+    rec.lines.map(l => '<tr><td>' + esc(l.ind.label) + ' <small>' + esc(l.ind.unit) + '</small></td>' +
+      rec.points.map(p => {
+        const st = l.per[p];
+        return '<td>' + (st ? '<b>' + frNum(r1(st.mean)) + '</b><small>' + frNum(r1(st.min)) + '–' + frNum(r1(st.max)) + ' · n = ' + st.n + '</small>' : '—') + '</td>';
+      }).join('') + '<td>' + evoHTML(l.ind, l.evo) + '</td></tr>').join('') +
+    '<tr><td>AMRAP en « no impact » <small>adhérents</small></td>' + rec.points.map(p => '<td>' + rec.noImpact[p] + '</td>').join('') + '<td></td></tr>';
+  return '<section class="panel"><div class="recaphead"><h2>' + esc(title) + '</h2></div>' +
+    '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Indicateur</th>' + th + '<th>Évolution</th></tr></thead><tbody>' +
+    body + '</tbody></table></div></section>';
+}
+
+function recapGroups() {
+  const rows = recapRows();
+  const groups = fCours ? [fCours] : COURS.concat(SANS_COURS);
+  const out = groups.map(g => ({ title: g, rec: computeRecap(rows.filter(r => coursOf(r.participant_id) === g)) }))
+    .filter(x => x.rec.points.length);
+  if (!fCours && out.length > 1) out.push({ title: 'Tous les groupes', rec: computeRecap(rows) });
+  return out;
+}
+
+function renderRecap() {
+  const groups = recapGroups();
+  const scope = (fCours || 'tous les cours') + ' · ' + (fDate ? dayLabel(fDate) : 'toutes les dates');
+  $('#summary').textContent = groups.length ? 'Récap des performances — ' + scope + '.' : 'Aucun résultat de protocole pour cette sélection.';
+  $('#dataView').innerHTML =
+    '<div class="panel"><div class="recaphead"><h2>Récap des performances</h2><div class="spacer"></div>' +
+      '<button class="btn-soft noprint" id="btnRecapPrint">Imprimer / PDF</button>' +
+      '<button class="btn-primary noprint" id="btnRecapCsv">Exporter le récap (CSV)</button></div>' +
+      '<p class="recapnote">' + esc(scope.charAt(0).toUpperCase() + scope.slice(1)) + '. Chaque case : <b>moyenne</b>, puis min–max et nombre ' +
+      'd’adhérents. Évolution : écart moyen entre le premier et le dernier point de test, calculé uniquement sur les adhérents ' +
+      'présents aux deux (vert = progrès, pour les indicateurs où plus haut est mieux ; la FC est neutre). Pompes : une ligne par ' +
+      'variante, pour ne comparer que des résultats comparables.</p></div>' +
+    (groups.map(g => recapTable(g.title, g.rec)).join('') || '<div class="panel empty">Aucun résultat de protocole pour cette sélection.</div>');
+  const bp = $('#btnRecapPrint'); if (bp) bp.addEventListener('click', () => window.print());
+  const bc = $('#btnRecapCsv'); if (bc) bc.addEventListener('click', () => {
+    if (!groups.length) { toast('Aucun résultat à exporter.'); return; }
+    download(buildRecapCsv(groups), 'recap_' + (fCours || 'tous-cours') + '_' + (fDate || 'toutes-dates') + '_' + stamp() + '.csv');
+  });
+}
+
+/* Une ligne par groupe et par indicateur ; pour chaque point de test :
+   n, moyenne, médiane, écart-type, min, max ; puis l'évolution appariée. */
+function buildRecapCsv(groups) {
+  const head = ['cours', 'indicateur', 'unite'];
+  POINTS.forEach(p => head.push(p + '_n', p + '_moyenne', p + '_mediane', p + '_ecart_type', p + '_min', p + '_max'));
+  head.push('evolution_de', 'evolution_a', 'evolution_n_apparies', 'evolution_ecart_moyen', 'evolution_pct');
+  const lines = [head.join(';')];
+  groups.forEach(({ title, rec }) => {
+    lines.push([title, 'Adhérents testés', 'adhérents'].concat(...POINTS.map(p => [rec.counts[p] ?? '', '', '', '', '', '']), ['', '', '', '', ''])
+      .map(csvCell).join(';'));
+    rec.lines.forEach(l => {
+      const row = [title, l.ind.label, l.ind.unit];
+      POINTS.forEach(p => { const st = l.per[p]; row.push(...(st ? [st.n, r1(st.mean), r1(st.median), r1(st.sd), st.min, st.max] : ['', '', '', '', '', ''])); });
+      const e = l.evo;
+      row.push(...(e ? [e.from, e.to, e.n, r1(e.diff), e.pct != null ? r1(e.pct) : ''] : ['', '', '', '', '']));
+      lines.push(row.map(csvCell).join(';'));
+    });
+    lines.push([title, 'AMRAP en no impact', 'adhérents'].concat(...POINTS.map(p => [rec.noImpact[p] ?? '', '', '', '', '', '']), ['', '', '', '', ''])
+      .map(csvCell).join(';'));
+  });
+  return lines.join('\n') + '\n';
+}
 
 /* =====================================================================
    Export CSV de la sélection (cours + date) — valeurs brutes
