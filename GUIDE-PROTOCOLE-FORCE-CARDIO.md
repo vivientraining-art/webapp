@@ -98,6 +98,12 @@ Onglet **Protocole test** :
    (✕ à côté d'une séance capteur, d'une mesure ou d'un résultat, ou bouton
    « Supprimer le test T0 » pour toute une passation), avec confirmation.
 
+## Pompes : 3 variantes
+
+1. genoux sans gainage, 2. genoux avec gainage, 3. jambes tendues. Chaque
+adhérent garde la même variante à chaque point de test. Les anciens résultats
+notés « classique » sont comptés comme « jambes tendues » dans le récap.
+
 ## Côté coach
 
 Tout se passe dans l'**espace coach** (`moniteur-groupe-polar.html`), qui n'a
@@ -112,6 +118,15 @@ plus qu'un seul écran :
 - le **temps passé dans chaque zone d'effort** (repos < 50 %, Z1 50–60 %,
   Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 % de la FC max de Tanaka) est
   affiché sous les séances capteur de chaque adhérent, avec une barre colorée ;
+- **Récap des groupes** (bouton à gauche des filtres) : pour chaque cours, puis
+  tous groupes confondus, un tableau des moyennes par point de test (T0…T3)
+  avec min–max et nombre d'adhérents, et l'**évolution** entre le premier et le
+  dernier point de test, calculée uniquement sur les adhérents présents aux
+  deux (comparaison appariée). Les pompes ont une ligne par variante. Les
+  filtres cours et date s'appliquent. **Exporter le récap (CSV)** donne, par
+  groupe et par indicateur : n, moyenne, médiane, écart-type, min, max pour
+  chaque point de test, puis l'évolution ; **Imprimer / PDF** produit une
+  version propre à partager.
 - **Modifier / supprimer** active le mode correction : un crayon ✎ apparaît
   à côté du nom de chaque adhérent (nom, prénom, cours, genre, date de
   naissance) et de chaque test (valeurs, point de test, date), et une croix ✕
