@@ -364,6 +364,7 @@ function protoValue(type, d) {
     case 'rowing': return v(d.rowing_reps) + ' reps' + (d.rowing_charge_kg != null ? ' · ' + frNum(d.rowing_charge_kg) + ' kg' : '');
     case 'rdl': return v(d.rdl_reps) + ' reps';
     case 'amrap_cardio': return v(d.amrap_tours_complets) + ' tours' + (d.amrap_derniere_station ? ' (' + d.amrap_derniere_station + ')' : '') +
+      ' · ' + (d.duree_min || 10) + ' min' + (d.no_impact ? ' · no impact' : '') +
       (d.fc_moy_amrap != null ? ' · FC moy ' + d.fc_moy_amrap : '') + (d.fc_pic_amrap != null ? ' / pic ' + d.fc_pic_amrap : '');
     case 'rfc': return d.rfc_2min != null ? '−' + d.rfc_2min + ' bpm en 2 min' : '—';
     default: return '—';
@@ -495,12 +496,14 @@ const EXPORT_COLUMNS = [
   ['rowing_reps', 'rowing', 'rowing_reps'], ['rowing_modalite', 'rowing', 'rowing_modalite'], ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
   ['rdl_reps', 'rdl', 'rdl_reps'],
   ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'], ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],
+  ['amrap_duree_min', 'amrap_cardio', 'duree_min'], ['amrap_no_impact', 'amrap_cardio', 'no_impact'],
   ['amrap_fc_moy', 'amrap_cardio', 'fc_moy_amrap'], ['amrap_fc_pic', 'amrap_cardio', 'fc_pic_amrap'],
   ['rfc_fc_fin_effort', 'rfc', 'fc_pic'], ['rfc_fc_2min', 'rfc', 'fc_2min'], ['rfc_baisse_bpm', 'rfc', 'rfc_2min'],
 ];
 function csvCell(x) {
   if (x == null) return '';
   if (typeof x === 'number') return frNum(x);
+  if (typeof x === 'boolean') return x ? 'oui' : 'non';
   return String(x).replace(/[;\r\n]+/g, ' ');
 }
 
