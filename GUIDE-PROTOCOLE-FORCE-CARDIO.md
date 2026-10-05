@@ -118,6 +118,9 @@ plus qu'un seul écran :
 - le **temps passé dans chaque zone d'effort** (repos < 50 %, Z1 50–60 %,
   Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 % de la FC max de Tanaka) est
   affiché sous les séances capteur de chaque adhérent, avec une barre colorée ;
+- **Inscrits** : la liste de tous les comptes adhérents par cours, même ceux
+  qui n'ont encore rien enregistré (e-mail, genre, âge, date d'inscription,
+  tests passés, séances capteur, profil incomplet signalé), exportable en CSV.
 - **Récap des groupes** (bouton à gauche des filtres) : pour chaque cours, puis
   tous groupes confondus, un tableau des moyennes par point de test (T0…T3)
   avec min–max et nombre d'adhérents, et l'**évolution** entre le premier et le

@@ -174,6 +174,7 @@
       <div class="seg" id="fView">
         <button type="button" data-v="detail" class="sel">Détail</button>
         <button type="button" data-v="recap">Récap des groupes</button>
+        <button type="button" data-v="inscrits">Inscrits</button>
       </div>
       <div class="seg" id="fCours">
         <button type="button" data-c="" class="sel">Tous</button>
@@ -346,7 +347,7 @@ async function loadData() {
   let profs, hrs, protos, meas;
   try {
     [profs, hrs, protos, meas] = await Promise.all([
-      fetchAll('profiles', 'id,prenom,nom,cours,email,sexe,date_naissance,fc_max'),
+      fetchAll('profiles', 'id,prenom,nom,cours,email,sexe,date_naissance,fc_max,role,created_at,consent_at'),
       fetchAll('hr_sessions', 'id,user_id,started_at,duration_s,hr_avg,hr_peak,rmssd,zone_seconds'),
       fetchAll('protocol_test_results', 'id,participant_id,point_de_test,date_test,test_type,data'),
       fetchAll('measurements', 'id,user_id,type,data,recorded_at'),
@@ -489,6 +490,7 @@ function rowHTML(e) {
 
 function render() {
   if (view === 'recap') { renderRecap(); renderLive(); return; }
+  if (view === 'inscrits') { renderInscrits(); renderLive(); return; }
   const list = selected();
   const nbAdh = new Set(list.map(e => e.uid)).size;
   const nbDays = new Set(list.map(e => e.date)).size;
@@ -809,6 +811,58 @@ function buildRecapCsv(groups) {
       .map(csvCell).join(';'));
   });
   return lines.join('\n') + '\n';
+}
+
+/* =====================================================================
+   Inscrits — tous les comptes adhérents, avec ou sans données
+   ===================================================================== */
+function inscritsList() {
+  return Object.values(profiles)
+    .filter(p => p.role !== 'coach' && (!fCours || coursOf(p.id) === fCours))
+    .map(p => {
+      const pts = Array.from(new Set(Object.values(protoRows).filter(r => r.participant_id === p.id).map(r => r.point_de_test))).sort();
+      const seances = Array.from(entries.values()).filter(e => e.uid === p.id).reduce((n, e) => n + e.hr.length, 0);
+      const complet = !!(p.prenom && p.nom && COURS.includes(p.cours) && p.date_naissance);
+      return { p, pts, seances, complet, age: ageAt(p.date_naissance, dayKey(Date.now())) };
+    })
+    .sort((a, b) => coursOf(a.p.id).localeCompare(coursOf(b.p.id)) || nameOf(a.p.id).localeCompare(nameOf(b.p.id), 'fr'));
+}
+const frDay = (ts) => ts ? new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+function renderInscrits() {
+  const list = inscritsList();
+  const incomplets = list.filter(x => !x.complet).length, sansTest = list.filter(x => !x.pts.length).length;
+  $('#summary').textContent = list.length
+    ? list.length + ' inscrit' + (list.length > 1 ? 's' : '') + (fCours ? ' à ' + fCours : '') + ' · ' +
+      sansTest + ' sans test enregistré' + (incomplets ? ' · ' + incomplets + ' profil' + (incomplets > 1 ? 's' : '') + ' incomplet' + (incomplets > 1 ? 's' : '') : '') + '.'
+    : 'Aucun inscrit pour cette sélection.';
+  const groups = fCours ? [fCours] : COURS.concat(SANS_COURS);
+  $('#dataView').innerHTML =
+    '<div class="panel noprint"><div class="recaphead"><h2>Inscrits</h2><div class="spacer"></div>' +
+      '<button class="btn-primary" id="btnInscritsCsv">Exporter la liste (CSV)</button></div>' +
+      '<p class="recapnote">Tous les comptes adhérents, y compris ceux qui n’ont encore rien enregistré. « Profil incomplet » : ' +
+      'l’adhérent devra renseigner nom, cours ou date de naissance à sa prochaine connexion (ou corrige-le avec « Modifier / supprimer »).</p></div>' +
+    (groups.map(g => {
+      const rows = list.filter(x => coursOf(x.p.id) === g);
+      if (!rows.length) return '';
+      return '<section class="panel"><div class="recaphead"><h2>' + esc(g) + '</h2><span class="muted">' + rows.length + ' inscrit' + (rows.length > 1 ? 's' : '') + '</span></div>' +
+        '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Nom</th><th>E-mail</th><th>Genre · âge</th><th>Inscrit le</th><th>Tests passés</th><th>Séances capteur</th></tr></thead><tbody>' +
+        rows.map(x => '<tr><td><b>' + esc(nameOf(x.p.id)) + '</b>' + editBtn('profile', x.p.id, 'Modifier le profil') +
+          (x.complet ? '' : '<small style="color:var(--terra-deep)">Profil incomplet</small>') + '</td>' +
+          '<td>' + esc(x.p.email || '') + '</td>' +
+          '<td>' + (x.p.date_naissance ? esc(GENRE_LABEL[x.p.sexe] || '') + (x.age != null ? ' · ' + x.age + ' ans' : '') : '—') + '</td>' +
+          '<td>' + frDay(x.p.created_at) + '</td>' +
+          '<td>' + (x.pts.length ? x.pts.join(', ') : '<span class="muted">aucun</span>') + '</td>' +
+          '<td>' + (x.seances || '—') + '</td></tr>').join('') +
+        '</tbody></table></div></section>';
+    }).join('') || '<div class="panel empty">Aucun inscrit pour cette sélection.</div>');
+  const b = $('#btnInscritsCsv'); if (b) b.addEventListener('click', () => {
+    if (!list.length) { toast('Aucun inscrit à exporter.'); return; }
+    const lines = [['cours', 'nom', 'prenom', 'email', 'genre', 'age', 'date_naissance', 'inscrit_le', 'profil_complet', 'tests_passes', 'seances_capteur'].join(';')];
+    list.forEach(x => lines.push([coursOf(x.p.id), x.p.nom, x.p.prenom, x.p.email, x.p.date_naissance ? GENRE_LABEL[x.p.sexe] : '', x.age,
+      x.p.date_naissance, x.p.created_at ? dayKey(x.p.created_at) : '', x.complet, x.pts.join(' '), x.seances].map(csvCell).join(';')));
+    download(lines.join('\n') + '\n', 'inscrits_' + (fCours || 'tous-cours') + '_' + stamp() + '.csv');
+  });
 }
 
 /* =====================================================================
