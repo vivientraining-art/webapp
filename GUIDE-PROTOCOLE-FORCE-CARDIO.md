@@ -107,6 +107,23 @@ Onglet **Protocole test** :
 adhérent garde la même variante à chaque point de test. Les anciens résultats
 notés « classique » sont comptés comme « jambes tendues » dans le récap.
 
+## Standardisation (pour des progrès comparables d'un test à l'autre)
+
+- **Préhension en premier pour tout le monde**, juste après l'échauffement,
+  puis **4 ateliers en rotation** (pompes, wall-sit, rowing, RDL).
+- **Charges obligatoires** : rowing (matériel : barre, haltères ou kettlebell
+  + charge totale) et RDL (charge totale des 2 haltères).
+- **Wall-sit plafonné à 3 min** : chrono intégré (Démarrer / Arrêt au
+  décroché), qui s'arrête seul à 3:00 et remplit la durée.
+- **Effort ressenti** (0 à 10) noté à la fin de l'AMRAP.
+- **Conditions du T0 reprises automatiquement** aux T1, T2, T3 : atelier de
+  départ, variante de pompes, matériel et charges, « No impact ». L'adhérent
+  voit un rappel « comme au T0 » et peut corriger si le coach le demande.
+- À annoncer aux adhérents : même jour et même heure à chaque test, pas de
+  séance intense dans les 48 h avant, mêmes habitudes (repas, café, sommeil),
+  même position pendant les 2 min de récupération. Faire remplir le Q-AAP
+  (questionnaire de santé) avant le T0.
+
 ## Côté coach
 
 Tout se passe dans l'**espace coach** (`moniteur-groupe-polar.html`), qui n'a
