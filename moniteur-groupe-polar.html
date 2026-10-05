@@ -306,7 +306,8 @@ async function checkCoach(user) {
 let profiles = {};          // id -> profil
 let entries = new Map();    // "uid|AAAA-MM-JJ" -> { uid, date, hr: [], proto: { T0: { type: data } }, meas: [] }
 let fCours = '', fDate = '', view = 'detail';
-let protoRows = {};          // id -> ligne protocol_test_results (pour la modification)
+let protoRows = {};
+let authUsers = null;        // comptes Supabase (migration 11) : id -> { email, created_at, email_confirmed_at, last_sign_in_at }          // id -> ligne protocol_test_results (pour la modification)
 
 async function fetchAll(table, cols) {
   const out = [];
@@ -359,6 +360,15 @@ async function loadData() {
   }
   profiles = {};
   profs.forEach(p => { profiles[p.id] = p; });
+  // Tous les comptes, y compris sans profil ou e-mail non confirmé (fonction de la migration 11, facultative)
+  authUsers = null;
+  try {
+    const { data: users, error: uerr } = await sb.rpc('coach_list_users');
+    if (!uerr && Array.isArray(users)) { authUsers = {}; users.forEach(u => { authUsers[u.id] = u; }); }
+  } catch (e) {}
+  if (authUsers) Object.values(authUsers).forEach(u => {
+    if (!profiles[u.id]) profiles[u.id] = { id: u.id, email: u.email, created_at: u.created_at, role: 'member', _noProfile: true };
+  });
   entries = new Map();
   const entry = (uid, date) => {
     const k = uid + '|' + date;
@@ -823,7 +833,8 @@ function inscritsList() {
       const pts = Array.from(new Set(Object.values(protoRows).filter(r => r.participant_id === p.id).map(r => r.point_de_test))).sort();
       const seances = Array.from(entries.values()).filter(e => e.uid === p.id).reduce((n, e) => n + e.hr.length, 0);
       const complet = !!(p.prenom && p.nom && COURS.includes(p.cours) && p.date_naissance);
-      return { p, pts, seances, complet, age: ageAt(p.date_naissance, dayKey(Date.now())) };
+      const u = authUsers && authUsers[p.id];
+      return { p, pts, seances, complet, u, nonConfirme: !!(u && !u.email_confirmed_at), age: ageAt(p.date_naissance, dayKey(Date.now())) };
     })
     .sort((a, b) => coursOf(a.p.id).localeCompare(coursOf(b.p.id)) || nameOf(a.p.id).localeCompare(nameOf(b.p.id), 'fr'));
 }
@@ -832,23 +843,28 @@ const frDay = (ts) => ts ? new Date(ts).toLocaleDateString('fr-FR', { day: 'nume
 function renderInscrits() {
   const list = inscritsList();
   const incomplets = list.filter(x => !x.complet).length, sansTest = list.filter(x => !x.pts.length).length;
+  const nonConf = list.filter(x => x.nonConfirme).length;
   $('#summary').textContent = list.length
     ? list.length + ' inscrit' + (list.length > 1 ? 's' : '') + (fCours ? ' à ' + fCours : '') + ' · ' +
-      sansTest + ' sans test enregistré' + (incomplets ? ' · ' + incomplets + ' profil' + (incomplets > 1 ? 's' : '') + ' incomplet' + (incomplets > 1 ? 's' : '') : '') + '.'
+      sansTest + ' sans test enregistré' + (nonConf ? ' · ' + nonConf + ' e-mail' + (nonConf > 1 ? 's' : '') + ' non confirmé' + (nonConf > 1 ? 's' : '') : '') + (incomplets ? ' · ' + incomplets + ' profil' + (incomplets > 1 ? 's' : '') + ' incomplet' + (incomplets > 1 ? 's' : '') : '') + '.'
     : 'Aucun inscrit pour cette sélection.';
   const groups = fCours ? [fCours] : COURS.concat(SANS_COURS);
   $('#dataView').innerHTML =
     '<div class="panel noprint"><div class="recaphead"><h2>Inscrits</h2><div class="spacer"></div>' +
       '<button class="btn-primary" id="btnInscritsCsv">Exporter la liste (CSV)</button></div>' +
       '<p class="recapnote">Tous les comptes adhérents, y compris ceux qui n’ont encore rien enregistré. « Profil incomplet » : ' +
-      'l’adhérent devra renseigner nom, cours ou date de naissance à sa prochaine connexion (ou corrige-le avec « Modifier / supprimer »).</p></div>' +
+      'l’adhérent devra renseigner nom, cours ou date de naissance à sa prochaine connexion (ou corrige-le avec « Modifier / supprimer »).' +
+      (authUsers ? '' : ' <b>Pour voir aussi les comptes sans profil et les e-mails non confirmés, exécute la migration 11 dans Supabase.</b>') + '</p></div>' +
     (groups.map(g => {
       const rows = list.filter(x => coursOf(x.p.id) === g);
       if (!rows.length) return '';
       return '<section class="panel"><div class="recaphead"><h2>' + esc(g) + '</h2><span class="muted">' + rows.length + ' inscrit' + (rows.length > 1 ? 's' : '') + '</span></div>' +
         '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Nom</th><th>E-mail</th><th>Genre · âge</th><th>Inscrit le</th><th>Tests passés</th><th>Séances capteur</th></tr></thead><tbody>' +
         rows.map(x => '<tr><td><b>' + esc(nameOf(x.p.id)) + '</b>' + editBtn('profile', x.p.id, 'Modifier le profil') +
-          (x.complet ? '' : '<small style="color:var(--terra-deep)">Profil incomplet</small>') + '</td>' +
+          (x.nonConfirme ? '<small style="color:var(--terra-deep)">E-mail non confirmé — il doit cliquer le lien reçu</small>' : '') +
+          (x.p._noProfile ? '<small style="color:var(--terra-deep)">Profil absent — lance la migration 11</small>'
+            : x.complet ? '' : '<small style="color:var(--terra-deep)">Profil incomplet</small>') +
+          (x.u && x.u.last_sign_in_at ? '<small>Dernière connexion : ' + frDay(x.u.last_sign_in_at) + '</small>' : x.u ? '<small>Jamais connecté</small>' : '') + '</td>' +
           '<td>' + esc(x.p.email || '') + '</td>' +
           '<td>' + (x.p.date_naissance ? esc(GENRE_LABEL[x.p.sexe] || '') + (x.age != null ? ' · ' + x.age + ' ans' : '') : '—') + '</td>' +
           '<td>' + frDay(x.p.created_at) + '</td>' +
@@ -858,9 +874,10 @@ function renderInscrits() {
     }).join('') || '<div class="panel empty">Aucun inscrit pour cette sélection.</div>');
   const b = $('#btnInscritsCsv'); if (b) b.addEventListener('click', () => {
     if (!list.length) { toast('Aucun inscrit à exporter.'); return; }
-    const lines = [['cours', 'nom', 'prenom', 'email', 'genre', 'age', 'date_naissance', 'inscrit_le', 'profil_complet', 'tests_passes', 'seances_capteur'].join(';')];
+    const lines = [['cours', 'nom', 'prenom', 'email', 'genre', 'age', 'date_naissance', 'inscrit_le', 'email_confirme', 'derniere_connexion', 'profil_complet', 'tests_passes', 'seances_capteur'].join(';')];
     list.forEach(x => lines.push([coursOf(x.p.id), x.p.nom, x.p.prenom, x.p.email, x.p.date_naissance ? GENRE_LABEL[x.p.sexe] : '', x.age,
-      x.p.date_naissance, x.p.created_at ? dayKey(x.p.created_at) : '', x.complet, x.pts.join(' '), x.seances].map(csvCell).join(';')));
+      x.p.date_naissance, x.p.created_at ? dayKey(x.p.created_at) : '', x.u ? !!x.u.email_confirmed_at : '',
+      x.u && x.u.last_sign_in_at ? dayKey(x.u.last_sign_in_at) : '', x.complet, x.pts.join(' '), x.seances].map(csvCell).join(';')));
     download(lines.join('\n') + '\n', 'inscrits_' + (fCours || 'tous-cours') + '_' + stamp() + '.csv');
   });
 }
