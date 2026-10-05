@@ -1818,14 +1818,13 @@ function renderProtoStep() {
   let timerHtml = '';
   if (def.thirds) {
     timerHtml =
-      '<div class="goalbox"><b>Objectif : le maximum de répétitions.</b> Ce n’est pas un test où il faut « tenir » ' +
-        'la minute : on enchaîne le plus de répétitions propres possible, jusqu’au bout de l’effort, jusqu’à la fatigue. ' +
-        'Si tu dois t’arrêter quelques secondes, souffle et repars dès que tu peux, le chrono continue. ' +
-        'Une répétition mal faite ne compte pas.</div>' +
+      '<div class="goalbox"><b>Objectif : le maximum de répétitions, jusqu’à l’échec.</b> On enchaîne les répétitions ' +
+        'propres et contrôlées sans pause, jusqu’à ne plus pouvoir en faire une seule correctement : le test s’arrête là. ' +
+        'La minute n’est pas un temps à tenir, c’est un plafond. Une répétition mal faite ne compte pas.</div>' +
       '<div class="rest-box" style="margin-bottom:1rem">' +
         '<div class="rest-count" id="protoMinCount">01:00</div>' +
         '<div class="thirdbar"><span id="pt3_0"></span><span id="pt3_1"></span><span id="pt3_2"></span></div>' +
-        '<div class="rest-label" id="protoMinLabel">À fond dès le départ ! Bip à 20 s et 40 s : note les répétitions de chaque tiers.</div>' +
+        '<div class="rest-label" id="protoMinLabel">Sans pause, jusqu’à l’échec (1 min maximum). Bip à 20 s et 40 s.</div>' +
         '<div class="rest-controls"><button class="btn-primary" id="protoMinStart">Démarrer la minute</button></div>' +
       '</div>';
   }
@@ -1882,11 +1881,11 @@ function renderProtoStep() {
         [0, 1, 2].forEach(i => { const b = $('#pt3_' + i); if (b) b.className = i < third || sec >= 60 ? 'done' : i === third ? 'on' : ''; });
         if ((sec === 20 || sec === 40) && last !== sec) {
           last = sec; signalBeep(1);
-          $('#protoMinLabel').textContent = (sec === 20 ? '1er' : '2e') + ' tiers — on ne lâche rien, le maximum de répétitions jusqu’au bout !';
+          $('#protoMinLabel').textContent = (sec === 20 ? '20 s' : '40 s') + ' — continue jusqu’à l’échec, sans pause.';
         }
         if (sec >= 60) {
           clearInterval(protoSwTimer); protoSwTimer = null; signalBeep(3);
-          $('#protoMinLabel').textContent = 'Terminé — note les répétitions du dernier tiers.';
+          $('#protoMinLabel').textContent = 'Plafond d’1 minute atteint — note tes répétitions.';
           $('#protoMinStart').disabled = false; $('#protoMinStart').textContent = 'Recommencer';
         }
       }, 200);
