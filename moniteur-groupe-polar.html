@@ -427,9 +427,9 @@ function protoValue(type, d) {
     case 'pompes': return v(d.pompes_reps) + (d.pompes_variante ? ' (' + d.pompes_variante + ')' : '');
     case 'wallsit': return v(d.wallsit_secondes) + ' s';
     case 'rowing': return v(d.rowing_reps) + ' reps' + (d.rowing_charge_kg != null ? ' · ' + frNum(d.rowing_charge_kg) + ' kg' : '');
-    case 'rdl': return v(d.rdl_reps) + ' reps';
+    case 'rdl': return v(d.rdl_reps) + ' reps' + (d.rdl_charge_kg != null ? ' · ' + frNum(d.rdl_charge_kg) + ' kg' : '');
     case 'amrap_cardio': return v(d.amrap_tours_complets) + ' tours' + (d.amrap_derniere_station ? ' (' + d.amrap_derniere_station + ')' : '') +
-      ' · ' + (d.duree_min || 10) + ' min' + (d.no_impact ? ' · no impact' : '') +
+      ' · ' + (d.duree_min || 10) + ' min' + (d.no_impact ? ' · no impact' : '') + (d.rpe != null ? ' · effort ' + d.rpe + '/10' : '') +
       (d.fc_moy_amrap != null ? ' · FC moy ' + d.fc_moy_amrap : '') + (d.fc_pic_amrap != null ? ' / pic ' + d.fc_pic_amrap : '');
     case 'rfc': return d.rfc_2min != null ? '−' + d.rfc_2min + ' bpm en 2 min' : '—';
     default: return '—';
@@ -574,10 +574,10 @@ const EDIT_FIELDS = {   // [clé, libellé, type, options]
   grip: [['force_main_droite_kg', 'Main droite (kg)', 'number'], ['force_main_gauche_kg', 'Main gauche (kg)', 'number']],
   pompes: [['pompes_reps', 'Répétitions', 'number'], ['pompes_variante', 'Variante', 'select', POMPES_VARIANTES]],
   wallsit: [['wallsit_secondes', 'Durée tenue (s)', 'number']],
-  rowing: [['rowing_reps', 'Répétitions', 'number'], ['rowing_modalite', 'Modalité', 'text'], ['rowing_charge_kg', 'Charge (kg)', 'number']],
-  rdl: [['rdl_reps', 'Répétitions', 'number']],
+  rowing: [['rowing_reps', 'Répétitions', 'number'], ['rowing_modalite', 'Matériel', 'select', ['barre', 'haltères', 'kettlebell']], ['rowing_charge_kg', 'Charge totale (kg)', 'number']],
+  rdl: [['rdl_reps', 'Répétitions', 'number'], ['rdl_charge_kg', 'Charge totale (kg)', 'number']],
   amrap_cardio: [['amrap_tours_complets', 'Tours complets', 'number'], ['amrap_derniere_station', 'Dernière station', 'select', STATIONS],
-    ['no_impact', 'No impact (sans saut)', 'checkbox'], ['duree_min', 'Durée (min)', 'number'],
+    ['no_impact', 'No impact (sans saut)', 'checkbox'], ['duree_min', 'Durée (min)', 'number'], ['rpe', 'Effort ressenti (0–10)', 'number'],
     ['fc_moy_amrap', 'FC moyenne', 'number'], ['fc_pic_amrap', 'FC pic', 'number']],
   rfc: [['fc_pic', 'FC fin d’effort', 'number'], ['fc_2min', 'FC à 2 min', 'number']],
 };
@@ -697,6 +697,7 @@ const RECAP_INDICATORS = [
   { label: 'RDL', unit: 'reps', type: 'rdl', get: d => num(d.rdl_reps), better: 1 },
   { label: 'AMRAP 20 min — tours complets', unit: 'tours', type: 'amrap_cardio', get: d => (d.duree_min || 10) === 20 ? num(d.amrap_tours_complets) : null, better: 1 },
   { label: 'AMRAP 10 min (ancien format) — tours', unit: 'tours', type: 'amrap_cardio', get: d => (d.duree_min || 10) === 10 ? num(d.amrap_tours_complets) : null, better: 1, optional: true },
+  { label: 'AMRAP — effort ressenti', unit: '/10', type: 'amrap_cardio', get: d => num(d.rpe), better: 0, optional: true },
   { label: 'AMRAP — FC moyenne', unit: 'bpm', type: 'amrap_cardio', get: d => num(d.fc_moy_amrap), better: 0 },
   { label: 'AMRAP — FC pic', unit: 'bpm', type: 'amrap_cardio', get: d => num(d.fc_pic_amrap), better: 0 },
   { label: 'RFC — baisse de FC en 2 min', unit: 'bpm', type: 'rfc', get: d => num(d.rfc_2min), better: 1 },
@@ -890,9 +891,9 @@ const EXPORT_COLUMNS = [
   ['pompes_reps', 'pompes', 'pompes_reps'], ['pompes_variante', 'pompes', 'pompes_variante'],
   ['wallsit_s', 'wallsit', 'wallsit_secondes'],
   ['rowing_reps', 'rowing', 'rowing_reps'], ['rowing_modalite', 'rowing', 'rowing_modalite'], ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
-  ['rdl_reps', 'rdl', 'rdl_reps'],
+  ['rdl_reps', 'rdl', 'rdl_reps'], ['rdl_charge_kg', 'rdl', 'rdl_charge_kg'],
   ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'], ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],
-  ['amrap_duree_min', 'amrap_cardio', 'duree_min'], ['amrap_no_impact', 'amrap_cardio', 'no_impact'],
+  ['amrap_duree_min', 'amrap_cardio', 'duree_min'], ['amrap_no_impact', 'amrap_cardio', 'no_impact'], ['amrap_effort_ressenti', 'amrap_cardio', 'rpe'],
   ['amrap_fc_moy', 'amrap_cardio', 'fc_moy_amrap'], ['amrap_fc_pic', 'amrap_cardio', 'fc_pic_amrap'],
   ['rfc_fc_fin_effort', 'rfc', 'fc_pic'], ['rfc_fc_2min', 'rfc', 'fc_2min'], ['rfc_baisse_bpm', 'rfc', 'rfc_2min'],
 ];

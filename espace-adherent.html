@@ -156,6 +156,8 @@
     border-radius:var(--r-md);padding:.9rem 1.05rem;margin:.8rem 0 1rem;font-size:.92rem;line-height:1.6;
   }
   .protocole-box b{color:var(--forest)}
+  .refhint{background:#EEF4F0;border:1px solid #BFD0C5;border-radius:10px;padding:.6rem .8rem;font-size:.86rem;line-height:1.5;color:var(--pine);margin:.7rem 0}
+  .asref{font-size:.7rem;font-weight:600;color:var(--pine);background:#EEF4F0;border-radius:6px;padding:.05rem .35rem;margin-left:.25rem;text-transform:none;letter-spacing:0}
   .noimpact{display:flex;gap:.6rem;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:10px;
     padding:.7rem .85rem;margin:.8rem 0;font-size:.92rem;line-height:1.4;cursor:pointer}
   .noimpact input{width:22px;min-width:0;height:22px;min-height:0;padding:0;margin:0;flex:none;accent-color:var(--pine)}
@@ -356,17 +358,18 @@
                 <button type="button" data-p="T2">T2</button>
                 <button type="button" data-p="T3">T3</button>
               </div></div>
-            <div class="field">Atelier de départ
+            <div class="field">Atelier de départ (après la préhension)
               <div class="seg" id="ptStart">
-                <button type="button" data-a="grip" class="sel">Préhension</button>
-                <button type="button" data-a="pompes">Pompes</button>
+                <button type="button" data-a="pompes" class="sel">Pompes</button>
                 <button type="button" data-a="wallsit">Wall-sit</button>
                 <button type="button" data-a="rowing">Rowing</button>
                 <button type="button" data-a="rdl">RDL</button>
               </div></div>
           </div>
+          <p class="refhint" id="ptRefHint" hidden></p>
           <p class="note">Choisis le point de test et l'atelier par lequel tu commences (indiqués par ton coach) :
-            l'app enchaîne ensuite les ateliers dans l'ordre du circuit, puis tout le monde se retrouve pour l'AMRAP.
+            tout le monde passe d'abord la préhension, puis l'app enchaîne les 4 ateliers dans l'ordre du circuit,
+            et tout le monde se retrouve pour l'AMRAP.
             Connecte ton
             capteur cardiaque avant de démarrer si tu veux que ta fréquence cardiaque soit enregistrée pendant
             les tests (optionnel — le protocole fonctionne aussi sans capteur).</p>
@@ -760,7 +763,7 @@ async function onSignedIn(user) {
   ensureChannel();
   loadHistory();
   restoreLiveSession();
-  resumeProtocolIfAny();
+  resumeProtocolIfAny().then(loadProtoRef);
 }
 
 /* FC max théorique — Tanaka H, Monahan KD, Seals DR. Age-predicted maximal heart
@@ -1342,33 +1345,38 @@ const TEST_DEFS = {
       "gainage, 3. jambes tendues. Choisir celle que l'on tient proprement 1 minute, et garder la même à chaque point de test.",
     fields: [
       { key: 'pompes_reps', label: 'Répétitions', type: 'number', step: '1' },
-      { key: 'pompes_variante', label: 'Variante', type: 'select', options: ['genoux sans gainage', 'genoux avec gainage', 'jambes tendues'] },
+      { key: 'pompes_variante', label: 'Variante', type: 'select', options: ['genoux sans gainage', 'genoux avec gainage', 'jambes tendues'], keep: true },
     ],
   },
   wallsit: {
     label: 'Quadriceps — Wall-sit',
     category: 'Force — Bas du corps',
-    protocole: "Dos plaqué au mur, cuisses parallèles au sol, genoux à 90°. On arrête au premier décroché de position.",
+    protocole: "Dos plaqué au mur, cuisses parallèles au sol, genoux à 90°. On arrête au premier décroché de position, " +
+      "ou au plafond de 3 minutes (le chrono s'arrête tout seul).",
+    stopwatch: { field: 'wallsit_secondes', cap: 180 },
     fields: [
-      { key: 'wallsit_secondes', label: 'Durée tenue (s)', type: 'number', step: '1' },
+      { key: 'wallsit_secondes', label: 'Durée tenue (s, max 180)', type: 'number', step: '1', max: 180 },
     ],
   },
   rowing: {
     label: 'Grands dorsaux — Rowing 1 min',
     category: 'Force — Haut du corps',
-    protocole: "Buste penché à 45°, dos plat. Max de répétitions techniques en 1 minute, coudes tirés vers les hanches, pause 1 sec en haut du mouvement.",
+    protocole: "Buste penché à 45°, dos plat. Max de répétitions techniques en 1 minute, coudes tirés vers les hanches, " +
+      "pause 1 sec en haut du mouvement. Même matériel et même charge à chaque point de test.",
     fields: [
       { key: 'rowing_reps', label: 'Répétitions', type: 'number', step: '1' },
-      { key: 'rowing_modalite', label: 'Modalité (barre, haltère…)', type: 'text' },
-      { key: 'rowing_charge_kg', label: 'Charge (kg) — optionnel', type: 'number', step: '0.5', optional: true },
+      { key: 'rowing_modalite', label: 'Matériel', type: 'select', options: ['barre', 'haltères', 'kettlebell'], keep: true },
+      { key: 'rowing_charge_kg', label: 'Charge totale (kg)', type: 'number', step: '0.5', keep: true },
     ],
   },
   rdl: {
     label: 'Ischio-jambiers — RDL haltères 1 min',
     category: 'Force — Bas du corps',
-    protocole: "Max de répétitions techniques en 1 minute, tempo contrôlé, dos plat, flexion des hanches (pas du dos).",
+    protocole: "Max de répétitions techniques en 1 minute, tempo contrôlé, dos plat, flexion des hanches (pas du dos). " +
+      "Même charge à chaque point de test.",
     fields: [
       { key: 'rdl_reps', label: 'Répétitions', type: 'number', step: '1' },
+      { key: 'rdl_charge_kg', label: 'Charge totale (kg, les 2 haltères)', type: 'number', step: '0.5', keep: true },
     ],
   },
   amrap_cardio: {
@@ -1393,16 +1401,19 @@ const TEST_DEFS = {
       { key: 'amrap_tours_complets', label: 'Tours complets', type: 'number', step: '1' },
       { key: 'amrap_derniere_station', label: 'Dernière station atteinte', type: 'select',
         options: ['jacks', 'squats', 'skatings', 'sprawls', 'burpee', 'pompes', 'supermans', 'climbers', 'squat jumps'] },
+      { key: 'rpe', label: 'Effort ressenti (0 = repos … 10 = maximal)', type: 'select', numeric: true,
+        options: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] },
     ],
     timedSeconds: 1200,
   },
 };
-/* Circuit des ateliers de force, passé en rotation : chaque participant démarre
-   à l'atelier indiqué par le coach puis suit l'ordre du circuit en boucle
-   (ex. départ Rowing → Rowing, RDL, Préhension, Pompes, Wall-sit). Repos
-   identique entre ateliers (75 s, le temps de tourner), repos long (4 min)
-   après le dernier, puis AMRAP, RFC et retour au calme pour tout le groupe. */
-const FORCE_CIRCUIT = ['grip', 'pompes', 'wallsit', 'rowing', 'rdl'];
+/* Préhension pour tout le monde juste après l'échauffement (avant-bras frais,
+   pas faussés par le rowing), puis les 4 ateliers de force en rotation :
+   chaque participant démarre à l'atelier indiqué par le coach et suit l'ordre
+   du circuit en boucle (ex. départ Rowing → Rowing, RDL, Pompes, Wall-sit).
+   Repos identique entre ateliers (75 s, le temps de tourner), repos long
+   (4 min) après le dernier, puis AMRAP, RFC et retour au calme. */
+const FORCE_CIRCUIT = ['pompes', 'wallsit', 'rowing', 'rdl'];
 const ATELIER_LABELS = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL' };
 function circuitFrom(start) {
   const i = Math.max(0, FORCE_CIRCUIT.indexOf(start));
@@ -1412,19 +1423,21 @@ function buildProtocolSteps(start) {
   const order = circuitFrom(start);
   return [
     { kind: 'info', title: 'Échauffement général', text: 'Échauffement général, 8 à 10 minutes. Non noté.' },
+    { kind: 'test', key: 'grip', restAfter: 60 },
     ...order.map((key, n) => ({ kind: 'test', key, atelier: n + 1, restAfter: n === order.length - 1 ? 240 : 75 })),
     { kind: 'test', key: 'amrap_cardio' },
     { kind: 'rfc' },
     { kind: 'info', title: 'Retour au calme', text: 'Retour au calme. Non noté.', isLast: true },
   ];
 }
-let protoStartAtelier = 'grip';
+let protoStartAtelier = FORCE_CIRCUIT[0];
 let PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
 
 function renderProtoOrder() {
   const order = circuitFrom(protoStartAtelier);
   $('#protoOrder').innerHTML =
     '<li>Échauffement général 8–10 min <span class="muted">(non noté)</span></li>' +
+    '<li>Force de préhension — tout le monde <span class="muted">→ repos 60 s</span></li>' +
     order.map((k, n) => '<li><b>Atelier ' + (n + 1) + '</b> — ' + escapeHtml(TEST_DEFS[k].label) + ' <span class="muted">→ ' +
       (n === order.length - 1 ? 'repos long 3–5 min' : 'repos 75 s, puis atelier suivant') + '</span></li>').join('') +
     '<li>AMRAP Cardio 20 min <span class="muted">→ FC pic/moyenne enregistrées automatiquement</span></li>' +
@@ -1432,7 +1445,7 @@ function renderProtoOrder() {
     '<li>Retour au calme <span class="muted">(non noté)</span></li>';
 }
 function setStartAtelier(a) {
-  protoStartAtelier = FORCE_CIRCUIT.includes(a) ? a : 'grip';
+  protoStartAtelier = FORCE_CIRCUIT.includes(a) ? a : FORCE_CIRCUIT[0];
   $$('#ptStart button').forEach(x => x.classList.toggle('sel', x.dataset.a === protoStartAtelier));
   renderProtoOrder();
 }
@@ -1446,9 +1459,37 @@ $('#ptPoint').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   $$('#ptPoint button').forEach(x => x.classList.toggle('sel', x === b));
   pointDeTest = b.dataset.p;
+  loadProtoRef();
 });
 
 let protoExisting = {};
+/* Point de test de référence (le premier passé, en général T0) : ses conditions
+   — atelier de départ, variante de pompes, matériel et charges, No impact —
+   sont reprises aux points suivants pour que les résultats restent comparables. */
+let protoRef = null;   // { point, tests: { type: data } }
+async function loadProtoRef() {
+  protoRef = null;
+  const hint = $('#ptRefHint');
+  if (!sb || !me) return;
+  const { data } = await sb.from('protocol_test_results').select('point_de_test,test_type,data')
+    .eq('participant_id', me.id).lt('point_de_test', pointDeTest);
+  const rows = data || [];
+  const first = rows.map(r => r.point_de_test).sort()[0];
+  if (!first) { hint.hidden = true; return; }
+  protoRef = { point: first, tests: {} };
+  rows.filter(r => r.point_de_test === first).forEach(r => { protoRef.tests[r.test_type] = r.data || {}; });
+  const start = FORCE_CIRCUIT.find(k => protoRef.tests[k] && protoRef.tests[k].ordre_passage === 1);
+  if (start && !readProtocolFlag()) setStartAtelier(start);
+  const t = protoRef.tests, bits = [];
+  if (start) bits.push('départ <b>' + ATELIER_LABELS[start] + '</b>');
+  if (t.pompes && t.pompes.pompes_variante) bits.push('pompes <b>' + escapeHtml(t.pompes.pompes_variante) + '</b>');
+  if (t.rowing && t.rowing.rowing_charge_kg != null) bits.push('rowing <b>' + t.rowing.rowing_charge_kg + ' kg</b>');
+  if (t.rdl && t.rdl.rdl_charge_kg != null) bits.push('RDL <b>' + t.rdl.rdl_charge_kg + ' kg</b>');
+  if (t.amrap_cardio && t.amrap_cardio.no_impact) bits.push('AMRAP <b>no impact</b>');
+  hint.innerHTML = 'Conditions de ton ' + first + ' reprises automatiquement' + (bits.length ? ' : ' + bits.join(', ') : '') +
+    '. Garde-les identiques pour que tes progrès soient comparables.';
+  hint.hidden = false;
+}
 let protoStepIndex = 0;
 let protoPhase = 'content';
 let protoRestTimer = null, protoRestRemaining = 0, protoRestTotal = 0;
@@ -1502,7 +1543,7 @@ async function beginProtocol() {
   protoExisting = {};
   if (inProgress) {
     // reprise d'une passation interrompue : seuls ses propres résultats comptent
-    setStartAtelier(saved.s || 'grip');
+    setStartAtelier(saved.s || FORCE_CIRCUIT[0]);
     PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
     const rows = data || [];
     protoDone = saved.legacy ? rows.map(r => r.test_type) : (saved.done || []);
@@ -1542,7 +1583,9 @@ async function resumeProtocolIfAny() {
   toast('Protocole repris là où tu l’avais laissé.');
 }
 
+let protoSwTimer = null;
 function stopProtoTimers() {
+  clearInterval(protoSwTimer); protoSwTimer = null;
   clearInterval(protoRestTimer); protoRestTimer = null;
   clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
   clearInterval(protoRfcTimer); protoRfcTimer = null;
@@ -1679,16 +1722,25 @@ function renderProtoStep() {
   }
 
   const def = TEST_DEFS[step.key];
-  const prev = protoExisting[step.key] || {};
+  const prev = Object.assign({}, protoExisting[step.key] || {});
+  const ref = protoRef && protoRef.tests[step.key];
+  const fromRef = [];
+  if (ref && !protoExisting[step.key]) {
+    def.fields.filter(f => f.keep && ref[f.key] != null).forEach(f => { prev[f.key] = ref[f.key]; fromRef.push(f.key); });
+    if (def.noImpact && ref.no_impact != null) { prev.no_impact = ref.no_impact; fromRef.push('no_impact'); }
+  }
   const fieldsHtml = def.fields.map(f => {
     const val = prev[f.key] != null ? prev[f.key] : '';
+    const lbl = escapeHtml(f.label) + (fromRef.includes(f.key) ? ' <span class="asref">comme au ' + protoRef.point + '</span>' : '');
     if (f.type === 'select') {
-      return '<div class="field">' + escapeHtml(f.label) +
+      const opts = f.options.slice();
+      if (val !== '' && !opts.includes(String(val))) opts.unshift(String(val));   // ancienne valeur libre conservée
+      return '<div class="field">' + lbl +
         '<select id="ptf_' + f.key + '"><option value="">—</option>' +
-        f.options.map(o => '<option value="' + o + '"' + (val === o ? ' selected' : '') + '>' + o + '</option>').join('') +
+        opts.map(o => '<option value="' + escapeHtml(o) + '"' + (String(val) === o ? ' selected' : '') + '>' + escapeHtml(o) + '</option>').join('') +
         '</select></div>';
     }
-    return '<div class="field">' + escapeHtml(f.label) +
+    return '<div class="field">' + lbl +
       '<input type="' + f.type + '" id="ptf_' + f.key + '" step="' + (f.step || 'any') + '" value="' + escapeHtml(val) + '"></div>';
   }).join('');
 
@@ -1702,6 +1754,17 @@ function renderProtoStep() {
   }
 
   let timerHtml = '';
+  if (def.stopwatch) {
+    timerHtml =
+      '<div class="rest-box" style="margin-bottom:1rem">' +
+        '<div class="rest-count" id="protoSwCount">00:00</div>' +
+        '<div class="rest-label">Plafond : ' + mmss(def.stopwatch.cap) + '</div>' +
+        '<div class="rest-controls">' +
+          '<button class="btn-primary" id="protoSwStart">Démarrer</button>' +
+          '<button class="btn-soft" id="protoSwStop" disabled>Arrêt (décroché)</button>' +
+        '</div>' +
+      '</div>';
+  }
   if (def.timedSeconds) {
     timerHtml =
       '<div class="rest-box" style="margin-bottom:1rem">' +
@@ -1719,11 +1782,37 @@ function renderProtoStep() {
       ' · <span class="typebadge">' + escapeHtml(def.category) + '</span></div>' +
     '<h3 style="margin-top:.5rem">' + escapeHtml(def.label) + '</h3>' +
     '<div class="protocole-box"><b>Protocole —</b> ' + escapeHtml(def.protocole) + '</div>' +
+    (fromRef.length ? '<p class="refhint">Conditions de ton ' + protoRef.point + ' reprises (variante, matériel, charge…) : ' +
+      'garde-les identiques. Modifie seulement si ton coach te le demande.</p>' : '') +
     circuitHtml +
     timerHtml +
     '<div class="formrow">' + fieldsHtml + '</div>' +
     '<div class="formrow" style="margin-top:1.1rem"><button class="btn-primary" id="protoTestSave">Enregistrer et continuer</button></div>';
 
+  if (def.stopwatch) {
+    const sw = def.stopwatch;
+    let t0 = 0, tick = null;
+    const stop = (auto) => {
+      clearInterval(tick); tick = null; protoSwTimer = null;
+      const sec = Math.min(sw.cap, Math.round((Date.now() - t0) / 1000));
+      $('#protoSwCount').textContent = mmss(sec);
+      $('#ptf_' + sw.field).value = sec;
+      $('#protoSwStart').disabled = false; $('#protoSwStart').textContent = 'Recommencer';
+      $('#protoSwStop').disabled = true;
+      toast(auto ? 'Plafond de ' + mmss(sw.cap) + ' atteint — bravo !' : 'Durée notée : ' + sec + ' s');
+    };
+    $('#protoSwStart').addEventListener('click', () => {
+      t0 = Date.now();
+      $('#protoSwStart').disabled = true; $('#protoSwStop').disabled = false;
+      clearInterval(tick);
+      tick = protoSwTimer = setInterval(() => {
+        const sec = Math.floor((Date.now() - t0) / 1000);
+        $('#protoSwCount').textContent = mmss(Math.min(sec, sw.cap));
+        if (sec >= sw.cap) stop(true);
+      }, 250);
+    });
+    $('#protoSwStop').addEventListener('click', () => stop(false));
+  }
   if (def.noImpact) {
     $('#ptNoImpact').addEventListener('change', () => { $('#ptCircuit').innerHTML = circuitItems(def, $('#ptNoImpact').checked); });
   }
@@ -1762,7 +1851,8 @@ function renderProtoStep() {
         if (!f.optional) { toast('Renseigne « ' + f.label + ' ».'); return; }
         continue;
       }
-      data[f.key] = f.type === 'number' ? parseFloat(raw) : raw;
+      data[f.key] = f.type === 'number' || f.numeric ? parseFloat(raw) : raw;
+      if (f.max != null && data[f.key] > f.max) { toast('« ' + f.label + ' » : ' + f.max + ' maximum.'); return; }
     }
     if (def.noImpact) data.no_impact = $('#ptNoImpact').checked;
     if (def.timedSeconds) data.duree_min = def.timedSeconds / 60;   // distingue l'ancien AMRAP de 10 min
@@ -1809,9 +1899,9 @@ function formatProtoData(testType, data) {
     case 'pompes': return (data.pompes_reps ?? '—') + ' reps (' + (data.pompes_variante ?? '—') + ')';
     case 'wallsit': return (data.wallsit_secondes ?? '—') + ' s';
     case 'rowing': return (data.rowing_reps ?? '—') + ' reps' + (data.rowing_modalite ? ' · ' + data.rowing_modalite : '') + (data.rowing_charge_kg != null ? ' · ' + data.rowing_charge_kg + ' kg' : '');
-    case 'rdl': return (data.rdl_reps ?? '—') + ' reps';
+    case 'rdl': return (data.rdl_reps ?? '—') + ' reps' + (data.rdl_charge_kg != null ? ' · ' + data.rdl_charge_kg + ' kg' : '');
     case 'amrap_cardio': return (data.amrap_tours_complets ?? '—') + ' tours (arrêt : ' + (data.amrap_derniere_station ?? '—') + ')' +
-      ' · ' + (data.duree_min || 10) + ' min' + (data.no_impact ? ' · no impact' : '') +
+      ' · ' + (data.duree_min || 10) + ' min' + (data.no_impact ? ' · no impact' : '') + (data.rpe != null ? ' · effort ' + data.rpe + '/10' : '') +
       (data.fc_pic_amrap != null ? ' · FC pic ' + data.fc_pic_amrap : '') + (data.fc_moy_amrap != null ? ' / moy ' + data.fc_moy_amrap : '');
     case 'rfc': return data.rfc_2min != null
       ? '−' + data.rfc_2min + ' bpm (' + data.fc_pic + ' → ' + data.fc_2min + ')'
