@@ -111,8 +111,8 @@ notés « classique » sont comptés comme « jambes tendues » dans le récap.
 
 - **Préhension en premier pour tout le monde**, juste après l'échauffement,
   puis **4 ateliers en rotation** (pompes, wall-sit, rowing, RDL).
-- **Charges obligatoires** : rowing (matériel : barre, haltères ou kettlebell
-  + charge totale) et RDL (charge totale des 2 haltères).
+- **Rowing et RDL à la barre**, charge totale obligatoire (barre + disques),
+  identique à chaque point de test.
 - **Wall-sit plafonné à 3 min** : chrono intégré (Démarrer / Arrêt au
   décroché), qui s'arrête seul à 3:00 et remplit la durée.
 - **Effort ressenti** (0 à 10) noté à la fin de l'AMRAP.
