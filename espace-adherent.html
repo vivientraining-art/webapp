@@ -1359,24 +1359,24 @@ const TEST_DEFS = {
     ],
   },
   rowing: {
-    label: 'Grands dorsaux — Rowing 1 min',
+    label: 'Grands dorsaux — Rowing barre 1 min',
     category: 'Force — Haut du corps',
     protocole: "Buste penché à 45°, dos plat. Max de répétitions techniques en 1 minute, coudes tirés vers les hanches, " +
-      "pause 1 sec en haut du mouvement. Même matériel et même charge à chaque point de test.",
+      "pause 1 sec en haut du mouvement. À la barre, même charge à chaque point de test.",
+    fixed: { rowing_modalite: 'barre' },
     fields: [
       { key: 'rowing_reps', label: 'Répétitions', type: 'number', step: '1' },
-      { key: 'rowing_modalite', label: 'Matériel', type: 'select', options: ['barre', 'haltères', 'kettlebell'], keep: true },
-      { key: 'rowing_charge_kg', label: 'Charge totale (kg)', type: 'number', step: '0.5', keep: true },
+      { key: 'rowing_charge_kg', label: 'Charge totale (kg, barre + disques)', type: 'number', step: '0.5', keep: true },
     ],
   },
   rdl: {
-    label: 'Ischio-jambiers — RDL haltères 1 min',
+    label: 'Ischio-jambiers — RDL barre 1 min',
     category: 'Force — Bas du corps',
     protocole: "Max de répétitions techniques en 1 minute, tempo contrôlé, dos plat, flexion des hanches (pas du dos). " +
       "Même charge à chaque point de test.",
     fields: [
       { key: 'rdl_reps', label: 'Répétitions', type: 'number', step: '1' },
-      { key: 'rdl_charge_kg', label: 'Charge totale (kg, les 2 haltères)', type: 'number', step: '0.5', keep: true },
+      { key: 'rdl_charge_kg', label: 'Charge totale (kg, barre + disques)', type: 'number', step: '0.5', keep: true },
     ],
   },
   amrap_cardio: {
@@ -1856,6 +1856,7 @@ function renderProtoStep() {
     }
     if (def.noImpact) data.no_impact = $('#ptNoImpact').checked;
     if (def.timedSeconds) data.duree_min = def.timedSeconds / 60;   // distingue l'ancien AMRAP de 10 min
+    if (def.fixed) Object.assign(data, def.fixed);   // matériel imposé (barre)
     if (step.atelier) data.ordre_passage = step.atelier;   // position dans la rotation (1 = atelier de départ)
     if (step.key === 'amrap_cardio' && protoAmrapHr.n > 0) {
       data.fc_moy_amrap = Math.round(protoAmrapHr.sum / protoAmrapHr.n);
