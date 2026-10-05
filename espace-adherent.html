@@ -163,6 +163,9 @@
     border-radius:var(--r-md);padding:.9rem 1.05rem;margin:.8rem 0 1rem;font-size:.92rem;line-height:1.6;
   }
   .protocole-box b{color:var(--forest)}
+  .goalbox{background:#FBEDE7;border:1px solid #E6C3B5;border-left:4px solid var(--terra);border-radius:10px;
+    padding:.7rem .85rem;margin:.8rem 0;font-size:.9rem;line-height:1.5;color:var(--ink)}
+  .goalbox b{color:var(--terra-deep)}
   .thirds{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;width:100%}
   .thirds input{width:100%;min-width:0;max-width:none}
   .totalbox{background:#F1ECE1;font-weight:700}
@@ -1380,8 +1383,9 @@ const TEST_DEFS = {
     label: 'Pecs — Pompes 1 min',
     thirds: 'pompes_reps',
     category: 'Force — Haut du corps',
-    protocole: "Max de répétitions techniques en 1 minute. Trois variantes : 1. genoux sans gainage, 2. genoux avec " +
-      "gainage, 3. jambes tendues. Choisir celle que l'on tient proprement 1 minute, et garder la même à chaque point de test.",
+    protocole: "Le MAXIMUM de répétitions propres en 1 minute. Trois variantes : 1. genoux sans gainage, 2. genoux avec " +
+      "gainage, 3. jambes tendues. Choisir celle qui permet d'aller au bout de l'effort avec une technique propre, " +
+      "et garder la même à chaque point de test.",
     fields: [
       { key: 'pompes_reps', label: 'Total (calculé)', type: 'number', step: '1', total: true },
       { key: 'pompes_variante', label: 'Variante', type: 'select', options: ['genoux sans gainage', 'genoux avec gainage', 'jambes tendues'], keep: true },
@@ -1390,8 +1394,8 @@ const TEST_DEFS = {
   wallsit: {
     label: 'Quadriceps — Wall-sit',
     category: 'Force — Bas du corps',
-    protocole: "Dos plaqué au mur, cuisses parallèles au sol, genoux à 90°. On arrête au premier décroché de position, " +
-      "ou au plafond de 3 minutes (le chrono s'arrête tout seul).",
+    protocole: "Dos plaqué au mur, cuisses parallèles au sol, genoux à 90°. On tient le plus longtemps possible, jusqu'au " +
+      "bout de l'effort : on arrête au premier décroché de position, ou au plafond de 3 minutes (le chrono s'arrête tout seul).",
     stopwatch: { field: 'wallsit_secondes', cap: 180 },
     fields: [
       { key: 'wallsit_secondes', label: 'Durée tenue (s, max 180)', type: 'number', step: '1', max: 180 },
@@ -1401,8 +1405,8 @@ const TEST_DEFS = {
     label: 'Grands dorsaux — Rowing barre 1 min',
     thirds: 'rowing_reps',
     category: 'Force — Haut du corps',
-    protocole: "Buste penché à 45°, dos plat. Max de répétitions techniques en 1 minute, coudes tirés vers les hanches, " +
-      "pause 1 sec en haut du mouvement. À la barre, même charge à chaque point de test.",
+    protocole: "Buste penché à 45°, dos plat. Le MAXIMUM de répétitions propres en 1 minute, coudes tirés vers les " +
+      "hanches, pause 1 sec en haut du mouvement. À la barre, même charge à chaque point de test.",
     fixed: { rowing_modalite: 'barre' },
     fields: [
       { key: 'rowing_reps', label: 'Total (calculé)', type: 'number', step: '1', total: true },
@@ -1413,7 +1417,7 @@ const TEST_DEFS = {
     label: 'Ischio-jambiers — RDL barre 1 min',
     thirds: 'rdl_reps',
     category: 'Force — Bas du corps',
-    protocole: "Max de répétitions techniques en 1 minute, tempo contrôlé, dos plat, flexion des hanches (pas du dos). " +
+    protocole: "Le MAXIMUM de répétitions propres en 1 minute, tempo contrôlé, dos plat, flexion des hanches (pas du dos). " +
       "Même charge à chaque point de test.",
     fields: [
       { key: 'rdl_reps', label: 'Total (calculé)', type: 'number', step: '1', total: true },
@@ -1814,10 +1818,14 @@ function renderProtoStep() {
   let timerHtml = '';
   if (def.thirds) {
     timerHtml =
+      '<div class="goalbox"><b>Objectif : le maximum de répétitions.</b> Ce n’est pas un test où il faut « tenir » ' +
+        'la minute : on enchaîne le plus de répétitions propres possible, jusqu’au bout de l’effort, jusqu’à la fatigue. ' +
+        'Si tu dois t’arrêter quelques secondes, souffle et repars dès que tu peux, le chrono continue. ' +
+        'Une répétition mal faite ne compte pas.</div>' +
       '<div class="rest-box" style="margin-bottom:1rem">' +
         '<div class="rest-count" id="protoMinCount">01:00</div>' +
         '<div class="thirdbar"><span id="pt3_0"></span><span id="pt3_1"></span><span id="pt3_2"></span></div>' +
-        '<div class="rest-label" id="protoMinLabel">Signal sonore à 20 s et 40 s : note les répétitions de chaque tiers.</div>' +
+        '<div class="rest-label" id="protoMinLabel">À fond dès le départ ! Bip à 20 s et 40 s : note les répétitions de chaque tiers.</div>' +
         '<div class="rest-controls"><button class="btn-primary" id="protoMinStart">Démarrer la minute</button></div>' +
       '</div>';
   }
@@ -1874,7 +1882,7 @@ function renderProtoStep() {
         [0, 1, 2].forEach(i => { const b = $('#pt3_' + i); if (b) b.className = i < third || sec >= 60 ? 'done' : i === third ? 'on' : ''; });
         if ((sec === 20 || sec === 40) && last !== sec) {
           last = sec; signalBeep(1);
-          $('#protoMinLabel').textContent = (sec === 20 ? '1er' : '2e') + ' tiers terminé — note les répétitions, on continue !';
+          $('#protoMinLabel').textContent = (sec === 20 ? '1er' : '2e') + ' tiers — on ne lâche rien, le maximum de répétitions jusqu’au bout !';
         }
         if (sec >= 60) {
           clearInterval(protoSwTimer); protoSwTimer = null; signalBeep(3);
