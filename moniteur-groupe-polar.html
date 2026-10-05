@@ -421,13 +421,15 @@ function hrSummary(list) {
 
 const PROTO_LABELS = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'RFC' };
 const v = (x) => x == null || x === '' ? '—' : frNum(x);
+/* Répétitions par tiers de minute (0–20 s / 20–40 s / 40–60 s), si notées. */
+function thirdsTxt(d, k) { return d[k + '_t1'] != null ? ' [' + d[k + '_t1'] + '/' + d[k + '_t2'] + '/' + d[k + '_t3'] + ']' : ''; }
 function protoValue(type, d) {
   switch (type) {
     case 'grip': return 'D ' + v(d.force_main_droite_kg) + ' / G ' + v(d.force_main_gauche_kg) + ' kg';
-    case 'pompes': return v(d.pompes_reps) + (d.pompes_variante ? ' (' + d.pompes_variante + ')' : '');
+    case 'pompes': return v(d.pompes_reps) + thirdsTxt(d, 'pompes_reps') + (d.pompes_variante ? ' (' + d.pompes_variante + ')' : '');
     case 'wallsit': return v(d.wallsit_secondes) + ' s';
-    case 'rowing': return v(d.rowing_reps) + ' reps' + (d.rowing_charge_kg != null ? ' · ' + frNum(d.rowing_charge_kg) + ' kg' : '');
-    case 'rdl': return v(d.rdl_reps) + ' reps' + (d.rdl_charge_kg != null ? ' · ' + frNum(d.rdl_charge_kg) + ' kg' : '');
+    case 'rowing': return v(d.rowing_reps) + ' reps' + thirdsTxt(d, 'rowing_reps') + (d.rowing_charge_kg != null ? ' · ' + frNum(d.rowing_charge_kg) + ' kg' : '');
+    case 'rdl': return v(d.rdl_reps) + ' reps' + thirdsTxt(d, 'rdl_reps') + (d.rdl_charge_kg != null ? ' · ' + frNum(d.rdl_charge_kg) + ' kg' : '');
     case 'amrap_cardio': return v(d.amrap_tours_complets) + ' tours' + (d.amrap_derniere_station ? ' (' + d.amrap_derniere_station + ')' : '') +
       ' · ' + (d.duree_min || 10) + ' min' + (d.no_impact ? ' · no impact' : '') + (d.rpe != null ? ' · effort ' + d.rpe + '/10' : '') +
       (d.fc_moy_amrap != null ? ' · FC moy ' + d.fc_moy_amrap : '') + (d.fc_pic_amrap != null ? ' / pic ' + d.fc_pic_amrap : '');
@@ -572,10 +574,10 @@ const POMPES_VARIANTES = ['genoux sans gainage', 'genoux avec gainage', 'jambes 
 const STATIONS = ['jacks', 'squats', 'skatings', 'sprawls', 'burpee', 'pompes', 'supermans', 'climbers', 'squat jumps'];
 const EDIT_FIELDS = {   // [clé, libellé, type, options]
   grip: [['force_main_droite_kg', 'Main droite (kg)', 'number'], ['force_main_gauche_kg', 'Main gauche (kg)', 'number']],
-  pompes: [['pompes_reps', 'Répétitions', 'number'], ['pompes_variante', 'Variante', 'select', POMPES_VARIANTES]],
+  pompes: [['pompes_reps_t1', '0–20 s', 'number'], ['pompes_reps_t2', '20–40 s', 'number'], ['pompes_reps_t3', '40–60 s', 'number'], ['pompes_reps', 'Total', 'number'], ['pompes_variante', 'Variante', 'select', POMPES_VARIANTES]],
   wallsit: [['wallsit_secondes', 'Durée tenue (s)', 'number']],
-  rowing: [['rowing_reps', 'Répétitions', 'number'], ['rowing_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
-  rdl: [['rdl_reps', 'Répétitions', 'number'], ['rdl_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
+  rowing: [['rowing_reps_t1', '0–20 s', 'number'], ['rowing_reps_t2', '20–40 s', 'number'], ['rowing_reps_t3', '40–60 s', 'number'], ['rowing_reps', 'Total', 'number'], ['rowing_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
+  rdl: [['rdl_reps_t1', '0–20 s', 'number'], ['rdl_reps_t2', '20–40 s', 'number'], ['rdl_reps_t3', '40–60 s', 'number'], ['rdl_reps', 'Total', 'number'], ['rdl_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
   amrap_cardio: [['amrap_tours_complets', 'Tours complets', 'number'], ['amrap_derniere_station', 'Dernière station', 'select', STATIONS],
     ['no_impact', 'No impact (sans saut)', 'checkbox'], ['duree_min', 'Durée (min)', 'number'], ['rpe', 'Effort ressenti (0–10)', 'number'],
     ['fc_moy_amrap', 'FC moyenne', 'number'], ['fc_pic_amrap', 'FC pic', 'number']],
@@ -629,6 +631,8 @@ function editProto(id) {
         data[key] = n;
       } else data[key] = raw;
     }
+    const tk = { pompes: 'pompes_reps', rowing: 'rowing_reps', rdl: 'rdl_reps' }[r.test_type];
+    if (tk && [1, 2, 3].every(i => data[tk + '_t' + i] != null)) data[tk] = data[tk + '_t1'] + data[tk + '_t2'] + data[tk + '_t3'];   // total = somme des tiers
     if (r.test_type === 'rfc') {   // la baisse de FC suit les deux mesures
       if (data.fc_pic != null && data.fc_2min != null) data.rfc_2min = data.fc_pic - data.fc_2min; else delete data.rfc_2min;
     }
@@ -888,10 +892,10 @@ function renderInscrits() {
    ===================================================================== */
 const EXPORT_COLUMNS = [
   ['prehension_droite_kg', 'grip', 'force_main_droite_kg'], ['prehension_gauche_kg', 'grip', 'force_main_gauche_kg'],
-  ['pompes_reps', 'pompes', 'pompes_reps'], ['pompes_variante', 'pompes', 'pompes_variante'],
+  ['pompes_reps', 'pompes', 'pompes_reps'], ['pompes_0_20s', 'pompes', 'pompes_reps_t1'], ['pompes_20_40s', 'pompes', 'pompes_reps_t2'], ['pompes_40_60s', 'pompes', 'pompes_reps_t3'], ['pompes_variante', 'pompes', 'pompes_variante'],
   ['wallsit_s', 'wallsit', 'wallsit_secondes'],
-  ['rowing_reps', 'rowing', 'rowing_reps'], ['rowing_modalite', 'rowing', 'rowing_modalite'], ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
-  ['rdl_reps', 'rdl', 'rdl_reps'], ['rdl_charge_kg', 'rdl', 'rdl_charge_kg'],
+  ['rowing_reps', 'rowing', 'rowing_reps'], ['rowing_0_20s', 'rowing', 'rowing_reps_t1'], ['rowing_20_40s', 'rowing', 'rowing_reps_t2'], ['rowing_40_60s', 'rowing', 'rowing_reps_t3'], ['rowing_modalite', 'rowing', 'rowing_modalite'], ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
+  ['rdl_reps', 'rdl', 'rdl_reps'], ['rdl_0_20s', 'rdl', 'rdl_reps_t1'], ['rdl_20_40s', 'rdl', 'rdl_reps_t2'], ['rdl_40_60s', 'rdl', 'rdl_reps_t3'], ['rdl_charge_kg', 'rdl', 'rdl_charge_kg'],
   ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'], ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],
   ['amrap_duree_min', 'amrap_cardio', 'duree_min'], ['amrap_no_impact', 'amrap_cardio', 'no_impact'], ['amrap_effort_ressenti', 'amrap_cardio', 'rpe'],
   ['amrap_fc_moy', 'amrap_cardio', 'fc_moy_amrap'], ['amrap_fc_pic', 'amrap_cardio', 'fc_pic_amrap'],
@@ -987,10 +991,10 @@ function onLiveHr(p) {
   if (!c) {
     const el = document.createElement('article');
     el.className = 'livecard';
-    el.innerHTML = '<div class="nm"></div><div class="cr"></div><div><span class="bpm">–</span> <span class="u">bpm</span></div><div class="u zp"></div>';
+    el.innerHTML = '<div class="nm"></div><div class="cr"></div><div><span class="bpm">–</span> <span class="u">bpm</span></div><div class="u zp"></div><div class="u cap"></div>';
     c = { el }; liveCards.set(p.user_id, c);
   }
-  c.lastAt = Date.now(); c.hr = p.hr; c.fcMax = p.fcMax || 190; c.prenom = p.prenom;
+  c.lastAt = Date.now(); c.hr = p.hr; c.fcMax = p.fcMax || 190; c.prenom = p.prenom; c.capteur = p.capteur || '';
   renderLive();
 }
 function removeLive(uid) {
@@ -1016,6 +1020,7 @@ function renderLive() {
     c.el.querySelector('.cr').textContent = coursOf(uid);
     c.el.querySelector('.bpm').textContent = c.hr;
     c.el.querySelector('.zp').textContent = ZONES[z].label + ' · ' + Math.round(c.hr / c.fcMax * 100) + ' % FCmax';
+    c.el.querySelector('.cap').textContent = c.capteur ? 'Capteur : ' + c.capteur : '';
   });
   $('#livePanel').hidden = shown === 0;
   $('#liveCount').textContent = shown ? '· ' + shown + ' adhérent' + (shown > 1 ? 's' : '') : '';
