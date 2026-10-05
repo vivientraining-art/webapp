@@ -28,6 +28,9 @@ n'est pas déjà fait :
    la création ». Sans risque, peut être relancée.
 8. `supabase-migration-10-modification-coach.sql` — autorise le compte coach à
    corriger les résultats et les profils des adhérents.
+9. `supabase-migration-11-comptes-inscrits.sql` — crée le profil manquant des
+   comptes qui n'en ont pas, et permet à la vue « Inscrits » de lister tous
+   les comptes avec la confirmation de l'e-mail et la dernière connexion.
 
 ## FC max : formule de Tanaka
 
