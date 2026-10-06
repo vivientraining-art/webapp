@@ -574,10 +574,10 @@ const POMPES_VARIANTES = ['genoux sans gainage', 'genoux avec gainage', 'jambes 
 const STATIONS = ['jacks', 'squats', 'skatings', 'sprawls', 'burpee', 'pompes', 'supermans', 'climbers', 'squat jumps'];
 const EDIT_FIELDS = {   // [clé, libellé, type, options]
   grip: [['force_main_droite_kg', 'Main droite (kg)', 'number'], ['force_main_gauche_kg', 'Main gauche (kg)', 'number']],
-  pompes: [['pompes_reps_t1', '0–20 s', 'number'], ['pompes_reps_t2', '20–40 s', 'number'], ['pompes_reps_t3', '40–60 s', 'number'], ['pompes_reps', 'Total', 'number'], ['pompes_variante', 'Variante', 'select', POMPES_VARIANTES]],
+  pompes: [['pompes_reps', 'Répétitions', 'number'], ['pompes_variante', 'Variante', 'select', POMPES_VARIANTES]],
   wallsit: [['wallsit_secondes', 'Durée tenue (s)', 'number']],
-  rowing: [['rowing_reps_t1', '0–20 s', 'number'], ['rowing_reps_t2', '20–40 s', 'number'], ['rowing_reps_t3', '40–60 s', 'number'], ['rowing_reps', 'Total', 'number'], ['rowing_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
-  rdl: [['rdl_reps_t1', '0–20 s', 'number'], ['rdl_reps_t2', '20–40 s', 'number'], ['rdl_reps_t3', '40–60 s', 'number'], ['rdl_reps', 'Total', 'number'], ['rdl_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
+  rowing: [['rowing_reps', 'Répétitions', 'number'], ['rowing_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
+  rdl: [['rdl_reps', 'Répétitions', 'number'], ['rdl_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
   amrap_cardio: [['amrap_tours_complets', 'Tours complets', 'number'], ['amrap_derniere_station', 'Dernière station', 'select', STATIONS],
     ['no_impact', 'No impact (sans saut)', 'checkbox'], ['duree_min', 'Durée (min)', 'number'], ['rpe', 'Effort ressenti (0–10)', 'number'],
     ['fc_moy_amrap', 'FC moyenne', 'number'], ['fc_pic_amrap', 'FC pic', 'number']],
@@ -892,10 +892,10 @@ function renderInscrits() {
    ===================================================================== */
 const EXPORT_COLUMNS = [
   ['prehension_droite_kg', 'grip', 'force_main_droite_kg'], ['prehension_gauche_kg', 'grip', 'force_main_gauche_kg'],
-  ['pompes_reps', 'pompes', 'pompes_reps'], ['pompes_0_20s', 'pompes', 'pompes_reps_t1'], ['pompes_20_40s', 'pompes', 'pompes_reps_t2'], ['pompes_40_60s', 'pompes', 'pompes_reps_t3'], ['pompes_variante', 'pompes', 'pompes_variante'],
+  ['pompes_reps', 'pompes', 'pompes_reps'], ['pompes_variante', 'pompes', 'pompes_variante'],
   ['wallsit_s', 'wallsit', 'wallsit_secondes'],
-  ['rowing_reps', 'rowing', 'rowing_reps'], ['rowing_0_20s', 'rowing', 'rowing_reps_t1'], ['rowing_20_40s', 'rowing', 'rowing_reps_t2'], ['rowing_40_60s', 'rowing', 'rowing_reps_t3'], ['rowing_modalite', 'rowing', 'rowing_modalite'], ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
-  ['rdl_reps', 'rdl', 'rdl_reps'], ['rdl_0_20s', 'rdl', 'rdl_reps_t1'], ['rdl_20_40s', 'rdl', 'rdl_reps_t2'], ['rdl_40_60s', 'rdl', 'rdl_reps_t3'], ['rdl_charge_kg', 'rdl', 'rdl_charge_kg'],
+  ['rowing_reps', 'rowing', 'rowing_reps'], ['rowing_modalite', 'rowing', 'rowing_modalite'], ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
+  ['rdl_reps', 'rdl', 'rdl_reps'], ['rdl_charge_kg', 'rdl', 'rdl_charge_kg'],
   ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'], ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],
   ['amrap_duree_min', 'amrap_cardio', 'duree_min'], ['amrap_no_impact', 'amrap_cardio', 'no_impact'], ['amrap_effort_ressenti', 'amrap_cardio', 'rpe'],
   ['amrap_fc_moy', 'amrap_cardio', 'fc_moy_amrap'], ['amrap_fc_pic', 'amrap_cardio', 'fc_pic_amrap'],

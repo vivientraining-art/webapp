@@ -113,11 +113,9 @@ notés « classique » sont comptés comme « jambes tendues » dans le récap.
   puis **4 ateliers en rotation** (pompes, wall-sit, rowing, RDL).
 - **Rowing et RDL à la barre**, charge totale obligatoire (barre + disques),
   identique à chaque point de test.
-- **Pompes, rowing, RDL : répétitions par tiers de minute** (0–20 s, 20–40 s,
-  40–60 s) — **le maximum de répétitions sans pause, jusqu'à l'échec** ; la minute
-  est un plafond, pas un temps à tenir. Chrono d'1 minute intégré avec bip et vibration à 20 s et 40 s ;
-  le total est calculé automatiquement. Exportés (colonnes `*_0_20s`,
-  `*_20_40s`, `*_40_60s`) : utile pour voir comment chacun « tient » la minute.
+- **Pompes, rowing, RDL : chrono d'1 minute** intégré (triple bip à la fin) :
+  le maximum de répétitions sans pause, jusqu'à l'échec ; la minute est un
+  plafond. On note le nombre total de répétitions.
 - **FC visible pendant tout le protocole** (barre fixée en haut de l'écran),
   avec le **nom du capteur** dessous (ex. « Polar H10 8A2B3C4D » : l'identifiant
   est imprimé au dos du capteur) pour vérifier que c'est bien le sien. Le nom
