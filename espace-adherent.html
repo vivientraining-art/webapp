@@ -166,13 +166,6 @@
   .goalbox{background:#FBEDE7;border:1px solid #E6C3B5;border-left:4px solid var(--terra);border-radius:10px;
     padding:.7rem .85rem;margin:.8rem 0;font-size:.9rem;line-height:1.5;color:var(--ink)}
   .goalbox b{color:var(--terra-deep)}
-  .thirds{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;width:100%}
-  .thirds input{width:100%;min-width:0;max-width:none}
-  .totalbox{background:#F1ECE1;font-weight:700}
-  .thirdbar{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;max-width:260px;margin:.5rem auto .3rem}
-  .thirdbar span{height:8px;border-radius:4px;background:#E2DACB}
-  .thirdbar span.on{background:var(--terra)}
-  .thirdbar span.done{background:var(--pine)}
   .refhint{background:#EEF4F0;border:1px solid #BFD0C5;border-radius:10px;padding:.6rem .8rem;font-size:.86rem;line-height:1.5;color:var(--pine);margin:.7rem 0}
   .asref{font-size:.7rem;font-weight:600;color:var(--pine);background:#EEF4F0;border-radius:6px;padding:.05rem .35rem;margin-left:.25rem;text-transform:none;letter-spacing:0}
   .noimpact{display:flex;gap:.6rem;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:10px;
@@ -1381,13 +1374,13 @@ const TEST_DEFS = {
   },
   pompes: {
     label: 'Pecs — Pompes 1 min',
-    thirds: 'pompes_reps',
+    minute: true,
     category: 'Force — Haut du corps',
     protocole: "Le MAXIMUM de répétitions propres en 1 minute. Trois variantes : 1. genoux sans gainage, 2. genoux avec " +
       "gainage, 3. jambes tendues. Choisir celle qui permet d'aller au bout de l'effort avec une technique propre, " +
       "et garder la même à chaque point de test.",
     fields: [
-      { key: 'pompes_reps', label: 'Total (calculé)', type: 'number', step: '1', total: true },
+      { key: 'pompes_reps', label: 'Répétitions', type: 'number', step: '1' },
       { key: 'pompes_variante', label: 'Variante', type: 'select', options: ['genoux sans gainage', 'genoux avec gainage', 'jambes tendues'], keep: true },
     ],
   },
@@ -1403,24 +1396,24 @@ const TEST_DEFS = {
   },
   rowing: {
     label: 'Grands dorsaux — Rowing barre 1 min',
-    thirds: 'rowing_reps',
+    minute: true,
     category: 'Force — Haut du corps',
     protocole: "Buste penché à 45°, dos plat. Le MAXIMUM de répétitions propres en 1 minute, coudes tirés vers les " +
       "hanches, pause 1 sec en haut du mouvement. À la barre, même charge à chaque point de test.",
     fixed: { rowing_modalite: 'barre' },
     fields: [
-      { key: 'rowing_reps', label: 'Total (calculé)', type: 'number', step: '1', total: true },
+      { key: 'rowing_reps', label: 'Répétitions', type: 'number', step: '1' },
       { key: 'rowing_charge_kg', label: 'Charge totale (kg, barre + disques)', type: 'number', step: '0.5', keep: true },
     ],
   },
   rdl: {
     label: 'Ischio-jambiers — RDL barre 1 min',
-    thirds: 'rdl_reps',
+    minute: true,
     category: 'Force — Bas du corps',
     protocole: "Le MAXIMUM de répétitions propres en 1 minute, tempo contrôlé, dos plat, flexion des hanches (pas du dos). " +
       "Même charge à chaque point de test.",
     fields: [
-      { key: 'rdl_reps', label: 'Total (calculé)', type: 'number', step: '1', total: true },
+      { key: 'rdl_reps', label: 'Répétitions', type: 'number', step: '1' },
       { key: 'rdl_charge_kg', label: 'Charge totale (kg, barre + disques)', type: 'number', step: '0.5', keep: true },
     ],
   },
@@ -1786,13 +1779,8 @@ function renderProtoStep() {
     def.fields.filter(f => f.keep && ref[f.key] != null).forEach(f => { prev[f.key] = ref[f.key]; fromRef.push(f.key); });
     if (def.noImpact && ref.no_impact != null) { prev.no_impact = ref.no_impact; fromRef.push('no_impact'); }
   }
-  const thirdsHtml = def.thirds ? '<div class="thirds">' + ['0–20 s', '20–40 s', '40–60 s'].map((l, i) =>
-      '<div class="field">' + l + '<input type="number" id="ptt_' + i + '" min="0" step="1" inputmode="numeric" value="' +
-        escapeHtml(prev[def.thirds + '_t' + (i + 1)] ?? '') + '"></div>').join('') + '</div>' : '';
-  const fieldsHtml = thirdsHtml + def.fields.map(f => {
+  const fieldsHtml = def.fields.map(f => {
     const val = prev[f.key] != null ? prev[f.key] : '';
-    if (f.total) return '<div class="field">' + escapeHtml(f.label) +
-      '<input type="number" id="ptf_' + f.key + '" readonly tabindex="-1" class="totalbox" value="' + escapeHtml(val) + '"></div>';
     const lbl = escapeHtml(f.label) + (fromRef.includes(f.key) ? ' <span class="asref">comme au ' + protoRef.point + '</span>' : '');
     if (f.type === 'select') {
       const opts = f.options.slice();
@@ -1816,15 +1804,14 @@ function renderProtoStep() {
   }
 
   let timerHtml = '';
-  if (def.thirds) {
+  if (def.minute) {
     timerHtml =
       '<div class="goalbox"><b>Objectif : le maximum de répétitions, jusqu’à l’échec.</b> On enchaîne les répétitions ' +
         'propres et contrôlées sans pause, jusqu’à ne plus pouvoir en faire une seule correctement : le test s’arrête là. ' +
         'La minute n’est pas un temps à tenir, c’est un plafond. Une répétition mal faite ne compte pas.</div>' +
       '<div class="rest-box" style="margin-bottom:1rem">' +
         '<div class="rest-count" id="protoMinCount">01:00</div>' +
-        '<div class="thirdbar"><span id="pt3_0"></span><span id="pt3_1"></span><span id="pt3_2"></span></div>' +
-        '<div class="rest-label" id="protoMinLabel">Sans pause, jusqu’à l’échec (1 min maximum). Bip à 20 s et 40 s.</div>' +
+        '<div class="rest-label" id="protoMinLabel">Sans pause, jusqu’à l’échec (1 min maximum).</div>' +
         '<div class="rest-controls"><button class="btn-primary" id="protoMinStart">Démarrer la minute</button></div>' +
       '</div>';
   }
@@ -1863,26 +1850,15 @@ function renderProtoStep() {
     '<div class="formrow">' + fieldsHtml + '</div>' +
     '<div class="formrow" style="margin-top:1.1rem"><button class="btn-primary" id="protoTestSave">Enregistrer et continuer</button></div>';
 
-  if (def.thirds) {
-    const sumThirds = () => {
-      const v = [0, 1, 2].map(i => $('#ptt_' + i).value);
-      $('#ptf_' + def.thirds).value = v.every(x => x === '') ? '' : v.reduce((a, x) => a + (parseInt(x, 10) || 0), 0);
-    };
-    [0, 1, 2].forEach(i => $('#ptt_' + i).addEventListener('input', sumThirds));
+  if (def.minute) {
     $('#protoMinStart').addEventListener('click', () => {
-      const t0 = Date.now(); let last = 0;
+      const t0 = Date.now();
       $('#protoMinStart').disabled = true; $('#protoMinStart').textContent = 'En cours…';
       clearInterval(protoSwTimer);
       protoSwTimer = setInterval(() => {
         const sec = Math.min(60, Math.floor((Date.now() - t0) / 1000));
         const el = $('#protoMinCount'); if (!el) { clearInterval(protoSwTimer); return; }
         el.textContent = mmss(60 - sec);
-        const third = Math.min(2, Math.floor(sec / 20));
-        [0, 1, 2].forEach(i => { const b = $('#pt3_' + i); if (b) b.className = i < third || sec >= 60 ? 'done' : i === third ? 'on' : ''; });
-        if ((sec === 20 || sec === 40) && last !== sec) {
-          last = sec; signalBeep(1);
-          $('#protoMinLabel').textContent = (sec === 20 ? '20 s' : '40 s') + ' — continue jusqu’à l’échec, sans pause.';
-        }
         if (sec >= 60) {
           clearInterval(protoSwTimer); protoSwTimer = null; signalBeep(3);
           $('#protoMinLabel').textContent = 'Plafond d’1 minute atteint — note tes répétitions.';
@@ -1947,12 +1923,6 @@ function renderProtoStep() {
 
   $('#protoTestSave').addEventListener('click', async () => {
     const data = {};
-    if (def.thirds) {
-      const v = [0, 1, 2].map(i => $('#ptt_' + i).value);
-      if (v.some(x => x === '')) { toast('Note les répétitions des 3 tiers (0 si aucune).'); return; }
-      v.forEach((x, i) => { data[def.thirds + '_t' + (i + 1)] = parseInt(x, 10) || 0; });
-      $('#ptf_' + def.thirds).value = v.reduce((a, x) => a + (parseInt(x, 10) || 0), 0);
-    }
     for (const f of def.fields) {
       const raw = $('#ptf_' + f.key).value;
       if (raw === '') {
