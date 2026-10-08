@@ -1104,6 +1104,8 @@ function feedData(hr, rrs) {
       s.zoneSec[s.prevZone !== null ? s.prevZone : z] += dt;
     }
     s.prevZone = z; s.lastZoneT = t;
+    // historique compact (secondes depuis le début, FC) : sert à calculer la FC de l'AMRAP
+    if (!s.lastSample || t - s.lastSample >= 2000) { (s.series = s.series || []).push([Math.round((t - s.startedAt) / 1000), hr]); s.lastSample = t; }
   }
   if (live.session && live.broadcast && sb && me && t - live.lastCast > 1500) {
     live.lastCast = t;
@@ -1157,7 +1159,7 @@ function saveLiveSnapshot() {
   try {
     localStorage.setItem('vs-live-session', JSON.stringify({
       uid: me ? me.id : null, startedAt: s.startedAt, sum: s.sum, n: s.n,
-      max: s.max, min: s.min, zoneSec: s.zoneSec, fcMax: s.fcMax, lastUpdate: Date.now(),
+      max: s.max, min: s.min, zoneSec: s.zoneSec, fcMax: s.fcMax, lastUpdate: Date.now(), series: s.series || [],
     }));
   } catch (e) {}
 }
@@ -1184,6 +1186,7 @@ function restoreLiveSession() {
     max: snap.max || 0, min: snap.min == null ? 999 : snap.min,
     zoneSec: Array.isArray(snap.zoneSec) ? snap.zoneSec.slice(0, 6) : [0, 0, 0, 0, 0, 0],
     prevZone: null, lastZoneT: null, fcMax: snap.fcMax || (profile ? profile.fc_max : 190),
+    series: Array.isArray(snap.series) ? snap.series : [],
   };
   live.broadcast = true;
   enterSessionUI();
@@ -1195,7 +1198,7 @@ function startHrSession() {
   live.session = {
     startedAt: Date.now(), sum: 0, n: 0, max: 0, min: 999,
     zoneSec: [0, 0, 0, 0, 0, 0], prevZone: null, lastZoneT: null,
-    fcMax: profile ? profile.fc_max : 190,
+    fcMax: profile ? profile.fc_max : 190, series: [],
   };
   live.broadcast = true;
   enterSessionUI();
@@ -1533,6 +1536,14 @@ let protoPhase = 'content';
 let protoRestTimer = null, protoRestRemaining = 0, protoRestTotal = 0;
 let protoAmrapTimer = null, protoAmrapRemaining = 0, protoAmrapRunning = false;
 let protoAmrapHr = { sum: 0, n: 0, max: 0 };
+let protoAmrapShownAt = null, protoAmrapStartAt = null;   // écran AMRAP affiché / chrono de l'app lancé
+/* FC moyenne et pic sur une fenêtre de temps, depuis l'historique de la séance. */
+function hrWindow(from, to) {
+  const s = live.session; if (!s || !s.series) return null;
+  const v = s.series.filter(([sec]) => { const t = s.startedAt + sec * 1000; return t >= from && t <= to; }).map(x => x[1]);
+  if (v.length < 15) return null;   // moins de ~30 s de signal : pas fiable
+  return { moy: Math.round(v.reduce((a, b) => a + b, 0) / v.length), pic: Math.max(...v), n: v.length };
+}
 let protoRfcStarted = false, protoRfcTimer = null, protoRfcRemaining = 120, protoRfcPic = null, protoRfc2min = null;
 
 /* Passation en cours, mémorisée sur l'appareil pour survivre à un rechargement :
@@ -1543,7 +1554,7 @@ let protoDone = [];
 function protocolStorageKey() { return me ? ('vs-protocol-' + me.id) : null; }
 function saveProtocolFlag() {
   const k = protocolStorageKey();
-  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoStepIndex, done: protoDone })); } catch (e) {} }
+  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoStepIndex, done: protoDone, as: protoAmrapShownAt, ac: protoAmrapStartAt })); } catch (e) {} }
 }
 function clearProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.removeItem(k); } catch (e) {} } }
 function readProtocolFlag() {
@@ -1585,6 +1596,7 @@ async function beginProtocol() {
     PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
     const rows = data || [];
     protoDone = saved.legacy ? rows.map(r => r.test_type) : (saved.done || []);
+    protoAmrapShownAt = saved.as || null; protoAmrapStartAt = saved.ac || null;
     rows.forEach(r => { if (protoDone.includes(r.test_type)) protoExisting[r.test_type] = r.data; });
     protoStepIndex = saved.legacy ? firstIncompleteStepIndex(protoExisting)
       : Math.min(Math.max(0, saved.i | 0), PROTOCOL_STEPS.length - 1);
@@ -1598,6 +1610,7 @@ async function beginProtocol() {
     }
     protoDone = [];
     protoStepIndex = 0;
+    protoAmrapShownAt = null; protoAmrapStartAt = null;
     PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
   }
   protoPhase = 'content';
@@ -1830,8 +1843,9 @@ function renderProtoStep() {
     timerHtml =
       '<div class="rest-box" style="margin-bottom:1rem">' +
         '<div class="rest-count" id="protoAmrapCount">' + mmss(protoAmrapRemaining || def.timedSeconds) + '</div>' +
+        '<div class="rest-label">Touche « Démarrer » au top départ : ta FC moyenne et ta FC pic de l’AMRAP seront mesurées précisément.</div>' +
         '<div class="rest-controls">' +
-          '<button class="btn-soft" id="protoAmrapStart">' + (protoAmrapRunning ? 'En cours…' : 'Démarrer les ' + def.timedSeconds / 60 + ' min') + '</button>' +
+          '<button class="btn-primary" id="protoAmrapStart">' + (protoAmrapRunning ? 'En cours…' : 'Démarrer les ' + def.timedSeconds / 60 + ' min') + '</button>' +
           '<button class="btn-soft" id="protoAmrapReset">Réinitialiser</button>' +
         '</div>' +
       '</div>';
@@ -1895,11 +1909,13 @@ function renderProtoStep() {
     $('#ptNoImpact').addEventListener('change', () => { $('#ptCircuit').innerHTML = circuitItems(def, $('#ptNoImpact').checked); });
   }
   if (def.timedSeconds) {
+    if (!protoAmrapShownAt) { protoAmrapShownAt = Date.now(); saveProtocolFlag(); }
     if (protoAmrapRemaining === 0) protoAmrapRemaining = def.timedSeconds;
     $('#protoAmrapStart').addEventListener('click', () => {
       if (protoAmrapRunning) return;
       protoAmrapRunning = true;
       protoAmrapHr = { sum: 0, n: 0, max: 0 };
+      protoAmrapStartAt = Date.now(); saveProtocolFlag();
       $('#protoAmrapStart').textContent = 'En cours…';
       protoAmrapTimer = setInterval(() => {
         protoAmrapRemaining = Math.max(0, protoAmrapRemaining - 1);
@@ -1916,6 +1932,7 @@ function renderProtoStep() {
       clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
       protoAmrapRemaining = def.timedSeconds;
       protoAmrapHr = { sum: 0, n: 0, max: 0 };
+      protoAmrapStartAt = null; saveProtocolFlag();
       const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(protoAmrapRemaining);
       const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Démarrer les ' + def.timedSeconds / 60 + ' min';
     });
@@ -1936,9 +1953,17 @@ function renderProtoStep() {
     if (def.timedSeconds) data.duree_min = def.timedSeconds / 60;   // distingue l'ancien AMRAP de 10 min
     if (def.fixed) Object.assign(data, def.fixed);   // matériel imposé (barre)
     if (step.atelier) data.ordre_passage = step.atelier;   // position dans la rotation (1 = atelier de départ)
-    if (step.key === 'amrap_cardio' && protoAmrapHr.n > 0) {
-      data.fc_moy_amrap = Math.round(protoAmrapHr.sum / protoAmrapHr.n);
-      data.fc_pic_amrap = protoAmrapHr.max;
+    if (step.key === 'amrap_cardio') {
+      const dur = def.timedSeconds * 1000, now = Date.now();
+      let fc = null;
+      if (protoAmrapHr.n > 0) {   // chrono de l'app lancé sur cette page
+        fc = { moy: Math.round(protoAmrapHr.sum / protoAmrapHr.n), pic: protoAmrapHr.max, src: 'chrono' };
+      } else if (protoAmrapStartAt) {   // chrono lancé, puis page rechargée
+        const w = hrWindow(protoAmrapStartAt, Math.min(now, protoAmrapStartAt + dur)); if (w) fc = Object.assign(w, { src: 'chrono' });
+      } else {   // chrono de l'app non utilisé : les 20 dernières minutes passées sur l'écran AMRAP
+        const w = hrWindow(Math.max(protoAmrapShownAt || 0, now - dur), now); if (w) fc = Object.assign(w, { src: 'estimee' });
+      }
+      if (fc) { data.fc_moy_amrap = fc.moy; data.fc_pic_amrap = fc.pic; data.fc_amrap_source = fc.src; }
     }
     $('#protoTestSave').disabled = true;
     const { error } = await sb.from('protocol_test_results')
