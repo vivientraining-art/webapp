@@ -967,7 +967,7 @@ function recapGroups() {
   const groups = fCours ? [fCours] : COURS.concat(SANS_COURS);
   const out = groups.map(g => ({ title: g, rec: computeRecap(rows.filter(r => coursOf(r.participant_id) === g)) }))
     .filter(x => x.rec.points.length);
-  if (!fCours && out.length > 1) out.push({ title: 'Tous les groupes', rec: computeRecap(rows) });
+  if (!fCours && out.length > 1) out.unshift({ title: 'Tous les groupes', rec: computeRecap(rows) });   // vue d'ensemble en premier
   return out;
 }
 
