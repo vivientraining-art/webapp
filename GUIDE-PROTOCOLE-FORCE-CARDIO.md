@@ -148,6 +148,11 @@ plus qu'un seul écran :
 - le **temps passé dans chaque zone d'effort** (repos < 50 %, Z1 50–60 %,
   Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 % de la FC max de Tanaka) est
   affiché sous les séances capteur de chaque adhérent, avec une barre colorée ;
+- **Exporter en Excel (.xlsx)** : un classeur avec un onglet par vue —
+  Résultats, Récap groupes, Inscrits, À compléter, Infos (filtres utilisés).
+  Vrais nombres et vraies dates (format jj/mm/aaaa), en-têtes lisibles, filtres
+  automatiques sur chaque colonne. Les filtres cours / genre / date de l'écran
+  s'appliquent. Le bouton « CSV » reste disponible.
 - **À compléter** (badge rouge + alerte en haut, et notification à la
   connexion) : tests non saisis et valeurs vides pour chaque point de test
   commencé (ex. « RFC — test non saisi », « Rowing : charge »), comptes à
