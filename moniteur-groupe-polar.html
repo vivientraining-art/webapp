@@ -70,6 +70,9 @@
   .chip{font-size:.78rem;padding:.12rem .5rem;border-radius:999px;background:#F4EFE4;border:1px solid var(--line)}
   .chip.test{background:#FBEDE7;border-color:#E6C3B5;color:var(--terra-deep);font-weight:600}
   .chip.fc{background:#EEF4F0;border-color:#BFD0C5;color:var(--pine)}
+  .chip.err{background:#F8DCD3;border-color:#D9957F;color:#8E3B22;font-weight:700}
+  .chip.verif{background:#FFF4DC;border-color:#E8CF8F;color:#7A5A12}
+  .chip.val{background:#fff;font-variant-numeric:tabular-nums}
   .mrow button{min-height:36px;padding:.3rem .75rem;font-size:.88rem}
   .muted{color:var(--muted)}
   .note{font-size:.85rem;color:var(--muted);line-height:1.5;margin-top:.7rem}
@@ -198,7 +201,7 @@
         <button type="button" data-v="detail" class="sel">Détail</button>
         <button type="button" data-v="recap">Récap des groupes</button>
         <button type="button" data-v="inscrits">Inscrits</button>
-        <button type="button" data-v="manquants">À compléter<span class="badge" id="missBadge"></span></button>
+        <button type="button" data-v="manquants">À vérifier<span class="badge" id="missBadge"></span></button>
       </div>
       <div class="seg" id="fCours">
         <button type="button" data-c="" class="sel">Tous</button>
@@ -332,7 +335,8 @@ async function checkCoach(user) {
   await loadData();
   subscribeLive();
   const m = updateMissing(), n = new Set(m.items.map(i => i.uid)).size;
-  if (n || m.acc.length) toast('⚠️ Données à compléter : ' + [n && n + ' adhérent' + (n > 1 ? 's' : ''), m.acc.length && m.acc.length + ' compte' + (m.acc.length > 1 ? 's' : '')].filter(Boolean).join(' · '));
+  if (n || m.acc.length || m.an.length) toast('⚠️ À vérifier : ' + [m.an.length && m.an.length + ' valeur' + (m.an.length > 1 ? 's' : '') + ' inhabituelle' + (m.an.length > 1 ? 's' : ''),
+    n && n + ' adhérent' + (n > 1 ? 's' : '') + ' incomplet' + (n > 1 ? 's' : ''), m.acc.length && m.acc.length + ' compte' + (m.acc.length > 1 ? 's' : '')].filter(Boolean).join(' · '));
 }
 
 /* =====================================================================
@@ -1081,38 +1085,162 @@ function accountIssues() {
   return inscritsList().map(x => ({ x, why: [x.doublon && 'doublon possible', !x.complet && 'profil incomplet', x.nonConfirme && 'e-mail non confirmé'].filter(Boolean) }))
     .filter(a => a.why.length);
 }
+/* =====================================================================
+   Détection d'anomalies — valeurs impossibles ou très inhabituelles,
+   écarts au groupe, conditions différentes du T0. Signalées « à vérifier » :
+   une valeur inhabituelle peut être juste (« C'est correct » la retire).
+   ===================================================================== */
+let anomOk = lsGet('vs-anom-ok', {});   // anomalies validées par le coach (sur cet appareil)
+const ANOM_LIMITS = {   // [test, clé, libellé, min plausible, max plausible, unité]
+  grip: [['force_main_gauche_kg', 'Préhension gauche', 5, 90, 'kg'], ['force_main_droite_kg', 'Préhension droite', 5, 90, 'kg']],
+  pompes: [['pompes_reps', 'Pompes', 1, 75, 'reps']],
+  wallsit: [['wallsit_secondes', 'Wall-sit', 5, 180, 's']],
+  rowing: [['rowing_reps', 'Rowing', 1, 70, 'reps'], ['rowing_charge_kg', 'Rowing — charge', 8, 120, 'kg']],
+  rdl: [['rdl_reps', 'RDL', 1, 70, 'reps'], ['rdl_charge_kg', 'RDL — charge', 8, 200, 'kg']],
+  amrap_cardio: [['amrap_tours_complets', 'AMRAP — tours', 1, 20, 'tours'], ['fc_moy_amrap', 'AMRAP — FC moyenne', 70, 215, 'bpm'],
+    ['fc_pic_amrap', 'AMRAP — FC pic', 90, 225, 'bpm']],
+  rfc: [['fc_pic', 'RFC — FC fin d’effort', 90, 225, 'bpm'], ['fc_2min', 'RFC — FC à 2 min', 50, 200, 'bpm'], ['rfc_2min', 'RFC — baisse en 2 min', 1, 80, 'bpm']],
+};
+// indicateurs comparés au groupe et d'un point de test à l'autre
+const ANOM_GROUP = [['grip', 'force_main_gauche_kg', 'Préhension gauche'], ['grip', 'force_main_droite_kg', 'Préhension droite'],
+  ['pompes', 'pompes_reps', 'Pompes'], ['wallsit', 'wallsit_secondes', 'Wall-sit'], ['rowing', 'rowing_reps', 'Rowing'],
+  ['rdl', 'rdl_reps', 'RDL'], ['amrap_cardio', 'amrap_tours_complets', 'AMRAP — tours'], ['rfc', 'rfc_2min', 'RFC — baisse']];
+// conditions qui doivent rester identiques au T0 pour comparer
+const ANOM_COND = [['pompes', 'pompes_variante', 'variante de pompes'], ['rowing', 'rowing_charge_kg', 'charge du rowing'],
+  ['rdl', 'rdl_charge_kg', 'charge du RDL'], ['amrap_cardio', 'no_impact', 'option no impact'], ['amrap_cardio', 'duree_min', 'durée de l’AMRAP']];
+const quant = (a, q) => { const x = a.slice().sort((m, n) => m - n), i = (x.length - 1) * q, lo = Math.floor(i); return x[lo] + (x[Math.ceil(i)] - x[lo]) * (i - lo); };
+const fmtV = (x) => typeof x === 'boolean' ? (x ? 'oui' : 'non') : x == null || x === '' ? '—' : frNum(x);
+
+function anomalies() {
+  const out = [], today = dayKey(Date.now()), futur = {};
+  const ok = (uid) => profiles[uid] && profiles[uid].role !== 'coach' && (!fCours || coursOf(uid) === fCours) && genreOk(uid);
+  const rows = Object.values(protoRows).filter(r => ok(r.participant_id));
+  const add = (r, test, value, reason, level, uid) => {
+    const sig = 'a|' + (r ? r.id : uid) + '|' + test + '|' + reason + '|' + value;
+    out.push({ id: r ? r.id : null, uid: r ? r.participant_id : uid, point: r ? r.point_de_test : '', date: r ? r.date_test : '',
+      test, value, reason, level, sig, ok: !!anomOk[sig] });
+  };
+  // 1. valeurs hors des limites plausibles, incohérences internes
+  rows.forEach(r => {
+    const d = r.data || {};
+    (ANOM_LIMITS[r.test_type] || []).forEach(([k, l, mn, mx, u]) => {
+      const x = num(d[k]); if (x == null) return;
+      if (x < mn) add(r, l, fmtV(x) + ' ' + u, 'valeur anormalement basse (min. plausible ' + mn + ')', 'err');
+      else if (x > mx) add(r, l, fmtV(x) + ' ' + u, 'valeur anormalement haute (max. plausible ' + mx + ')', 'err');
+    });
+    if (r.test_type === 'grip') {
+      const g = num(d.force_main_gauche_kg), dr = num(d.force_main_droite_kg);
+      if (g && dr && Math.abs(g - dr) / Math.max(g, dr) > 0.35) add(r, 'Préhension', 'G ' + fmtV(g) + ' / D ' + fmtV(dr) + ' kg', 'écart gauche / droite de plus de 35 % (mains inversées, faute de frappe ?)', 'verif');
+    }
+    if (r.test_type === 'amrap_cardio') {
+      const m = num(d.fc_moy_amrap), pk = num(d.fc_pic_amrap);
+      if (m != null && pk != null && m > pk) add(r, 'AMRAP — FC', 'moy ' + m + ' > pic ' + pk, 'FC moyenne supérieure à la FC pic : impossible', 'err');
+      const age = ageAt((profiles[r.participant_id] || {}).date_naissance, r.date_test);
+      if (pk != null && age != null && pk > tanaka(age) + 20) add(r, 'AMRAP — FC pic', pk + ' bpm', 'plus de 20 bpm au-dessus de la FC max théorique (' + tanaka(age) + ') : capteur mal placé ?', 'verif');
+    }
+    if (r.test_type === 'rfc') {
+      const a = num(d.fc_pic), b = num(d.fc_2min);
+      if (a != null && b != null && b >= a) add(r, 'RFC', a + ' → ' + b + ' bpm', 'la FC n’a pas baissé après 2 min : mesure ou saisie à vérifier', 'err');
+    }
+    if (r.date_test > today && !futur[r.participant_id + r.point_de_test]) { futur[r.participant_id + r.point_de_test] = 1; add(r, 'Date du test', frDay(r.date_test + 'T12:00:00'), 'date dans le futur', 'err'); }
+  });
+  // 2. valeurs très éloignées du reste du groupe (même point de test, même variante pour les pompes)
+  ANOM_GROUP.forEach(([type, k, l]) => POINTS.forEach(pt => {
+    const sel = rows.filter(r => r.point_de_test === pt && r.test_type === type && num((r.data || {})[k]) != null);
+    const bucket = {};
+    sel.forEach(r => { const key = type === 'pompes' ? pompesVar(r.data) : type === 'amrap_cardio' ? String(r.data.duree_min || 10) : '';
+      (bucket[key] = bucket[key] || []).push(r); });
+    Object.values(bucket).forEach(list => {
+      if (list.length < 8) return;   // trop peu de monde pour juger
+      const v = list.map(r => num(r.data[k])), q1 = quant(v, 0.25), q3 = quant(v, 0.75), iqr = q3 - q1, med = quant(v, 0.5);
+      if (iqr <= 0) return;
+      list.forEach(r => { const x = num(r.data[k]);
+        if (x < q1 - 3 * iqr || x > q3 + 3 * iqr) add(r, l, fmtV(x), 'très éloigné du reste du groupe (médiane ' + fmtV(r1(med)) + ')', 'verif'); });
+    });
+  }));
+  // 3. d'un point de test à l'autre : conditions changées, variations inhabituelles, dates
+  const byUid = {};
+  rows.forEach(r => { ((byUid[r.participant_id] = byUid[r.participant_id] || {})[r.point_de_test] = byUid[r.participant_id][r.point_de_test] || {})[r.test_type] = r; });
+  Object.values(byUid).forEach(pts => {
+    const order = POINTS.filter(p => pts[p]); if (order.length < 2) return;
+    const ref = order[0];
+    order.slice(1).forEach(pt => {
+      ANOM_COND.forEach(([type, k, l]) => {
+        const a = pts[ref][type], b = pts[pt][type]; if (!a || !b) return;
+        const va = a.data[k], vb = b.data[k]; if (va == null || vb == null || va === vb) return;
+        add(b, MISS_LABELS[type], ref + ' : ' + fmtV(va) + ' → ' + pt + ' : ' + fmtV(vb), l + ' différente de ' + ref + ' : résultats non comparables', 'verif');
+      });
+      ANOM_GROUP.forEach(([type, k, l]) => {
+        const a = pts[ref][type], b = pts[pt][type]; if (!a || !b) return;
+        const xa = num(a.data[k]), xb = num(b.data[k]); if (xa == null || xb == null || xa < 5) return;
+        const ch = (xb - xa) / xa;
+        if (Math.abs(ch) > 0.6) add(b, l, ref + ' : ' + fmtV(xa) + ' → ' + pt + ' : ' + fmtV(xb), 'variation de ' + (ch > 0 ? '+' : '') + Math.round(ch * 100) + ' % depuis ' + ref + ' : faute de frappe ?', 'verif');
+      });
+      const da = Object.values(pts[ref]).map(r => r.date_test).sort()[0], db = Object.values(pts[pt]).map(r => r.date_test).sort()[0];
+      if (da && db && db < da) add(Object.values(pts[pt])[0], 'Dates', ref + ' le ' + frDay(da + 'T12:00:00') + ', ' + pt + ' le ' + frDay(db + 'T12:00:00'), pt + ' daté avant ' + ref + ' : point de test inversé ?', 'err');
+    });
+  });
+  // 4. profils et séances capteur
+  Object.values(profiles).filter(p => !p._noProfile && ok(p.id)).forEach(p => {
+    const age = ageAt(p.date_naissance, today);
+    if (age != null && (age < 14 || age > 95)) add(null, 'Date de naissance', frDay(p.date_naissance + 'T12:00:00') + ' (' + age + ' ans)', 'âge inhabituel : date de naissance à vérifier', 'verif', p.id);
+  });
+  Array.from(entries.values()).filter(e => ok(e.uid)).forEach(e => e.hr.forEach(h => {
+    if ((h.hr_peak != null && h.hr_peak > 225) || (h.hr_avg != null && h.duration_s > 300 && h.hr_avg < 45))
+      add(null, 'Séance capteur', 'moy ' + (h.hr_avg ?? '—') + ' / pic ' + (h.hr_peak ?? '—') + ' bpm', 'valeurs de FC aberrantes : capteur mal placé ou mal humidifié ?', 'verif', e.uid);
+  }));
+  // une valeur déjà signalée comme probable erreur n'est pas répétée en « à vérifier »
+  const errIds = new Set(out.filter(a => a.level === 'err' && a.id && a.test !== 'Date du test').map(a => a.id));
+  return out.filter(a => a.level === 'err' || !a.id || !errIds.has(a.id))
+    .sort((a, b) => (a.level === b.level ? 0 : a.level === 'err' ? -1 : 1) || nameOf(a.uid).localeCompare(nameOf(b.uid), 'fr'));
+}
+
 function notTested() {
   return inscritsList().filter(x => !x.pts.length && !x.p._noProfile);
 }
 
 function updateMissing() {
-  const items = missingItems().filter(i => !i.hidden), acc = accountIssues();
+  const items = missingItems().filter(i => !i.hidden), acc = accountIssues(), an = anomalies().filter(a => !a.ok);
   const n = new Set(items.map(i => i.uid)).size;
-  $('#missBadge').textContent = (n + acc.length) || '';
+  $('#missBadge').textContent = (n + acc.length + an.length) || '';
   const parts = [];
+  if (an.length) parts.push('<b>' + an.length + ' valeur' + (an.length > 1 ? 's' : '') + '</b> à vérifier');
   if (n) parts.push('<b>' + n + ' adhérent' + (n > 1 ? 's' : '') + '</b> avec des résultats incomplets');
   if (acc.length) parts.push('<b>' + acc.length + ' compte' + (acc.length > 1 ? 's' : '') + '</b> à vérifier');
   $('#missAlertTxt').innerHTML = '⚠️ ' + parts.join(' · ');
   $('#missAlert').hidden = !parts.length || view === 'manquants';
-  return { items, acc };
+  return { items, acc, an };
 }
 
 function renderManquants() {
   const all = missingItems(), acc = accountIssues(), absents = notTested();
   const items = all.filter(i => !i.hidden), nbHidden = all.length - items.length;
+  const anAll = anomalies(), an = anAll.filter(a => !a.ok), nbOk = anAll.length - an.length;
   const n = new Set(items.map(i => i.uid)).size;
-  const parts = [n && n + ' adhérent' + (n > 1 ? 's' : '') + ' avec des résultats incomplets',
+  const parts = [an.length && an.length + ' valeur' + (an.length > 1 ? 's' : '') + ' à vérifier',
+    n && n + ' adhérent' + (n > 1 ? 's' : '') + ' avec des résultats incomplets',
     acc.length && acc.length + ' compte' + (acc.length > 1 ? 's' : '') + ' à vérifier',
     absents.length && absents.length + ' inscrit' + (absents.length > 1 ? 's' : '') + ' sans résultat'].filter(Boolean);
-  $('#summary').textContent = parts.length ? parts.join(' · ') + '.' : 'Rien à compléter pour cette sélection. 🎉';
+  $('#summary').textContent = parts.length ? parts.join(' · ') + '.' : 'Rien à vérifier pour cette sélection. 🎉';
   const row = (who, sub, chips, btns) => '<div class="mrow"><div class="mwho"><b>' + esc(who) + '</b><small>' + sub + '</small></div>' +
     '<div class="chips">' + chips + '</div>' + btns + '</div>';
-  let html = '<div class="panel noprint"><div class="recaphead"><h2>À compléter</h2><div class="spacer"></div>' +
+  let html = '<div class="panel noprint"><div class="recaphead"><h2>À vérifier</h2><div class="spacer"></div>' +
     '<label class="muted" style="font-size:.88rem;display:flex;gap:.4rem;align-items:center"><input type="checkbox" id="missFc"' +
     (missWithFc ? ' checked' : '') + ' style="min-height:0;width:18px;height:18px"> Inclure les FC non mesurées (sans capteur)</label></div>' +
-    '<p class="recapnote">Tests non saisis et valeurs vides, pour chaque point de test commencé. « Compléter » ouvre la saisie avec ' +
+    '<p class="recapnote"><b>Valeurs à vérifier</b> : valeurs impossibles ou très inhabituelles (probable faute de frappe), très éloignées du ' +
+    'reste du groupe, ou conditions différentes du T0 (charge, variante…) qui rendent la comparaison impossible. « Corriger » ouvre le test ; ' +
+    '« C’est correct » retire l’alerte si la valeur est juste.' + (nbOk ? ' <a href="#" id="anomShowOk">Réafficher les ' + nbOk + ' valeur' + (nbOk > 1 ? 's' : '') + ' validée' + (nbOk > 1 ? 's' : '') + '</a>' : '') +
+    '<br><b>Résultats incomplets</b> : tests non saisis et valeurs vides, pour chaque point de test commencé. « Compléter » ouvre la saisie avec ' +
     'ce qui est déjà enregistré. « Masquer » retire une ligne de la liste sur cet appareil (par ex. un test non passé volontairement) ; ' +
     'elle réapparaît si autre chose vient à manquer.' + (nbHidden ? ' <a href="#" id="missShowHidden">Réafficher les ' + nbHidden + ' ligne' + (nbHidden > 1 ? 's' : '') + ' masquée' + (nbHidden > 1 ? 's' : '') + '</a>' : '') + '</p></div>';
+  // 0. anomalies
+  if (an.length) html += '<section class="panel"><div class="recaphead"><h2>Valeurs à vérifier</h2><span class="muted">' + an.length + '</span></div>' +
+    an.map(a => row(nameOf(a.uid), esc(coursOf(a.uid)) + (a.point ? ' · ' + a.point : '') + (a.date ? ' · ' + frDay(a.date + 'T12:00:00') : ''),
+      '<span class="chip ' + a.level + '">' + (a.level === 'err' ? '⚠️ probable erreur' : 'à vérifier') + '</span>' +
+      '<span class="chip val"><b>' + esc(a.test) + '</b> : ' + esc(a.value) + '</span><span class="chip">' + esc(a.reason) + '</span>',
+      (a.id ? '<button type="button" class="btn-primary missbtn" data-act="fix" data-id="' + a.id + '">Corriger</button>'
+        : a.test === 'Date de naissance' ? '<button type="button" class="btn-primary missbtn" data-act="profile" data-uid="' + esc(a.uid) + '">Corriger</button>' : '') +
+      '<button type="button" class="btn-soft missbtn" data-act="anomok" data-sig="' + esc(a.sig) + '">C’est correct</button>')).join('') + '</section>';
   // 1. résultats incomplets, par point de test
   POINTS.forEach(pt => {
     const list = items.filter(i => i.point === pt);
@@ -1134,9 +1262,10 @@ function renderManquants() {
     ' inscrit' + (absents.length > 1 ? 's' : '') + ' — absent' + (absents.length > 1 ? 's' : '') + ' ou venu' + (absents.length > 1 ? 's' : '') + ' sans téléphone ?</span></div>' +
     absents.map(x => row(nameOf(x.p.id), esc(coursOf(x.p.id)) + ' · inscrit le ' + frDay(x.p.created_at), '',
       '<button type="button" class="btn-soft missbtn" data-act="complete" data-uid="' + esc(x.p.id) + '" data-point="T0" data-date="">Saisir son T0</button>')).join('') + '</section>';
-  if (!items.length && !acc.length && !absents.length) html += '<div class="panel empty">Rien à compléter pour cette sélection. 🎉</div>';
+  if (!items.length && !acc.length && !absents.length && !an.length) html += '<div class="panel empty">Rien à vérifier pour cette sélection. 🎉</div>';
   $('#dataView').innerHTML = html;
   const fc = $('#missFc'); if (fc) fc.addEventListener('change', () => { missWithFc = fc.checked; lsSet('vs-miss-fc', missWithFc); render(); });
+  const so = $('#anomShowOk'); if (so) so.addEventListener('click', (e) => { e.preventDefault(); anomOk = {}; lsSet('vs-anom-ok', anomOk); render(); });
   const sh = $('#missShowHidden'); if (sh) sh.addEventListener('click', (e) => { e.preventDefault(); missHidden = {}; lsSet('vs-miss-hidden', missHidden); render(); });
 }
 
@@ -1153,6 +1282,8 @@ $('#dataView').addEventListener('click', (ev) => {
   else if (act === 'profile') editProfile(b.dataset.uid);
   else if (act === 'inscrits') showView('inscrits');
   else if (act === 'hide') { missHidden[b.dataset.sig] = 1; lsSet('vs-miss-hidden', missHidden); render(); }
+  else if (act === 'fix') editProto(Number(b.dataset.id));
+  else if (act === 'anomok') { anomOk[b.dataset.sig] = 1; lsSet('vs-anom-ok', anomOk); render(); }
 });
 
 function inscritsTable(list) {
@@ -1164,6 +1295,8 @@ function inscritsTable(list) {
 function missingTable() {
   const t = [['categorie', 'point_de_test', 'cours', 'nom', 'prenom', 'email', 'date', 'a_completer']];
   const pr = (uid) => profiles[uid] || {};
+  anomalies().filter(a => !a.ok).forEach(a => t.push([a.level === 'err' ? 'Valeur à vérifier (probable erreur)' : 'Valeur à vérifier',
+    a.point, coursOf(a.uid), pr(a.uid).nom, pr(a.uid).prenom, pr(a.uid).email, a.date, a.test + ' : ' + a.value + ' — ' + a.reason]));
   missingItems().filter(i => !i.hidden).forEach(i => t.push(['Résultats incomplets', i.point, coursOf(i.uid), pr(i.uid).nom, pr(i.uid).prenom, pr(i.uid).email, i.date,
     i.miss.map(m => m.label).join(' ; ')]));
   accountIssues().forEach(a => t.push(['Compte à vérifier', '', coursOf(a.x.p.id), a.x.p.nom, a.x.p.prenom, a.x.p.email, '', a.why.join(' ; ')]));
@@ -1359,12 +1492,12 @@ async function exportXlsx() {
   X.utils.book_append_sheet(wb, toSheet(X, res), 'Résultats');
   X.utils.book_append_sheet(wb, toSheet(X, recapTableRows(rec)), 'Récap groupes');
   X.utils.book_append_sheet(wb, toSheet(X, inscritsTable(ins)), 'Inscrits');
-  X.utils.book_append_sheet(wb, toSheet(X, miss), 'À compléter');
+  X.utils.book_append_sheet(wb, toSheet(X, miss), 'À vérifier');
   const info = [['Export', new Date().toLocaleString('fr-FR')], ['Cours', fCours || 'tous'], ['Genre', fGenre ? (fGenre === 'F' ? 'femmes' : 'hommes') : 'femmes et hommes'],
-    ['Date', fDate ? dayLabel(fDate) : 'toutes les dates'], ['Lignes de résultats', res.length - 1], ['Inscrits', ins.length], ['Éléments à compléter', miss.length - 1],
+    ['Date', fDate ? dayLabel(fDate) : 'toutes les dates'], ['Lignes de résultats', res.length - 1], ['Inscrits', ins.length], ['Éléments à vérifier', miss.length - 1],
     [], ['Onglets', 'Résultats : une ligne par adhérent, date et point de test (valeurs brutes).'],
     ['', 'Récap groupes : moyenne, médiane, écart-type, min, max par point de test, et évolution appariée.'],
-    ['', 'Inscrits : tous les comptes adhérents.'], ['', 'À compléter : tests ou valeurs manquants, comptes à vérifier.']];
+    ['', 'Inscrits : tous les comptes adhérents.'], ['', 'À vérifier : valeurs inhabituelles, tests ou valeurs manquants, comptes à vérifier.']];
   const wi = X.utils.aoa_to_sheet(info); wi['!cols'] = [{ wch: 20 }, { wch: 90 }];
   X.utils.book_append_sheet(wb, wi, 'Infos');
   const buf = X.write(wb, { bookType: 'xlsx', type: 'array', compression: true });

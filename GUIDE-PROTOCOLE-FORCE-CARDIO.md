@@ -158,7 +158,14 @@ plus qu'un seul écran :
   Vrais nombres et vraies dates (format jj/mm/aaaa), en-têtes lisibles, filtres
   automatiques sur chaque colonne. Les filtres cours / genre / date de l'écran
   s'appliquent. Le bouton « CSV » reste disponible.
-- **À compléter** (badge rouge + alerte en haut, et notification à la
+- **À vérifier — détection d'anomalies** : valeurs impossibles ou très
+  inhabituelles (ex. préhension 270 kg, FC moyenne > FC pic, FC qui ne baisse
+  pas pendant la RFC, date dans le futur), valeurs très éloignées du reste du
+  groupe (même point de test, au moins 8 adhérents), variations de plus de
+  60 % depuis le T0, conditions différentes du T0 (charge, variante, no
+  impact, durée) et âges inhabituels. « Corriger » ouvre le test, « C'est
+  correct » retire l'alerte (sur cet appareil).
+- **À vérifier** (anciennement « À compléter », badge rouge + alerte en haut, et notification à la
   connexion) : tests non saisis et valeurs vides pour chaque point de test
   commencé (ex. « RFC — test non saisi », « Rowing : charge »), comptes à
   vérifier (doublon, profil incomplet, e-mail non confirmé) et inscrits sans
