@@ -148,6 +148,13 @@ plus qu'un seul écran :
 - le **temps passé dans chaque zone d'effort** (repos < 50 %, Z1 50–60 %,
   Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 % de la FC max de Tanaka) est
   affiché sous les séances capteur de chaque adhérent, avec une barre colorée ;
+- **À compléter** (badge rouge + alerte en haut, et notification à la
+  connexion) : tests non saisis et valeurs vides pour chaque point de test
+  commencé (ex. « RFC — test non saisi », « Rowing : charge »), comptes à
+  vérifier (doublon, profil incomplet, e-mail non confirmé) et inscrits sans
+  aucun résultat. « Compléter » ouvre directement la saisie ; « Masquer »
+  retire une ligne sur cet appareil ; case pour ignorer les FC non mesurées
+  (participants sans capteur).
 - **+ Saisir des résultats** : tout le protocole d'un point de test sur un
   seul formulaire, pour n'importe quel adhérent (venu sans téléphone, valeur
   oubliée comme la FC de fin d'effort ou à 2 min). Les tests déjà enregistrés

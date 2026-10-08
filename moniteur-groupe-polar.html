@@ -56,6 +56,21 @@
   .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
   .seg button{background:#fff;color:var(--muted);border-radius:0;padding:.5rem .9rem}
   .seg button.sel{background:var(--pine);color:#fff}
+  .badge{display:inline-block;min-width:1.35em;padding:0 .35em;margin-left:.3rem;border-radius:999px;background:var(--terra);color:#fff;
+    font-size:.75rem;line-height:1.35em;text-align:center;font-weight:700}
+  .badge:empty{display:none}
+  .missalert{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .8rem;margin-top:.8rem;padding:.65rem .85rem;border-radius:10px;
+    background:#FBEDE7;border:1px solid #E6C3B5;border-left:4px solid var(--terra);font-size:.9rem;color:var(--ink)}
+  .missalert[hidden]{display:none}
+  .missalert button{min-height:36px;padding:.3rem .8rem}
+  .mrow{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .7rem;background:#fff;border:1px solid var(--line);border-radius:12px;padding:.6rem .8rem;margin-bottom:.45rem}
+  .mrow .mwho{flex:1 1 220px;text-align:left;color:var(--ink);font-size:.95rem}
+  .mrow .mwho small{display:block;color:var(--muted);font-size:.78rem}
+  .chips{display:flex;flex-wrap:wrap;gap:.3rem;flex:2 1 300px}
+  .chip{font-size:.78rem;padding:.12rem .5rem;border-radius:999px;background:#F4EFE4;border:1px solid var(--line)}
+  .chip.test{background:#FBEDE7;border-color:#E6C3B5;color:var(--terra-deep);font-weight:600}
+  .chip.fc{background:#EEF4F0;border-color:#BFD0C5;color:var(--pine)}
+  .mrow button{min-height:36px;padding:.3rem .75rem;font-size:.88rem}
   .muted{color:var(--muted)}
   .note{font-size:.85rem;color:var(--muted);line-height:1.5;margin-top:.7rem}
   /* ---- En direct ---- */
@@ -183,6 +198,7 @@
         <button type="button" data-v="detail" class="sel">Détail</button>
         <button type="button" data-v="recap">Récap des groupes</button>
         <button type="button" data-v="inscrits">Inscrits</button>
+        <button type="button" data-v="manquants">À compléter<span class="badge" id="missBadge"></span></button>
       </div>
       <div class="seg" id="fCours">
         <button type="button" data-c="" class="sel">Tous</button>
@@ -203,6 +219,8 @@
       <button class="btn-primary" id="btnExport">Exporter la sélection (CSV)</button>
     </div>
     <p class="note" id="summary">Chargement…</p>
+    <div class="missalert" id="missAlert" hidden><span id="missAlertTxt"></span>
+      <button type="button" class="btn-primary" id="missAlertBtn">Voir ce qui manque</button></div>
   </div>
 
   <div class="panel" id="livePanel" hidden>
@@ -312,6 +330,8 @@ async function checkCoach(user) {
   $('#authGate').style.display = 'none';
   await loadData();
   subscribeLive();
+  const m = updateMissing(), n = new Set(m.items.map(i => i.uid)).size;
+  if (n || m.acc.length) toast('⚠️ Données à compléter : ' + [n && n + ' adhérent' + (n > 1 ? 's' : ''), m.acc.length && m.acc.length + ' compte' + (m.acc.length > 1 ? 's' : '')].filter(Boolean).join(' · '));
 }
 
 /* =====================================================================
@@ -522,8 +542,10 @@ function rowHTML(e) {
 }
 
 function render() {
-  if (view === 'recap') { renderRecap(); renderLive(); return; }
+  if (view === 'recap') { updateMissing(); renderRecap(); renderLive(); return; }
+  updateMissing();
   if (view === 'inscrits') { renderInscrits(); renderLive(); return; }
+  if (view === 'manquants') { renderManquants(); renderLive(); return; }
   const list = selected();
   const nbAdh = new Set(list.map(e => e.uid)).size;
   const nbDays = new Set(list.map(e => e.date)).size;
@@ -996,6 +1018,125 @@ function inscritsList() {
     })
     .sort((a, b) => coursOf(a.p.id).localeCompare(coursOf(b.p.id)) || nameOf(a.p.id).localeCompare(nameOf(b.p.id), 'fr'));
 }
+/* =====================================================================
+   À compléter — tests ou valeurs manquants, comptes à vérifier
+   ===================================================================== */
+const REQUIRED = {   // [clé, libellé, fc = mesure du capteur]
+  grip: [['force_main_gauche_kg', 'main gauche'], ['force_main_droite_kg', 'main droite']],
+  pompes: [['pompes_reps', 'répétitions'], ['pompes_variante', 'variante']],
+  wallsit: [['wallsit_secondes', 'durée']],
+  rowing: [['rowing_reps', 'répétitions'], ['rowing_charge_kg', 'charge']],
+  rdl: [['rdl_reps', 'répétitions'], ['rdl_charge_kg', 'charge']],
+  amrap_cardio: [['amrap_tours_complets', 'tours'], ['rpe', 'effort ressenti'], ['fc_moy_amrap', 'FC moyenne', true], ['fc_pic_amrap', 'FC pic', true]],
+  rfc: [['fc_pic', 'FC fin d’effort', true], ['fc_2min', 'FC à 2 min', true]],
+};
+const MISS_TYPES = ['grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
+const MISS_LABELS = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'RFC' };
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+let missWithFc = lsGet('vs-miss-fc', true);         // inclure les FC non mesurées (pas de capteur)
+let missHidden = lsGet('vs-miss-hidden', {});       // éléments masqués par le coach (sur cet appareil)
+
+/* Pour chaque adhérent et chaque point de test commencé : tests absents et valeurs vides. */
+function missingItems() {
+  const by = {};
+  Object.values(protoRows).forEach(r => {
+    if (!profiles[r.participant_id] || profiles[r.participant_id].role === 'coach') return;
+    const k = r.participant_id + '|' + r.point_de_test;
+    (by[k] = by[k] || { uid: r.participant_id, point: r.point_de_test, dates: [], tests: {} }).tests[r.test_type] = r.data || {};
+    by[k].dates.push(r.date_test);
+  });
+  return Object.values(by).filter(x => (!fCours || coursOf(x.uid) === fCours) && genreOk(x.uid)).map(x => {
+    const miss = [];
+    MISS_TYPES.forEach(t => {
+      const d = x.tests[t];
+      if (!d) { miss.push({ label: MISS_LABELS[t] + ' — test non saisi', test: true, fc: t === 'rfc' }); return; }
+      REQUIRED[t].forEach(([k, l, fc]) => { if (d[k] == null || d[k] === '') miss.push({ label: MISS_LABELS[t] + ' : ' + l, fc: !!fc }); });
+    });
+    const shown = miss.filter(m => missWithFc || !m.fc);
+    const sig = x.uid + '|' + x.point + '|' + shown.map(m => m.label).join(',');
+    return { uid: x.uid, point: x.point, date: x.dates.sort().pop(), miss: shown, sig, hidden: !!missHidden[sig] };
+  }).filter(x => x.miss.length)
+    .sort((a, b) => a.point.localeCompare(b.point) || coursOf(a.uid).localeCompare(coursOf(b.uid)) || nameOf(a.uid).localeCompare(nameOf(b.uid), 'fr'));
+}
+function accountIssues() {
+  return inscritsList().map(x => ({ x, why: [x.doublon && 'doublon possible', !x.complet && 'profil incomplet', x.nonConfirme && 'e-mail non confirmé'].filter(Boolean) }))
+    .filter(a => a.why.length);
+}
+function notTested() {
+  return inscritsList().filter(x => !x.pts.length && !x.p._noProfile);
+}
+
+function updateMissing() {
+  const items = missingItems().filter(i => !i.hidden), acc = accountIssues();
+  const n = new Set(items.map(i => i.uid)).size;
+  $('#missBadge').textContent = (n + acc.length) || '';
+  const parts = [];
+  if (n) parts.push('<b>' + n + ' adhérent' + (n > 1 ? 's' : '') + '</b> avec des résultats incomplets');
+  if (acc.length) parts.push('<b>' + acc.length + ' compte' + (acc.length > 1 ? 's' : '') + '</b> à vérifier');
+  $('#missAlertTxt').innerHTML = '⚠️ ' + parts.join(' · ');
+  $('#missAlert').hidden = !parts.length || view === 'manquants';
+  return { items, acc };
+}
+
+function renderManquants() {
+  const all = missingItems(), acc = accountIssues(), absents = notTested();
+  const items = all.filter(i => !i.hidden), nbHidden = all.length - items.length;
+  const n = new Set(items.map(i => i.uid)).size;
+  const parts = [n && n + ' adhérent' + (n > 1 ? 's' : '') + ' avec des résultats incomplets',
+    acc.length && acc.length + ' compte' + (acc.length > 1 ? 's' : '') + ' à vérifier',
+    absents.length && absents.length + ' inscrit' + (absents.length > 1 ? 's' : '') + ' sans résultat'].filter(Boolean);
+  $('#summary').textContent = parts.length ? parts.join(' · ') + '.' : 'Rien à compléter pour cette sélection. 🎉';
+  const row = (who, sub, chips, btns) => '<div class="mrow"><div class="mwho"><b>' + esc(who) + '</b><small>' + sub + '</small></div>' +
+    '<div class="chips">' + chips + '</div>' + btns + '</div>';
+  let html = '<div class="panel noprint"><div class="recaphead"><h2>À compléter</h2><div class="spacer"></div>' +
+    '<label class="muted" style="font-size:.88rem;display:flex;gap:.4rem;align-items:center"><input type="checkbox" id="missFc"' +
+    (missWithFc ? ' checked' : '') + ' style="min-height:0;width:18px;height:18px"> Inclure les FC non mesurées (sans capteur)</label></div>' +
+    '<p class="recapnote">Tests non saisis et valeurs vides, pour chaque point de test commencé. « Compléter » ouvre la saisie avec ' +
+    'ce qui est déjà enregistré. « Masquer » retire une ligne de la liste sur cet appareil (par ex. un test non passé volontairement) ; ' +
+    'elle réapparaît si autre chose vient à manquer.' + (nbHidden ? ' <a href="#" id="missShowHidden">Réafficher les ' + nbHidden + ' ligne' + (nbHidden > 1 ? 's' : '') + ' masquée' + (nbHidden > 1 ? 's' : '') + '</a>' : '') + '</p></div>';
+  // 1. résultats incomplets, par point de test
+  POINTS.forEach(pt => {
+    const list = items.filter(i => i.point === pt);
+    if (!list.length) return;
+    html += '<section class="panel"><div class="recaphead"><h2>Résultats incomplets — ' + pt + '</h2><span class="muted">' + list.length +
+      ' adhérent' + (list.length > 1 ? 's' : '') + '</span></div>' + list.map(i => row(nameOf(i.uid), esc(coursOf(i.uid)) + ' · ' + frDay(i.date + 'T12:00:00'),
+        i.miss.map(m => '<span class="chip' + (m.test ? ' test' : '') + (m.fc ? ' fc' : '') + '">' + (m.fc ? '♥ ' : '') + esc(m.label) + '</span>').join(''),
+        '<button type="button" class="btn-primary missbtn" data-act="complete" data-uid="' + esc(i.uid) + '" data-point="' + pt + '" data-date="' + esc(i.date) + '">Compléter</button>' +
+        '<button type="button" class="btn-soft missbtn" data-act="hide" data-sig="' + esc(i.sig) + '">Masquer</button>')).join('') + '</section>';
+  });
+  // 2. comptes à vérifier
+  if (acc.length) html += '<section class="panel"><div class="recaphead"><h2>Comptes à vérifier</h2><span class="muted">' + acc.length + '</span></div>' +
+    acc.map(a => row(nameOf(a.x.p.id), esc(coursOf(a.x.p.id)) + ' · ' + esc(a.x.p.email || ''),
+      a.why.map(w => '<span class="chip test">' + w + '</span>').join(''),
+      (a.x.p._noProfile ? '' : '<button type="button" class="btn-soft missbtn" data-act="profile" data-uid="' + esc(a.x.p.id) + '">Corriger le profil</button>') +
+      (a.why.includes('doublon possible') ? '<button type="button" class="btn-soft missbtn" data-act="inscrits">Voir les inscrits</button>' : ''))).join('') + '</section>';
+  // 3. inscrits sans aucun résultat
+  if (absents.length) html += '<section class="panel"><div class="recaphead"><h2>Pas encore de résultat</h2><span class="muted">' + absents.length +
+    ' inscrit' + (absents.length > 1 ? 's' : '') + ' — absent' + (absents.length > 1 ? 's' : '') + ' ou venu' + (absents.length > 1 ? 's' : '') + ' sans téléphone ?</span></div>' +
+    absents.map(x => row(nameOf(x.p.id), esc(coursOf(x.p.id)) + ' · inscrit le ' + frDay(x.p.created_at), '',
+      '<button type="button" class="btn-soft missbtn" data-act="complete" data-uid="' + esc(x.p.id) + '" data-point="T0" data-date="">Saisir son T0</button>')).join('') + '</section>';
+  if (!items.length && !acc.length && !absents.length) html += '<div class="panel empty">Rien à compléter pour cette sélection. 🎉</div>';
+  $('#dataView').innerHTML = html;
+  const fc = $('#missFc'); if (fc) fc.addEventListener('change', () => { missWithFc = fc.checked; lsSet('vs-miss-fc', missWithFc); render(); });
+  const sh = $('#missShowHidden'); if (sh) sh.addEventListener('click', (e) => { e.preventDefault(); missHidden = {}; lsSet('vs-miss-hidden', missHidden); render(); });
+}
+
+function showView(v) {
+  view = v;
+  $$('#fView button').forEach(x => x.classList.toggle('sel', x.dataset.v === v));
+  render();
+}
+$('#missAlertBtn').addEventListener('click', () => showView('manquants'));
+$('#dataView').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button.missbtn'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'complete') openSaisie(b.dataset.uid, b.dataset.point, b.dataset.date);
+  else if (act === 'profile') editProfile(b.dataset.uid);
+  else if (act === 'inscrits') showView('inscrits');
+  else if (act === 'hide') { missHidden[b.dataset.sig] = 1; lsSet('vs-miss-hidden', missHidden); render(); }
+});
+
 const frDay = (ts) => ts ? new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
 function renderInscrits() {
