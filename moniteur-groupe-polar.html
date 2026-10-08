@@ -95,6 +95,14 @@
   #editDlg{border:none;border-radius:16px;padding:0;width:min(440px,calc(100vw - 2rem));box-shadow:var(--sh-2);color:var(--ink);background:var(--linen)}
   #editDlg::backdrop{background:rgba(31,58,45,.55)}
   #editDlg form{padding:1.2rem 1.2rem 1rem}
+  #editDlg{max-height:calc(100vh - 2rem);overflow:auto;margin:auto}   /* le reset * { margin:0 } décentrait la fenêtre */
+  #editDlg.wide{width:min(680px,calc(100vw - 2rem))}
+  #editDlg fieldset{border:1px solid var(--line);border-radius:12px;padding:.6rem .8rem .2rem;margin:0 0 .8rem;background:#fff}
+  #editDlg legend{font-weight:700;font-size:.9rem;padding:0 .35rem;color:var(--forest)}
+  #editDlg legend small{font-weight:400;color:var(--muted);margin-left:.3rem}
+  #editDlg .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 .7rem}
+  @media (max-width:520px){#editDlg .grid3{grid-template-columns:1fr 1fr}}
+  .edit.add{color:#fff;background:var(--pine);border-color:var(--pine)}
   #editDlg h3{font-family:'Libre Baskerville',Georgia,serif;font-size:1.05rem;margin-bottom:.2rem}
   #editDlg .sub{font-size:.85rem;color:var(--muted);margin-bottom:.9rem}
   #editDlg label.f{display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:.7rem}
@@ -182,8 +190,14 @@
         <button type="button" data-c="Milly">Milly</button>
         <button type="button" data-c="Boutigny">Boutigny</button>
       </div>
+      <div class="seg" id="fGenre" title="Genre">
+        <button type="button" data-g="" class="sel">F + H</button>
+        <button type="button" data-g="F">Femmes</button>
+        <button type="button" data-g="H">Hommes</button>
+      </div>
       <select id="fDate" aria-label="Date"><option value="">Toutes les dates</option></select>
       <div class="spacer"></div>
+      <button class="btn-soft" id="btnSaisie">+ Saisir des résultats</button>
       <button class="btn-soft" id="btnDelMode" aria-pressed="false">Modifier / supprimer</button>
       <button class="btn-soft" id="btnRefresh">Rafraîchir</button>
       <button class="btn-primary" id="btnExport">Exporter la sélection (CSV)</button>
@@ -305,7 +319,10 @@ async function checkCoach(user) {
    ===================================================================== */
 let profiles = {};          // id -> profil
 let entries = new Map();    // "uid|AAAA-MM-JJ" -> { uid, date, hr: [], proto: { T0: { type: data } }, meas: [] }
-let fCours = '', fDate = '', view = 'detail';
+let fCours = '', fDate = '', fGenre = '', view = 'detail';
+/* Genre connu seulement si le profil est complet (l'ancienne valeur par défaut « H » n'était pas confirmée). */
+const genreOf = (uid) => { const p = profiles[uid]; return p && p.date_naissance && (p.sexe === 'F' || p.sexe === 'H') ? p.sexe : null; };
+const genreOk = (uid) => !fGenre || genreOf(uid) === fGenre;
 let protoRows = {};
 let authUsers = null;        // comptes Supabase (migration 11) : id -> { email, created_at, email_confirmed_at, last_sign_in_at }          // id -> ligne protocol_test_results (pour la modification)
 
@@ -398,7 +415,7 @@ function fillDates() {
 
 function selected() {
   return Array.from(entries.values()).filter(e =>
-    (!fDate || e.date === fDate) && (!fCours || coursOf(e.uid) === fCours));
+    (!fDate || e.date === fDate) && (!fCours || coursOf(e.uid) === fCours) && genreOk(e.uid));
 }
 
 /* =====================================================================
@@ -425,7 +442,7 @@ const v = (x) => x == null || x === '' ? '—' : frNum(x);
 function thirdsTxt(d, k) { return d[k + '_t1'] != null ? ' [' + d[k + '_t1'] + '/' + d[k + '_t2'] + '/' + d[k + '_t3'] + ']' : ''; }
 function protoValue(type, d) {
   switch (type) {
-    case 'grip': return 'D ' + v(d.force_main_droite_kg) + ' / G ' + v(d.force_main_gauche_kg) + ' kg';
+    case 'grip': return 'G ' + v(d.force_main_gauche_kg) + ' / D ' + v(d.force_main_droite_kg) + ' kg';
     case 'pompes': return v(d.pompes_reps) + thirdsTxt(d, 'pompes_reps') + (d.pompes_variante ? ' (' + d.pompes_variante + ')' : '');
     case 'wallsit': return v(d.wallsit_secondes) + ' s';
     case 'rowing': return v(d.rowing_reps) + ' reps' + thirdsTxt(d, 'rowing_reps') + (d.rowing_charge_kg != null ? ' · ' + frNum(d.rowing_charge_kg) + ' kg' : '');
@@ -467,9 +484,11 @@ function delBtn(table, ids, label, title) {
     '" data-label="' + esc(label) + '" title="' + esc(title) + '">✕' + (title.startsWith('Tout') ? ' tout' : '') + '</button>';
 }
 
-function editBtn(kind, id, title) {
+function editBtn(kind, id, title, extra) {
   if (!delMode) return '';
-  return '<button type="button" class="edit" data-edit="' + kind + '" data-id="' + esc(id) + '" title="' + esc(title) + '">✎</button>';
+  return '<button type="button" class="edit' + (kind === 'add' ? ' add' : '') + '" data-edit="' + kind + '" data-id="' + esc(id) + '"' +
+    Object.entries(extra || {}).map(([k, x]) => ' data-' + k + '="' + esc(x) + '"').join('') +
+    ' title="' + esc(title) + '">' + (kind === 'add' ? '+ résultats' : '✎') + '</button>';
 }
 
 function rowHTML(e) {
@@ -495,7 +514,9 @@ function rowHTML(e) {
   const p = profiles[e.uid] || {}, age = ageAt(p.date_naissance, e.date);
   const info = [p.date_naissance ? GENRE_LABEL[p.sexe] : null, age != null ? age + ' ans' : null,
     age != null ? 'FC max ' + tanaka(age) + ' (Tanaka)' : null].filter(Boolean).join(' · ');
+  const pts = Object.keys(e.proto).sort();
   return '<div class="arow"><div class="nm">' + esc(nameOf(e.uid)) + editBtn('profile', e.uid, 'Modifier le profil') +
+    editBtn('add', e.uid, 'Saisir ou compléter des résultats', { point: pts[0] || '', date: e.date }) +
     (info ? ' <span class="muted" style="font-weight:400;font-size:.85rem">' + esc(info) + '</span>' : '') + '</div>' +
     lines.map(l => '<div class="ln">' + l + '</div>').join('') + '</div>';
 }
@@ -525,6 +546,12 @@ function render() {
   renderLive();
 }
 
+$('#fGenre').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  $$('#fGenre button').forEach(x => x.classList.toggle('sel', x === b));
+  fGenre = b.dataset.g;
+  render();
+});
 $('#fCours').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   $$('#fCours button').forEach(x => x.classList.toggle('sel', x === b));
@@ -552,7 +579,7 @@ $('#btnDelMode').addEventListener('click', () => {
   render();
 });
 $('#dataView').addEventListener('click', async (ev) => {
-  const b = ev.target.closest('button.del'); if (!b) return;
+  const b = ev.target.closest('button.del[data-table]'); if (!b) return;
   const ids = b.dataset.ids.split(',').map(Number).filter(Boolean);
   if (!ids.length || !confirm('Supprimer définitivement ' + b.dataset.label + ' ?\n\nCette action est irréversible.')) return;
   b.disabled = true;
@@ -573,7 +600,7 @@ $('#dataView').addEventListener('click', async (ev) => {
 const POMPES_VARIANTES = ['genoux sans gainage', 'genoux avec gainage', 'jambes tendues'];
 const STATIONS = ['jacks', 'squats', 'skatings', 'sprawls', 'burpee', 'pompes', 'supermans', 'climbers', 'squat jumps'];
 const EDIT_FIELDS = {   // [clé, libellé, type, options]
-  grip: [['force_main_droite_kg', 'Main droite (kg)', 'number'], ['force_main_gauche_kg', 'Main gauche (kg)', 'number']],
+  grip: [['force_main_gauche_kg', 'Main gauche (kg)', 'number'], ['force_main_droite_kg', 'Main droite (kg)', 'number']],
   pompes: [['pompes_reps', 'Répétitions', 'number'], ['pompes_variante', 'Variante', 'select', POMPES_VARIANTES]],
   wallsit: [['wallsit_secondes', 'Durée tenue (s)', 'number']],
   rowing: [['rowing_reps', 'Répétitions', 'number'], ['rowing_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
@@ -595,7 +622,8 @@ function fieldHTML([key, label, type, options], val) {
   return '<label class="f">' + esc(label) + '<input name="' + key + '" type="' + type + '"' + (type === 'number' ? ' step="any" inputmode="decimal"' : '') +
     ' value="' + esc(val == null ? '' : val) + '"></label>';
 }
-function openEditor(title, sub, html, onSave) {
+function openEditor(title, sub, html, onSave, wide) {
+  $('#editDlg').classList.toggle('wide', !!wide);
   $('#editTitle').textContent = title;
   $('#editSub').textContent = sub;
   $('#editFields').innerHTML = html;
@@ -678,8 +706,114 @@ function editProfile(uid) {
 $('#dataView').addEventListener('click', (ev) => {
   const b = ev.target.closest('button.edit'); if (!b) return;
   if (b.dataset.edit === 'proto') editProto(Number(b.dataset.id));
+  else if (b.dataset.edit === 'add') openSaisie(b.dataset.id, b.dataset.point, b.dataset.date);
   else editProfile(b.dataset.id);
 });
+
+/* =====================================================================
+   Saisie de résultats par le coach — adhérent sans téléphone, valeur
+   oubliée (FC de la RFC…) : tout le protocole d'un point de test sur un
+   seul formulaire. Les tests déjà enregistrés sont préremplis et complétés,
+   les nouveaux sont créés.
+   ===================================================================== */
+const SAISIE_ORDER = ['grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
+const SAISIE_LABELS = { grip: 'Force de préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing barre', rdl: 'RDL barre',
+  amrap_cardio: 'AMRAP Cardio', rfc: 'Récupération FC (RFC)' };
+
+function existingFor(uid, point) {
+  const out = {};
+  Object.values(protoRows).forEach(r => { if (r.participant_id === uid && r.point_de_test === point) out[r.test_type] = r; });
+  return out;
+}
+
+function renderSaisieTests() {
+  const form = $('#editForm'), uid = form.elements.s_uid.value, point = form.elements.s_point.value;
+  const ex = uid ? existingFor(uid, point) : {};
+  const dates = Object.values(ex).map(r => r.date_test).filter(Boolean).sort();
+  if (dates.length) form.elements.s_date.value = dates[dates.length - 1];
+  $('#saisieTests').innerHTML = SAISIE_ORDER.map(type => {
+    const r = ex[type], d = r ? r.data || {} : {};
+    const defs = EDIT_FIELDS[type];
+    const val = (k) => d[k] != null ? d[k] : (!r && type === 'amrap_cardio' && k === 'duree_min' ? 20 : null);
+    return '<fieldset><legend>' + SAISIE_LABELS[type] + '<small>' + (r ? 'déjà enregistré — complète ou corrige' : 'pas encore saisi') + '</small></legend>' +
+      '<div class="grid3">' + defs.filter(f => f[2] !== 'checkbox').map(f => fieldHTML([type + '__' + f[0], f[1], f[2], f[3]], val(f[0]))).join('') + '</div>' +
+      defs.filter(f => f[2] === 'checkbox').map(f => fieldHTML([type + '__' + f[0], f[1], f[2]], val(f[0]))).join('') + '</fieldset>';
+  }).join('');
+}
+
+function openSaisie(uid, point, date) {
+  const members = Object.values(profiles).filter(p => p.role !== 'coach' && !p._noProfile)
+    .sort((a, b) => coursOf(a.id).localeCompare(coursOf(b.id)) || nameOf(a.id).localeCompare(nameOf(b.id), 'fr'));
+  if (!members.length) { toast('Aucun adhérent inscrit.'); return; }
+  const html =
+    '<label class="f">Adhérent<select name="s_uid"><option value="">— choisir —</option>' +
+      members.map(p => '<option value="' + esc(p.id) + '"' + (p.id === uid ? ' selected' : '') + '>' +
+        esc(nameOf(p.id) + ' — ' + coursOf(p.id)) + '</option>').join('') + '</select></label>' +
+    '<div class="grid2">' + fieldHTML(['s_point', 'Point de test', 'select', POINTS], point || 'T0') +
+      fieldHTML(['s_date', 'Date du test', 'date'], date || dayKey(Date.now())) + '</div>' +
+    '<p class="sub" style="margin:.2rem 0 .8rem">Laisse vide ce qui n’a pas été fait. Les cases déjà remplies viennent de ce que ' +
+      'l’adhérent a enregistré : tu peux les compléter ou les corriger.</p>' +
+    '<div id="saisieTests"></div>';
+  openEditor('Saisir des résultats', 'Par exemple pour un adhérent venu sans téléphone, ou une valeur oubliée.', html, saveSaisie, true);
+  const form = $('#editForm');
+  form.elements.s_point.querySelector('option[value=""]').remove();   // un point de test est obligatoire
+  form.elements.s_point.value = point || 'T0';
+  form.elements.s_uid.addEventListener('change', renderSaisieTests);
+  form.elements.s_point.addEventListener('change', renderSaisieTests);
+  renderSaisieTests();
+}
+
+const stableJson = (o) => JSON.stringify(Object.keys(o).sort().reduce((a, k) => (a[k] = o[k], a), {}));
+
+async function saveSaisie(fd, form) {
+  const uid = fd.get('s_uid'), point = fd.get('s_point'), date = fd.get('s_date');
+  if (!uid) { toast('Choisis l’adhérent.'); return false; }
+  if (!point || !date) { toast('Point de test et date obligatoires.'); return false; }
+  const ex = existingFor(uid, point), inserts = [], updates = [];
+  for (const type of SAISIE_ORDER) {
+    const r = ex[type], data = Object.assign({}, r ? r.data : {});
+    let filled = false;
+    for (const [key, label, ftype] of EDIT_FIELDS[type]) {
+      const name = type + '__' + key;
+      if (ftype === 'checkbox') { if (form.elements[name].checked) { data[key] = true; filled = true; } else if (key in data) data[key] = false; continue; }
+      const raw = String(fd.get(name) || '').trim();
+      if (raw === '') { delete data[key]; continue; }
+      if (ftype === 'number') {
+        const n = parseFloat(raw.replace(',', '.'));
+        if (!isFinite(n)) { toast('Valeur invalide : ' + SAISIE_LABELS[type] + ' — ' + label); return false; }
+        data[key] = n;
+      } else data[key] = raw;
+      if (!(type === 'amrap_cardio' && key === 'duree_min')) filled = true;   // la durée préremplie seule ne crée pas de test
+    }
+    if (!r && !filled) continue;
+    if (type === 'rfc') { if (data.fc_pic != null && data.fc_2min != null) data.rfc_2min = data.fc_pic - data.fc_2min; else delete data.rfc_2min; }
+    if (type === 'rowing' && !r) data.rowing_modalite = 'barre';
+    if (r) {   // test existant : mis à jour seulement s'il a changé (ou si la date change)
+      if (stableJson(data) !== stableJson(r.data || {}) || r.date_test !== date) updates.push({ id: r.id, data });
+      continue;
+    }
+    data.saisi_par_coach = true;
+    inserts.push({ participant_id: uid, point_de_test: point, date_test: date, test_type: type, data });
+  }
+  if (!inserts.length && !updates.length) { toast('Rien de nouveau à enregistrer.'); return false; }
+  for (const u of updates) {
+    const { data: res, error } = await sb.from('protocol_test_results').update({ data: u.data, date_test: date }).eq('id', u.id).select('id');
+    if (error) { toast('Erreur : ' + error.message); return false; }
+    if (!res || !res.length) { toast('Modification refusée — exécute la migration 10 dans Supabase.'); return false; }
+  }
+  if (inserts.length) {
+    const { error } = await sb.from('protocol_test_results').insert(inserts).select('id');
+    if (error) {
+      toast(/row-level security|permission/i.test(error.message) ? 'Saisie refusée — exécute la migration 12 dans Supabase.'
+        : error.code === '23505' ? 'Un de ces tests existe déjà pour ce point — rafraîchis puis recommence.' : 'Erreur : ' + error.message);
+      return false;
+    }
+  }
+  toast((inserts.length + updates.length) + ' test' + (inserts.length + updates.length > 1 ? 's' : '') + ' enregistré' +
+    (inserts.length + updates.length > 1 ? 's' : '') + ' pour ' + nameOf(uid) + ' ✔');
+  return true;
+}
+$('#btnSaisie').addEventListener('click', () => openSaisie('', 'T0', ''));
 
 /* =====================================================================
    Récap des performances par groupe (cours) et par point de test
@@ -692,8 +826,8 @@ const num = (x) => (x == null || x === '' || !isFinite(Number(x))) ? null : Numb
 const r1 = (x) => Math.round(x * 10) / 10;
 /* better : 1 = plus c'est haut, mieux c'est ; 0 = indicateur neutre (FC) */
 const RECAP_INDICATORS = [
-  { label: 'Préhension main droite', unit: 'kg', type: 'grip', get: d => num(d.force_main_droite_kg), better: 1 },
   { label: 'Préhension main gauche', unit: 'kg', type: 'grip', get: d => num(d.force_main_gauche_kg), better: 1 },
+  { label: 'Préhension main droite', unit: 'kg', type: 'grip', get: d => num(d.force_main_droite_kg), better: 1 },
   ...POMPES_VARIANTES.concat('genoux (ancien libellé)', 'variante non précisée').map(vr => (
     { label: 'Pompes — ' + vr, unit: 'reps', type: 'pompes', get: d => pompesVar(d) === vr ? num(d.pompes_reps) : null, better: 1, optional: true })),
   { label: 'Wall-sit', unit: 's', type: 'wallsit', get: d => num(d.wallsit_secondes), better: 1 },
@@ -717,7 +851,7 @@ function stats(vals) {
 
 /* Résultats retenus : filtre cours + date de la barre du haut. */
 function recapRows() {
-  return Object.values(protoRows).filter(r => (!fDate || r.date_test === fDate) && (!fCours || coursOf(r.participant_id) === fCours));
+  return Object.values(protoRows).filter(r => (!fDate || r.date_test === fDate) && (!fCours || coursOf(r.participant_id) === fCours) && genreOk(r.participant_id));
 }
 
 /* Calcule le récap d'un ensemble de résultats (un groupe, ou tous). */
@@ -727,6 +861,14 @@ function computeRecap(rows) {
     byPoint[r.point_de_test][r.participant_id] || {})[r.test_type] = r.data || {}));
   const points = POINTS.filter(p => byPoint[p]);
   const counts = {}; points.forEach(p => { counts[p] = Object.keys(byPoint[p]).length; });
+  // Profil du groupe testé : genre et âge (au jour du test)
+  const dateOf = {}; rows.forEach(r => { (dateOf[r.point_de_test] = dateOf[r.point_de_test] || {})[r.participant_id] = r.date_test; });
+  const demo = {};
+  points.forEach(p => {
+    const uids = Object.keys(byPoint[p]);
+    demo[p] = { f: uids.filter(u => genreOf(u) === 'F').length, h: uids.filter(u => genreOf(u) === 'H').length,
+      age: stats(uids.map(u => ageAt((profiles[u] || {}).date_naissance, dateOf[p][u])).filter(a => a != null)) };
+  });
   const noImpact = {}; points.forEach(p => { noImpact[p] = Object.values(byPoint[p]).filter(t => t.amrap_cardio && t.amrap_cardio.no_impact).length; });
   const lines = RECAP_INDICATORS.map(ind => {
     const per = {}, vals = {};
@@ -748,7 +890,7 @@ function computeRecap(rows) {
     }
     return { ind, per, evo, has: present.length > 0 };
   }).filter(l => l.has || !l.ind.optional);
-  return { points, counts, noImpact, lines };
+  return { points, counts, noImpact, lines, demo };
 }
 
 function evoHTML(ind, evo) {
@@ -765,6 +907,10 @@ function recapTable(title, rec) {
   const th = rec.points.map(p => '<th>' + p + '</th>').join('');
   const body =
     '<tr class="count"><td>Adhérents testés</td>' + rec.points.map(p => '<td>' + rec.counts[p] + '</td>').join('') + '<td></td></tr>' +
+    '<tr><td>Femmes · Hommes</td>' + rec.points.map(p => '<td>' + rec.demo[p].f + ' F · ' + rec.demo[p].h + ' H' +
+      (rec.counts[p] - rec.demo[p].f - rec.demo[p].h ? '<small>' + (rec.counts[p] - rec.demo[p].f - rec.demo[p].h) + ' non renseigné</small>' : '') + '</td>').join('') + '<td></td></tr>' +
+    '<tr><td>Âge <small>ans</small></td>' + rec.points.map(p => { const a = rec.demo[p].age;
+      return '<td>' + (a ? '<b>' + frNum(r1(a.mean)) + '</b><small>' + a.min + '–' + a.max + ' · n = ' + a.n + '</small>' : '—') + '</td>'; }).join('') + '<td></td></tr>' +
     rec.lines.map(l => '<tr><td>' + esc(l.ind.label) + ' <small>' + esc(l.ind.unit) + '</small></td>' +
       rec.points.map(p => {
         const st = l.per[p];
@@ -787,7 +933,7 @@ function recapGroups() {
 
 function renderRecap() {
   const groups = recapGroups();
-  const scope = (fCours || 'tous les cours') + ' · ' + (fDate ? dayLabel(fDate) : 'toutes les dates');
+  const scope = (fCours || 'tous les cours') + (fGenre ? ' · ' + (fGenre === 'F' ? 'femmes' : 'hommes') : '') + ' · ' + (fDate ? dayLabel(fDate) : 'toutes les dates');
   $('#summary').textContent = groups.length ? 'Récap des performances — ' + scope + '.' : 'Aucun résultat de protocole pour cette sélection.';
   $('#dataView').innerHTML =
     '<div class="panel"><div class="recaphead"><h2>Récap des performances</h2><div class="spacer"></div>' +
@@ -801,7 +947,7 @@ function renderRecap() {
   const bp = $('#btnRecapPrint'); if (bp) bp.addEventListener('click', () => window.print());
   const bc = $('#btnRecapCsv'); if (bc) bc.addEventListener('click', () => {
     if (!groups.length) { toast('Aucun résultat à exporter.'); return; }
-    download(buildRecapCsv(groups), 'recap_' + (fCours || 'tous-cours') + '_' + (fDate || 'toutes-dates') + '_' + stamp() + '.csv');
+    download(buildRecapCsv(groups), 'recap_' + (fCours || 'tous-cours') + (fGenre ? '_' + fGenre : '') + '_' + (fDate || 'toutes-dates') + '_' + stamp() + '.csv');
   });
 }
 
@@ -815,6 +961,10 @@ function buildRecapCsv(groups) {
   groups.forEach(({ title, rec }) => {
     lines.push([title, 'Adhérents testés', 'adhérents'].concat(...POINTS.map(p => [rec.counts[p] ?? '', '', '', '', '', '']), ['', '', '', '', ''])
       .map(csvCell).join(';'));
+    lines.push([title, 'Femmes', 'adhérentes'].concat(...POINTS.map(p => [rec.demo[p] ? rec.demo[p].f : '', '', '', '', '', '']), ['', '', '', '', '']).map(csvCell).join(';'));
+    lines.push([title, 'Hommes', 'adhérents'].concat(...POINTS.map(p => [rec.demo[p] ? rec.demo[p].h : '', '', '', '', '', '']), ['', '', '', '', '']).map(csvCell).join(';'));
+    lines.push([title, 'Âge', 'ans'].concat(...POINTS.map(p => { const a = rec.demo[p] && rec.demo[p].age;
+      return a ? [a.n, r1(a.mean), r1(a.median), r1(a.sd), a.min, a.max] : ['', '', '', '', '', '']; }), ['', '', '', '', '']).map(csvCell).join(';'));
     rec.lines.forEach(l => {
       const row = [title, l.ind.label, l.ind.unit];
       POINTS.forEach(p => { const st = l.per[p]; row.push(...(st ? [st.n, r1(st.mean), r1(st.median), r1(st.sd), st.min, st.max] : ['', '', '', '', '', ''])); });
@@ -831,15 +981,18 @@ function buildRecapCsv(groups) {
 /* =====================================================================
    Inscrits — tous les comptes adhérents, avec ou sans données
    ===================================================================== */
+const nameKey = (p) => [p.nom, p.prenom].map(x => String(x || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).join('|');
 function inscritsList() {
+  const seen = {};
+  Object.values(profiles).forEach(p => { if (p.nom && p.prenom) { const k = nameKey(p); seen[k] = (seen[k] || 0) + 1; } });
   return Object.values(profiles)
-    .filter(p => p.role !== 'coach' && (!fCours || coursOf(p.id) === fCours))
+    .filter(p => p.role !== 'coach' && (!fCours || coursOf(p.id) === fCours) && genreOk(p.id))
     .map(p => {
       const pts = Array.from(new Set(Object.values(protoRows).filter(r => r.participant_id === p.id).map(r => r.point_de_test))).sort();
       const seances = Array.from(entries.values()).filter(e => e.uid === p.id).reduce((n, e) => n + e.hr.length, 0);
       const complet = !!(p.prenom && p.nom && COURS.includes(p.cours) && p.date_naissance);
       const u = authUsers && authUsers[p.id];
-      return { p, pts, seances, complet, u, nonConfirme: !!(u && !u.email_confirmed_at), age: ageAt(p.date_naissance, dayKey(Date.now())) };
+      return { p, pts, seances, complet, u, nonConfirme: !!(u && !u.email_confirmed_at), doublon: !!(p.nom && p.prenom && seen[nameKey(p)] > 1), age: ageAt(p.date_naissance, dayKey(Date.now())) };
     })
     .sort((a, b) => coursOf(a.p.id).localeCompare(coursOf(b.p.id)) || nameOf(a.p.id).localeCompare(nameOf(b.p.id), 'fr'));
 }
@@ -858,14 +1011,22 @@ function renderInscrits() {
     '<div class="panel noprint"><div class="recaphead"><h2>Inscrits</h2><div class="spacer"></div>' +
       '<button class="btn-primary" id="btnInscritsCsv">Exporter la liste (CSV)</button></div>' +
       '<p class="recapnote">Tous les comptes adhérents, y compris ceux qui n’ont encore rien enregistré. « Profil incomplet » : ' +
-      'l’adhérent devra renseigner nom, cours ou date de naissance à sa prochaine connexion (ou corrige-le avec « Modifier / supprimer »).' +
+      'l’adhérent devra renseigner nom, cours ou date de naissance à sa prochaine connexion (ou corrige-le avec « Modifier / supprimer »). ' +
+      'Doublon (compte créé 2 fois) : « Modifier / supprimer », puis « ✕ compte » sur celui à effacer.' +
       (authUsers ? '' : ' <b>Pour voir aussi les comptes sans profil et les e-mails non confirmés, exécute la migration 11 dans Supabase.</b>') + '</p></div>' +
     (groups.map(g => {
       const rows = list.filter(x => coursOf(x.p.id) === g);
       if (!rows.length) return '';
-      return '<section class="panel"><div class="recaphead"><h2>' + esc(g) + '</h2><span class="muted">' + rows.length + ' inscrit' + (rows.length > 1 ? 's' : '') + '</span></div>' +
+      const nf = rows.filter(x => genreOf(x.p.id) === 'F').length, nh = rows.filter(x => genreOf(x.p.id) === 'H').length;
+      const ag = stats(rows.map(x => x.age).filter(a => a != null));
+      return '<section class="panel"><div class="recaphead"><h2>' + esc(g) + '</h2><span class="muted">' + rows.length + ' inscrit' + (rows.length > 1 ? 's' : '') +
+        ' · ' + nf + ' femme' + (nf > 1 ? 's' : '') + ' · ' + nh + ' homme' + (nh > 1 ? 's' : '') +
+        (ag ? ' · âge moyen ' + Math.round(ag.mean) + ' ans (' + ag.min + '–' + ag.max + ')' : '') + '</span></div>' +
         '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Nom</th><th>E-mail</th><th>Genre · âge</th><th>Inscrit le</th><th>Tests passés</th><th>Séances capteur</th></tr></thead><tbody>' +
         rows.map(x => '<tr><td><b>' + esc(nameOf(x.p.id)) + '</b>' + editBtn('profile', x.p.id, 'Modifier le profil') +
+          (x.p._noProfile ? '' : editBtn('add', x.p.id, 'Saisir des résultats', { point: x.pts.length ? '' : 'T0' })) +
+          (delMode ? '<button type="button" class="del delacct" data-uid="' + esc(x.p.id) + '" title="Supprimer ce compte">✕ compte</button>' : '') +
+          (x.doublon ? '<small style="color:var(--terra-deep);font-weight:700">Doublon possible : même nom qu’un autre compte</small>' : '') +
           (x.nonConfirme ? '<small style="color:var(--terra-deep)">E-mail non confirmé — il doit cliquer le lien reçu</small>' : '') +
           (x.p._noProfile ? '<small style="color:var(--terra-deep)">Profil absent — lance la migration 11</small>'
             : x.complet ? '' : '<small style="color:var(--terra-deep)">Profil incomplet</small>') +
@@ -883,15 +1044,40 @@ function renderInscrits() {
     list.forEach(x => lines.push([coursOf(x.p.id), x.p.nom, x.p.prenom, x.p.email, x.p.date_naissance ? GENRE_LABEL[x.p.sexe] : '', x.age,
       x.p.date_naissance, x.p.created_at ? dayKey(x.p.created_at) : '', x.u ? !!x.u.email_confirmed_at : '',
       x.u && x.u.last_sign_in_at ? dayKey(x.u.last_sign_in_at) : '', x.complet, x.pts.join(' '), x.seances].map(csvCell).join(';')));
-    download(lines.join('\n') + '\n', 'inscrits_' + (fCours || 'tous-cours') + '_' + stamp() + '.csv');
+    download(lines.join('\n') + '\n', 'inscrits_' + (fCours || 'tous-cours') + (fGenre ? '_' + fGenre : '') + '_' + stamp() + '.csv');
   });
 }
+
+/* Suppression d'un compte adhérent (doublon, inscription par erreur) —
+   fonction coach_delete_user de la migration 12. Définitif. */
+$('#dataView').addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button.delacct'); if (!b) return;
+  ev.stopPropagation();
+  const uid = b.dataset.uid, p = profiles[uid] || {};
+  const nbTests = Object.values(protoRows).filter(r => r.participant_id === uid).length;
+  const nbSeances = Array.from(entries.values()).filter(e => e.uid === uid).reduce((n, e) => n + e.hr.length + e.meas.length, 0);
+  const autres = Object.values(profiles).filter(o => o.id !== uid && o.role !== 'coach' && p.nom && p.prenom && nameKey(o) === nameKey(p));
+  if (!confirm('Supprimer définitivement le compte de ' + nameOf(uid) + ' (' + (p.email || 'sans e-mail') + ') ?\n\n' +
+      (nbTests || nbSeances ? '⚠️ Ce compte contient ' + nbTests + ' résultat' + (nbTests > 1 ? 's' : '') + ' de test et ' + nbSeances +
+        ' séance' + (nbSeances > 1 ? 's' : '') + '/mesure' + (nbSeances > 1 ? 's' : '') + ', qui seront effacés aussi.\n\n' : 'Ce compte ne contient aucune donnée.\n\n') +
+      (autres.length ? 'L’autre compte au même nom (' + autres.map(o => o.email).join(', ') + ') n’est pas touché.\n\n' : '') +
+      'Cette action est irréversible.')) return;
+  b.disabled = true;
+  const { error } = await sb.rpc('coach_delete_user', { cible: uid });
+  if (error) {
+    b.disabled = false;
+    toast(/coach_delete_user|function|schema cache/i.test(error.message) ? 'Suppression impossible — exécute la migration 12 dans Supabase.' : 'Erreur : ' + error.message);
+    return;
+  }
+  toast('Compte de ' + nameOf(uid) + ' supprimé.');
+  await loadData();
+});
 
 /* =====================================================================
    Export CSV de la sélection (cours + date) — valeurs brutes
    ===================================================================== */
 const EXPORT_COLUMNS = [
-  ['prehension_droite_kg', 'grip', 'force_main_droite_kg'], ['prehension_gauche_kg', 'grip', 'force_main_gauche_kg'],
+  ['prehension_gauche_kg', 'grip', 'force_main_gauche_kg'], ['prehension_droite_kg', 'grip', 'force_main_droite_kg'],
   ['pompes_reps', 'pompes', 'pompes_reps'], ['pompes_variante', 'pompes', 'pompes_variante'],
   ['wallsit_s', 'wallsit', 'wallsit_secondes'],
   ['rowing_reps', 'rowing', 'rowing_reps'], ['rowing_modalite', 'rowing', 'rowing_modalite'], ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
@@ -961,7 +1147,7 @@ async function download(text, filename) {
 $('#btnExport').addEventListener('click', () => {
   const list = selected();
   if (!list.length) { toast('Aucune donnée à exporter pour cette sélection.'); return; }
-  const name = 'suivi_' + (fCours || 'tous-cours') + '_' + (fDate || 'toutes-dates') + '_' + stamp() + '.csv';
+  const name = 'suivi_' + (fCours || 'tous-cours') + (fGenre ? '_' + fGenre : '') + '_' + (fDate || 'toutes-dates') + '_' + stamp() + '.csv';
   download(buildCsv(list), name);
 });
 

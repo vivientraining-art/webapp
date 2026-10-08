@@ -31,6 +31,9 @@ n'est pas déjà fait :
 9. `supabase-migration-11-comptes-inscrits.sql` — crée le profil manquant des
    comptes qui n'en ont pas, et permet à la vue « Inscrits » de lister tous
    les comptes avec la confirmation de l'e-mail et la dernière connexion.
+10. `supabase-migration-12-saisie-suppression-coach.sql` — permet au coach de
+    saisir des résultats pour un adhérent et de supprimer un compte adhérent
+    (doublon).
 
 ## FC max : formule de Tanaka
 
@@ -145,6 +148,17 @@ plus qu'un seul écran :
 - le **temps passé dans chaque zone d'effort** (repos < 50 %, Z1 50–60 %,
   Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 % de la FC max de Tanaka) est
   affiché sous les séances capteur de chaque adhérent, avec une barre colorée ;
+- **+ Saisir des résultats** : tout le protocole d'un point de test sur un
+  seul formulaire, pour n'importe quel adhérent (venu sans téléphone, valeur
+  oubliée comme la FC de fin d'effort ou à 2 min). Les tests déjà enregistrés
+  sont préremplis et complétés ; la RFC est calculée. Aussi accessible par
+  « + résultats » sur chaque adhérent en mode « Modifier / supprimer ».
+- **Filtre Genre** (F + H / Femmes / Hommes) : s'applique au détail, au récap,
+  aux inscrits et aux exports. Le récap affiche pour chaque groupe et chaque
+  point de test le nombre de femmes et d'hommes et l'âge (moyenne, min–max).
+- **Supprimer un compte** (doublon) : vue « Inscrits », mode « Modifier /
+  supprimer », « ✕ compte ». Les comptes au même nom sont signalés « Doublon
+  possible ». Définitif : le compte et ses données sont effacés.
 - **Inscrits** : la liste de tous les comptes adhérents par cours, même ceux
   qui n'ont encore rien enregistré (e-mail, genre, âge, date d'inscription,
   tests passés, séances capteur, profil incomplet signalé), exportable en CSV.

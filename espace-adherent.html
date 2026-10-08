@@ -1368,8 +1368,8 @@ const TEST_DEFS = {
     category: 'Force — Préhension',
     protocole: "Debout, bras le long du corps, coude légèrement fléchi. 2 essais par main en alternant droite → gauche → droite → gauche, 15 sec de repos entre chaque prise. Garder le meilleur essai par main.",
     fields: [
-      { key: 'force_main_droite_kg', label: 'Main droite (kg)', type: 'number', step: '0.1' },
       { key: 'force_main_gauche_kg', label: 'Main gauche (kg)', type: 'number', step: '0.1' },
+      { key: 'force_main_droite_kg', label: 'Main droite (kg)', type: 'number', step: '0.1' },
     ],
   },
   pompes: {
@@ -1977,7 +1977,7 @@ function thirdsTxt(d, k) {
 function formatProtoData(testType, data) {
   data = data || {};
   switch (testType) {
-    case 'grip': return 'D ' + (data.force_main_droite_kg ?? '—') + ' kg · G ' + (data.force_main_gauche_kg ?? '—') + ' kg';
+    case 'grip': return 'G ' + (data.force_main_gauche_kg ?? '—') + ' kg · D ' + (data.force_main_droite_kg ?? '—') + ' kg';
     case 'pompes': return (data.pompes_reps ?? '—') + ' reps' + thirdsTxt(data, 'pompes_reps') + ' (' + (data.pompes_variante ?? '—') + ')';
     case 'wallsit': return (data.wallsit_secondes ?? '—') + ' s';
     case 'rowing': return (data.rowing_reps ?? '—') + ' reps' + thirdsTxt(data, 'rowing_reps') + (data.rowing_modalite ? ' · ' + data.rowing_modalite : '') + (data.rowing_charge_kg != null ? ' · ' + data.rowing_charge_kg + ' kg' : '');
