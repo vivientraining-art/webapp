@@ -470,7 +470,8 @@ function protoValue(type, d) {
     case 'rdl': return v(d.rdl_reps) + ' reps' + thirdsTxt(d, 'rdl_reps') + (d.rdl_charge_kg != null ? ' · ' + frNum(d.rdl_charge_kg) + ' kg' : '');
     case 'amrap_cardio': return v(d.amrap_tours_complets) + ' tours' + (d.amrap_derniere_station ? ' (' + d.amrap_derniere_station + ')' : '') +
       ' · ' + (d.duree_min || 10) + ' min' + (d.no_impact ? ' · no impact' : '') + (d.rpe != null ? ' · effort ' + d.rpe + '/10' : '') +
-      (d.fc_moy_amrap != null ? ' · FC moy ' + d.fc_moy_amrap : '') + (d.fc_pic_amrap != null ? ' / pic ' + d.fc_pic_amrap : '');
+      (d.fc_moy_amrap != null ? ' · FC moy ' + d.fc_moy_amrap : '') + (d.fc_pic_amrap != null ? ' / pic ' + d.fc_pic_amrap : '') +
+      (d.fc_amrap_source === 'estimee' ? ' (FC estimée : chrono non lancé)' : '');
     case 'rfc': return d.rfc_2min != null ? '−' + d.rfc_2min + ' bpm en 2 min' : '—';
     default: return '—';
   }
@@ -754,14 +755,29 @@ function renderSaisieTests() {
   const ex = uid ? existingFor(uid, point) : {};
   const dates = Object.values(ex).map(r => r.date_test).filter(Boolean).sort();
   if (dates.length) form.elements.s_date.value = dates[dates.length - 1];
+  setTimeout(renderAmrapHint, 0);
   $('#saisieTests').innerHTML = SAISIE_ORDER.map(type => {
     const r = ex[type], d = r ? r.data || {} : {};
     const defs = EDIT_FIELDS[type];
     const val = (k) => d[k] != null ? d[k] : (!r && type === 'amrap_cardio' && k === 'duree_min' ? 20 : null);
     return '<fieldset><legend>' + SAISIE_LABELS[type] + '<small>' + (r ? 'déjà enregistré — complète ou corrige' : 'pas encore saisi') + '</small></legend>' +
+      (type === 'amrap_cardio' ? '<div id="amrapHint"></div>' : '') +
       '<div class="grid3">' + defs.filter(f => f[2] !== 'checkbox').map(f => fieldHTML([type + '__' + f[0], f[1], f[2], f[3]], val(f[0]))).join('') + '</div>' +
       defs.filter(f => f[2] === 'checkbox').map(f => fieldHTML([type + '__' + f[0], f[1], f[2]], val(f[0]))).join('') + '</fieldset>';
   }).join('');
+}
+
+/* Séance capteur du jour : son pic de FC a presque toujours lieu pendant l'AMRAP
+   (la partie la plus intense) — utile si la FC de l'AMRAP n'a pas été calculée. */
+function renderAmrapHint() {
+  const form = $('#editForm'), el = $('#amrapHint'); if (!el) return;
+  const e = entries.get(form.elements.s_uid.value + '|' + form.elements.s_date.value);
+  const h = e && hrSummary(e.hr);
+  if (!h || h.peak == null) { el.innerHTML = ''; return; }
+  el.innerHTML = '<p class="sub" style="margin:.1rem 0 .5rem">Séance capteur de ce jour : FC moyenne de toute la séance ' + (h.avg ?? '—') +
+    ', <b>pic ' + h.peak + '</b> (le pic a presque toujours lieu pendant l’AMRAP). ' +
+    '<button type="button" class="btn-soft" id="useSessPeak" style="min-height:30px;padding:.15rem .6rem;font-size:.82rem">Reprendre ' + h.peak + ' comme FC pic</button></p>';
+  $('#useSessPeak').addEventListener('click', () => { form.elements.amrap_cardio__fc_pic_amrap.value = h.peak; });
 }
 
 function openSaisie(uid, point, date) {
@@ -783,6 +799,7 @@ function openSaisie(uid, point, date) {
   form.elements.s_point.value = point || 'T0';
   form.elements.s_uid.addEventListener('change', renderSaisieTests);
   form.elements.s_point.addEventListener('change', renderSaisieTests);
+  form.elements.s_date.addEventListener('change', renderAmrapHint);
   renderSaisieTests();
 }
 
@@ -1238,7 +1255,7 @@ const EXPORT_COLUMNS = [
   ['rdl_reps', 'rdl', 'rdl_reps'], ['rdl_charge_kg', 'rdl', 'rdl_charge_kg'],
   ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'], ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],
   ['amrap_duree_min', 'amrap_cardio', 'duree_min'], ['amrap_no_impact', 'amrap_cardio', 'no_impact'], ['amrap_effort_ressenti', 'amrap_cardio', 'rpe'],
-  ['amrap_fc_moy', 'amrap_cardio', 'fc_moy_amrap'], ['amrap_fc_pic', 'amrap_cardio', 'fc_pic_amrap'],
+  ['amrap_fc_moy', 'amrap_cardio', 'fc_moy_amrap'], ['amrap_fc_pic', 'amrap_cardio', 'fc_pic_amrap'], ['amrap_fc_source', 'amrap_cardio', 'fc_amrap_source'],
   ['rfc_fc_fin_effort', 'rfc', 'fc_pic'], ['rfc_fc_2min', 'rfc', 'fc_2min'], ['rfc_baisse_bpm', 'rfc', 'rfc_2min'],
 ];
 function csvCell(x) {

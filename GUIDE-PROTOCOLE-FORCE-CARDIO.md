@@ -76,7 +76,12 @@ Onglet **Protocole test** :
      `amrap_no_impact`), ainsi que la durée (`amrap_duree_min` : 20 ; vide
      pour les anciens AMRAP de 10 min, à ne pas comparer directement).
    - Si un capteur est connecté, la FC pic et la FC moyenne pendant l'AMRAP
-     sont enregistrées automatiquement avec le résultat du test.
+     sont enregistrées automatiquement avec le résultat du test. Mesure
+     précise si l'adhérent touche « Démarrer les 20 min » au top départ ; sinon
+     (chrono de l'app non lancé, page rechargée), elle est calculée sur les
+     20 dernières minutes passées sur l'écran AMRAP et marquée « estimée ».
+     Pour une séance passée sans FC d'AMRAP, la saisie coach propose de
+     reprendre le pic de FC de la séance capteur du jour.
    - Juste après l'AMRAP, un chrono de **2 minutes de récupération** démarre
      automatiquement : la FC relevée à la fin de ces 2 minutes, comparée à la
      FC de fin d'effort, donne la **RFC** (récupération de la fréquence
