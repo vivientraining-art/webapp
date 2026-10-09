@@ -195,6 +195,11 @@
   @media (max-width:520px){.circuit{columns:1;line-height:1.65}}
   .stepcard{background:var(--linen);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.3rem;box-shadow:var(--sh-1)}
   .stepmeta{color:var(--muted);font-size:.82rem;margin-bottom:.3rem}
+  .protonav{margin:-.6rem 0 .3rem}
+  .btn-link{background:none;border:none;box-shadow:none;color:var(--pine);font-weight:600;padding:.4rem 0;text-decoration:underline;text-underline-offset:3px}
+  .editbanner{background:#EEF4F0;border:1px solid #BFD0C5;border-left:4px solid var(--pine);border-radius:10px;padding:.7rem .9rem;
+    margin-bottom:1rem;font-size:.9rem;line-height:1.5}
+  .editacts{display:flex;flex-wrap:wrap;gap:.3rem 1rem;align-items:center;margin-top:.5rem}
   .rest-box{text-align:center;padding:1rem 0}
   .rest-count{font-size:3.4rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;color:var(--forest)}
   .rest-count.done{color:var(--terra)}
@@ -594,12 +599,14 @@ function ensureChannel() {
   liveChannel.subscribe();
   return liveChannel;
 }
-/* Prêt pour l'AMRAP : préhension et ateliers de force terminés (ou déjà sur l'écran AMRAP),
+/* Prêt pour l'AMRAP : ateliers de force terminés (au repos après le dernier, ou déjà sur l'écran AMRAP),
    chrono pas encore lancé. Un téléphone encore aux ateliers ne reçoit pas le départ du coach. */
 function amrapReady() {
   const ai = PROTOCOL_STEPS.findIndex(st => st.key === 'amrap_cardio');
-  if (ai < 0 || protoRecup || protoAmrapStartAt || protoStepIndex > ai) return false;
-  return protoStepIndex === ai || ['grip'].concat(FORCE_CIRCUIT).every(k => protoDone.includes(k));
+  const pos = protoPos(), phase = protoEdit ? protoEdit.phase : protoPhase;
+  if (ai < 0 || protoRecup || protoAmrapStartAt || pos > ai) return false;
+  return pos === ai || (pos === ai - 1 && phase === 'resting')   // sur l'écran AMRAP, ou au repos après le dernier atelier
+    || ['grip'].concat(FORCE_CIRCUIT).every(k => protoDone.includes(k));
 }
 /* Le coach lance ou arrête l'AMRAP depuis l'espace coach pour une liste nominative de téléphones
    (ceux qu'il voit prêts), quel que soit le cours d'inscription : un adhérent venu à un autre cours
@@ -616,7 +623,7 @@ function onCoachEvent(p) {
     protoAmrapHr = { sum: 0, n: 0, max: 0 };
     protoAmrapStartAt = Date.now() - depuis(19 * 60 * 1000);
     protoCoachRun = p.run || null;
-    stopProtoTimers(); protoPhase = 'content'; protoStepIndex = ai; saveProtocolFlag(); renderProtoStep();
+    stopProtoTimers(); protoEdit = null; protoPhase = 'content'; protoStepIndex = ai; saveProtocolFlag(); renderProtoStep();
     signalBeep(1);
     toast('Le coach a donné le départ de l’AMRAP !');
   } else if (p.type === 'amrap_stop') {
@@ -633,7 +640,7 @@ setInterval(() => {
   const now = Date.now();
   if (sb && now - (live.lastStatus || 0) >= 2000) {
     live.lastStatus = now;
-    const st = PROTOCOL_STEPS[protoStepIndex] || {};
+    const st = PROTOCOL_STEPS[protoPos()] || {};
     try {
       ensureChannel().send({ type: 'broadcast', event: 'status', payload: {
         user_id: me.id, prenom: profile && profile.prenom, nom: profile && profile.nom, cours: profile && profile.cours,
@@ -1208,7 +1215,7 @@ $('#protoStop').addEventListener('click', async () => {
   if (!confirm('Arrêter le test en cours ?\n\nLes étapes déjà enregistrées sont conservées (tu peux les supprimer dans ' +
       'l’Historique). Pour recommencer, touche ensuite « Commencer le protocole ».')) return;
   stopProtoTimers();
-  protoPhase = 'content';
+  protoPhase = 'content'; protoEdit = null;
   clearRecup();
   clearProtocolFlag();
   await stopHrSession(true);   // la FC déjà enregistrée est gardée comme séance
@@ -1525,7 +1532,8 @@ const TEST_DEFS = {
     label: 'Force de préhension (dynamométrie)',
     category: 'Force — Préhension',
     protocole: "Debout, bras le long du corps, coude légèrement fléchi. 3 essais par main en alternant droite → gauche " +
-      "(3 fois), 15 s de repos entre chaque prise. Le meilleur essai de chaque main est retenu automatiquement.",
+      "(3 fois), 15 s de repos entre chaque prise. Le meilleur essai de chaque main est retenu automatiquement. " +
+      "Un essai oublié ? Laisse la case vide, tu peux continuer.",
     trials: 3,
     fields: [
       { key: 'main_dominante', label: 'Main dominante', type: 'select', options: ['droite', 'gauche', 'ambidextre'], keep: true, noEcart: true },
@@ -1701,6 +1709,68 @@ let protoAmrapTimer = null, protoAmrapRemaining = 0, protoAmrapRunning = false;
 let protoAmrapHr = { sum: 0, n: 0, max: 0 };
 let protoAmrapShownAt = null, protoAmrapStartAt = null;   // écran AMRAP affiché / chrono de l'app lancé
 let protoCoachRun = null;   // départ du coach qui a lancé ce chrono (le STOP du coach ne vise que ce départ)
+/* Retour en arrière : l'adhérent corrige une étape déjà passée, puis reprend là où il en était.
+   protoEdit = { i, phase } : position réelle (étape et éventuel repos en cours, dont le décompte continue). */
+let protoEdit = null;
+function protoPos() { return protoEdit ? protoEdit.i : protoStepIndex; }
+const AMRAP_FC_KEYS = ['fc_moy_amrap', 'fc_pic_amrap', 'fc_amrap_source', 'fc_amrap_valide', 'fc_amrap_motifs', 'fc_max_retenue', 'fc_max_source', 'intensite_pct'];
+const STEP_NAMES = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP' };
+function stepName(i, phase) {
+  const s = PROTOCOL_STEPS[i] || {};
+  if (phase === 'resting') return 'Repos';
+  return s.kind === 'questionnaire' ? 'Questionnaire' : s.kind === 'info' ? s.title : s.kind === 'rfc' ? 'Récupération' : STEP_NAMES[s.key] || s.key;
+}
+function protoBusy() {   // un chrono tourne : pas de retour en arrière
+  return !!(protoSwTimer || (protoAmrapStartAt && !protoRecup) || (protoRecup && !protoRecup.done));
+}
+function protoBackTarget() {   // pendant un repos : l'étape qu'on vient d'enregistrer ; sinon l'étape notée précédente
+  if (!protoEdit && protoPhase === 'resting') return protoStepIndex;
+  for (let i = protoStepIndex - 1; i >= 0; i--) if (['questionnaire', 'test'].includes(PROTOCOL_STEPS[i].kind)) return i;
+  return -1;
+}
+function protoGoBack() {
+  if (protoBusy()) { toast('Attends la fin du chrono en cours (et de la récupération) pour corriger une étape.'); return; }
+  const t = protoBackTarget(); if (t < 0) return;
+  if (!protoEdit) protoEdit = { i: protoStepIndex, phase: protoPhase };   // le décompte d'un repos en cours continue
+  protoPhase = 'content'; protoStepIndex = t;
+  renderProtoStep(); protoScrollTop();
+}
+function protoEndEdit(msg) {   // fin de la correction : retour à la position réelle
+  if (!protoEdit) return false;
+  protoStepIndex = protoEdit.i; protoPhase = protoEdit.phase; protoEdit = null;
+  saveProtocolFlag(); renderProtoStep(); protoScrollTop();
+  if (msg) toast(msg);
+  return true;
+}
+function protoScrollTop() {   // haut de l'étape visible sous l'en-tête et la barre de FC
+  const card = $('#protoCard'), hb = $('#pHrBar');
+  const top = (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hdr'), 10) || 0) + (hb ? hb.offsetHeight : 0) + 12;
+  const y = card.getBoundingClientRect().top;
+  if (y < top) window.scrollTo({ top: Math.max(0, y + window.scrollY - top) });
+}
+function addProtoNav() {
+  const card = $('#protoCard'); if (!card) return;
+  $$('#protoCard .protonav, #protoCard .editbanner').forEach(x => x.remove());
+  const t = protoBackTarget();
+  let html = '';
+  if (protoEdit) {
+    html = '<div class="editbanner"><b>Correction : ' + escapeHtml(stepName(protoStepIndex)) + '</b> — modifie ce qui est faux, puis touche ' +
+      '« Enregistrer la correction ». Ensuite, retour à : <b>' + escapeHtml(stepName(protoEdit.i, protoEdit.phase)) + '</b>' +
+      (protoEdit.phase === 'resting' ? ' (le décompte continue)' : '') + '.<div class="editacts">' +
+      '<button type="button" class="btn-soft" id="protoEditCancel">Annuler la correction</button>' +
+      (t >= 0 ? '<button type="button" class="btn-link" id="protoBack">← Corriger aussi : ' + escapeHtml(stepName(t)) + '</button>' : '') + '</div></div>';
+  } else if (t >= 0 && !protoBusy()) {
+    html = '<div class="protonav"><button type="button" class="btn-link" id="protoBack">← Corriger : ' + escapeHtml(stepName(t)) + '</button></div>';
+  }
+  if (!html) return;
+  card.insertAdjacentHTML('afterbegin', html);
+  const b = $('#protoBack'); if (b) b.addEventListener('click', protoGoBack);
+  const c = $('#protoEditCancel'); if (c) c.addEventListener('click', () => protoEndEdit());
+  if (protoEdit) {
+    const sv = $('#protoTestSave') || $('#protoQSave'); if (sv) sv.textContent = 'Enregistrer la correction';
+    ['#protoMinStart', '#protoSwStart'].forEach(id => { const x = $(id); if (x) x.closest('.rest-box').hidden = true; });   // pas de chrono à refaire
+  }
+}
 let protoCoachQuit = null;  // départ du coach annulé par l'adhérent (« Réinitialiser ») : on ne le reprend pas
 /* FC moyenne et pic sur une fenêtre de temps, depuis l'historique de la séance. */
 function hrWindow(from, to) {
@@ -1777,6 +1847,7 @@ function tickRecup() {
     clearInterval(recupTimer); recupTimer = null;
     const b = $('#protoRfcNext'); if (b) b.disabled = false;
     $$('.recup-after').forEach(el => { el.textContent = 'Récupération terminée : note maintenant tes tours ci-dessous.'; });
+    if (!$('#protoRun').hidden) addProtoNav();
   }
 }
 function ensureRecupTick() {
@@ -1817,7 +1888,7 @@ let protoDone = [];
 function protocolStorageKey() { return me ? ('vs-protocol-' + me.id) : null; }
 function saveProtocolFlag() {
   const k = protocolStorageKey();
-  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoStepIndex, done: protoDone, as: protoAmrapShownAt, ac: protoAmrapStartAt, cr: protoCoachRun, rc: protoRecup, v: 2 })); } catch (e) {} }
+  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoPos(), done: protoDone, as: protoAmrapShownAt, ac: protoAmrapStartAt, cr: protoCoachRun, rc: protoRecup, v: 2 })); } catch (e) {} }
 }
 function clearProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.removeItem(k); } catch (e) {} } }
 function readProtocolFlag() {
@@ -1853,7 +1924,7 @@ async function beginProtocol() {
   if (error) { toast('Erreur : ' + error.message); return; }
   const saved = readProtocolFlag();
   const inProgress = saved && saved.p === pointDeTest;
-  protoExisting = {};
+  protoExisting = {}; protoEdit = null;
   if (inProgress) {
     // reprise d'une passation interrompue : seuls ses propres résultats comptent
     setStartAtelier(saved.s || FORCE_CIRCUIT[0]);
@@ -1940,6 +2011,10 @@ function updateProtoRestDisplay() {
 }
 
 function renderProtoStep() {
+  renderProtoStepCard();
+  addProtoNav();
+}
+function renderProtoStepCard() {
   renderProtoSteps();
   const step = PROTOCOL_STEPS[protoStepIndex];
   const card = $('#protoCard');
@@ -1993,9 +2068,10 @@ function renderProtoStep() {
       if (raw === '' || !(h >= 0 && h <= 16)) { toast('Indique tes heures de sommeil (entre 0 et 16).'); return; }
       if (!fat) { toast('Indique ta fatigue de 1 à 10.'); return; }
       if (!mal) { toast('Indique si tu es malade.'); return; }
-      const now = new Date(), z = (n) => String(n).padStart(2, '0');
+      const now = new Date(), z = (n) => String(n).padStart(2, '0'), old = protoEdit && protoExisting.questionnaire;
       const data = { sommeil_h: Math.round(h * 4) / 4, fatigue: +fat.dataset.v, malade: mal.dataset.v === 'oui',
         debut_seance: now.toISOString(), heure_seance: z(now.getHours()) + ':' + z(now.getMinutes()) };
+      if (old && old.debut_seance) { data.debut_seance = old.debut_seance; data.heure_seance = old.heure_seance; }   // correction : heure de séance d'origine
       $('#protoQSave').disabled = true;
       const { error } = await sb.from('protocol_test_results')
         .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'questionnaire', data },
@@ -2003,6 +2079,7 @@ function renderProtoStep() {
       $('#protoQSave').disabled = false;
       if (error) toast('Questionnaire non enregistré (le coach doit exécuter la migration 13) — on continue.');
       else { protoExisting.questionnaire = data; markProtoDone('questionnaire'); }
+      if (protoEndEdit(error ? '' : 'Correction enregistrée ✔')) return;
       protoAdvance();
     });
     return;
@@ -2151,7 +2228,7 @@ function renderProtoStep() {
       clearInterval(protoSwTimer);
       protoSwTimer = setInterval(() => {
         const sec = Math.min(60, Math.floor((Date.now() - t0) / 1000));
-        const el = $('#protoMinCount'); if (!el) { clearInterval(protoSwTimer); return; }
+        const el = $('#protoMinCount'); if (!el) { clearInterval(protoSwTimer); protoSwTimer = null; return; }
         el.textContent = mmss(60 - sec);
         if (sec >= 60) {
           clearInterval(protoSwTimer); protoSwTimer = null; signalBeep(3);
@@ -2243,6 +2320,7 @@ function renderProtoStep() {
       protoAmrapRunning = true;
       const b = $('#protoAmrapStart'); if (b) b.textContent = 'En cours…';
       clearInterval(protoAmrapTimer); protoAmrapTimer = setInterval(tickAmrap, 500); tickAmrap();
+      addProtoNav();
     };
     $('#protoAmrapStart').addEventListener('click', () => {
       if (protoAmrapRunning || protoRecup) return;
@@ -2266,12 +2344,21 @@ function renderProtoStep() {
 
   $('#protoTestSave').addEventListener('click', async () => {
     const data = {};
+    let manque = [];   // préhension : essais non notés (on peut continuer quand même)
     if (def.trials) {
+      let total = 0;
       for (const m of ['gauche', 'droite']) {
-        const v = Array.from({ length: def.trials }, (_, i) => parseFloat(($('#ptg_' + m + i).value || '').replace(',', '.')));
-        if (v.some(x => !(x > 0))) { toast('Note les ' + def.trials + ' essais de la main ' + m + '.'); return; }
-        data['essais_' + m + '_kg'] = v;
-        data['force_main_' + m + '_kg'] = Math.max(...v);   // meilleur essai retenu
+        const v = Array.from({ length: def.trials }, (_, i) => { const x = parseFloat(($('#ptg_' + m + i).value || '').replace(',', '.')); return x > 0 ? x : null; });
+        const ok = v.filter(x => x != null);
+        total += ok.length;
+        if (ok.length < def.trials) manque.push('main ' + m + ' : ' + ok.length + ' sur ' + def.trials);
+        if (ok.length) { data['essais_' + m + '_kg'] = v; data['force_main_' + m + '_kg'] = Math.max(...ok); }   // meilleur essai retenu
+      }
+      if (!total) {   // aucun essai noté : on peut passer le test, le coach complétera
+        if (protoEdit) { toast('Note au moins un essai, ou touche « Annuler la correction ».'); return; }
+        if (!confirm('Aucun essai noté.\n\nPasser ce test ? Ton coach pourra ajouter tes résultats plus tard.')) return;
+        protoAdvance();
+        return;
       }
     }
     for (const f of def.fields) {
@@ -2284,7 +2371,9 @@ function renderProtoStep() {
       data[f.key] = f.type === 'number' || f.numeric ? parseFloat(raw) : raw;
       if (f.max != null && data[f.key] > f.max) { toast('« ' + f.label + ' » : ' + f.max + ' maximum.'); return; }
     }
-    if (def.stopwatch && def.stopwatch.flag && data[def.stopwatch.field] >= def.stopwatch.cap) data[def.stopwatch.flag] = true;
+    if (manque.length && !confirm('Il manque des essais (' + manque.join(', ') + ').\n\nTu peux continuer : le meilleur des essais notés ' +
+      'sera retenu. Continuer ?')) return;
+    if (def.stopwatch && def.stopwatch.flag) data[def.stopwatch.flag] = data[def.stopwatch.field] >= def.stopwatch.cap;
     if (def.circuit) {
       const perRound = def.circuit.reduce((a, c) => a + c[1], 0);
       if (!(data.amrap_reps_incomplet >= 0)) data.amrap_reps_incomplet = 0;
@@ -2298,7 +2387,10 @@ function renderProtoStep() {
     if (def.timedSeconds) data.duree_min = def.timedSeconds / 60;   // distingue l'ancien AMRAP de 10 min
     if (def.fixed) Object.assign(data, def.fixed);   // matériel imposé (barre)
     if (step.atelier) data.ordre_passage = step.atelier;   // position dans la rotation (1 = atelier de départ)
-    if (step.key === 'amrap_cardio') {
+    const old = protoEdit && protoExisting[step.key];
+    if (step.key === 'amrap_cardio' && old) {   // correction : la FC mesurée pendant l'effort ne change pas
+      AMRAP_FC_KEYS.forEach(k => { if (old[k] != null) data[k] = old[k]; });
+    } else if (step.key === 'amrap_cardio') {
       if (!protoRecup) startRecup();   // enregistré sans STOP : la fin d'effort, c'est maintenant
       const dur = def.timedSeconds * 1000, now = protoRecup.start;
       // chrono (app ou coach) : FC sur sa durée exacte ; sinon les 20 dernières minutes passées sur l'écran AMRAP
@@ -2323,6 +2415,8 @@ function renderProtoStep() {
     if (error) { toast('Erreur : ' + error.message); return; }
     protoExisting[step.key] = data;
     markProtoDone(step.key);
+    clearInterval(protoSwTimer); protoSwTimer = null;   // chrono de l'atelier (minute, wall-sit) : plus utile
+    if (protoEndEdit('Correction enregistrée ✔')) return;
     toast('Enregistré ✔');
     if (step.restAfter) {
       protoPhase = 'resting'; protoRestTotal = step.restAfter; protoRestRemaining = step.restAfter;
@@ -2368,11 +2462,15 @@ function circuitItems(def, noImpact) {
 function thirdsTxt(d, k) {
   return d[k + '_t1'] != null ? ' [' + d[k + '_t1'] + ' / ' + d[k + '_t2'] + ' / ' + d[k + '_t3'] + ']' : '';
 }
+function gripTrialsTxt(d) {   // nombre d'essais notés par main (3 prévus)
+  if (!d.essais_gauche_kg && !d.essais_droite_kg) return '';
+  const n = (m) => (d['essais_' + m + '_kg'] || []).filter(x => x != null).length, g = n('gauche'), dr = n('droite');
+  return g === 3 && dr === 3 ? ' (meilleur de 3 essais)' : ' (essais notés : G ' + g + '/3, D ' + dr + '/3)';
+}
 function formatProtoData(testType, data) {
   data = data || {};
   switch (testType) {
-    case 'grip': return 'G ' + (data.force_main_gauche_kg ?? '—') + ' kg · D ' + (data.force_main_droite_kg ?? '—') + ' kg' +
-      (data.essais_gauche_kg ? ' (meilleur de 3 essais)' : '');
+    case 'grip': return 'G ' + (data.force_main_gauche_kg ?? '—') + ' kg · D ' + (data.force_main_droite_kg ?? '—') + ' kg' + gripTrialsTxt(data);
     case 'pompes': return (data.pompes_reps ?? '—') + ' reps' + thirdsTxt(data, 'pompes_reps') + ' (' + (data.pompes_variante ?? '—') + ')';
     case 'wallsit': return (data.wallsit_secondes ?? '—') + ' s' + (data.wallsit_plafond_atteint ? ' (plafond atteint)' : '');
     case 'rowing': return (data.rowing_reps ?? '—') + ' reps' + thirdsTxt(data, 'rowing_reps') + (data.rowing_modalite ? ' · ' + data.rowing_modalite : '') + (data.rowing_charge_kg != null ? ' · ' + data.rowing_charge_kg + ' kg' : '');

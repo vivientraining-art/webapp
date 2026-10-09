@@ -35,6 +35,10 @@ test choisi. L'app enchaîne :
 3. **Force de préhension** pour tout le monde : 3 essais par main en alternant
    droite → gauche, 15 s entre deux prises. Les 3 essais sont enregistrés et le
    **meilleur est retenu automatiquement**. Main dominante notée. Puis 60 s de repos.
+   Un essai oublié ne bloque pas : l'app demande confirmation, retient le
+   meilleur des essais notés et le coach voit combien il y en a (ex. « essais :
+   G 2/3, D 3/3 »). Sans aucun essai, le test peut être passé ; le coach le
+   complétera (vue « À vérifier »).
 4. **4 ateliers en rotation** (pompes, wall-sit, rowing barre, RDL barre),
    plusieurs participants par atelier, à partir de la station de départ ; 75 s
    pour tourner entre deux ateliers, 4 min de repos après le dernier.
@@ -70,6 +74,17 @@ Tout est enregistré au fur et à mesure : un rechargement de page ou une mise e
 veille du téléphone ne fait rien perdre, et les chronos (AMRAP, récupération)
 continuent sur l'heure réelle. Boutons « Reconnecter le capteur » et « Arrêter
 le test » disponibles pendant toute la passation.
+
+**Retour en arrière** : en haut de chaque étape (et pendant les repos), le
+bouton « ← Corriger : … » rouvre l'étape précédente avec les valeurs déjà
+notées ; on peut remonter plusieurs étapes. « Enregistrer la correction »
+ramène là où on en était (un repos en cours continue de se décompter),
+« Annuler la correction » aussi, sans rien changer. Pas de retour pendant un
+chrono (minute, wall-sit, AMRAP, récupération). Seules les valeurs notées par
+l'adhérent se corrigent : la FC de l'AMRAP et la récupération, mesurées par le
+capteur, ne changent pas, et l'heure de la séance reste celle du départ. Une
+fois le protocole terminé, c'est le coach qui corrige (✎ dans « Modifier /
+supprimer »).
 
 ### Comparer T0 et T1 : mêmes conditions
 
