@@ -230,6 +230,7 @@
       <button class="btn-soft" id="btnRefresh">Rafraîchir</button>
       <button class="btn-primary" id="btnXlsx">Exporter en Excel (.xlsx)</button>
       <button class="btn-soft" id="btnExport">CSV</button>
+      <button class="btn-soft" id="btnAnon" title="Sans nom ni e-mail : un identifiant par personne et par groupe">Export anonymisé</button>
     </div>
     <p class="note" id="summary">Chargement…</p>
     <div class="missalert" id="missAlert" hidden><span id="missAlertTxt"></span>
@@ -1550,11 +1551,21 @@ function atelierDepart(tests) {
   const k = Object.keys(ATELIER_LABELS).find(t => tests[t] && tests[t].ordre_passage === 1);
   return k ? ATELIER_LABELS[k] : '';
 }
-function resultsTable(list) {
-  const head = ['date', 'cours', 'nom', 'prenom', 'email', 'genre', 'age', 'fc_max_tanaka', 'fc_max_retenue', 'fc_max_source', 'seances_capteur',
+/* Export anonymisé (pseudonymisé) : un identifiant stable par personne, calculé à partir de son
+   identifiant de compte (toujours le même d'un export à l'autre, ne contient ni nom ni e-mail),
+   et un identifiant de groupe à la place du cours. */
+const GROUP_IDS = { Gironville: 'G1', Milly: 'G2', Boutigny: 'G3' };
+const groupId = (uid) => GROUP_IDS[coursOf(uid)] || 'G0';
+function participantId(uid) {
+  let h = 0x811c9dc5;
+  for (const c of String(uid)) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return 'P' + h.toString(36).toUpperCase().padStart(7, '0');
+}
+function resultsTable(list, anon) {
+  const head = (anon ? ['date', 'id_groupe', 'id_participant'] : ['date', 'cours', 'nom', 'prenom', 'email', 'id_participant', 'id_groupe']).concat(['genre', 'age', 'fc_max_tanaka', 'fc_max_retenue', 'fc_max_source', 'seances_capteur',
     'duree_capteur_min', 'fc_moy', 'fc_pic', 'donnees_valides_pct',
     'temps_repos_s', 'temps_z1_s', 'temps_z2_s', 'temps_z3_s', 'temps_z4_s', 'temps_z5_s', 'point_de_test', 'atelier_depart']
-    .concat(EXPORT_COLUMNS.map(c => c[0]), ['ecart_protocole', 'autres_mesures']);
+    .concat(EXPORT_COLUMNS.map(c => c[0]), ['ecart_protocole', 'autres_mesures']));
   const lines = [head];
   list.slice().sort((a, b) => b.date.localeCompare(a.date) || coursOf(a.uid).localeCompare(coursOf(b.uid)) ||
     nameOf(a.uid).localeCompare(nameOf(b.uid), 'fr')).forEach(e => {
@@ -1567,9 +1578,9 @@ function resultsTable(list) {
       const age = ageAt(p.date_naissance, e.date);
       const fm = fcMaxRetenue(e.uid, e.date) || {};
       const ecarts = Object.keys(PROTO_LABELS).filter(t => tests[t] && tests[t].ecart_protocole).map(t => PROTO_LABELS[t] + ' : ' + tests[t].ecart_protocole).join(' | ');
-      lines.push([e.date, coursOf(e.uid), p.nom, p.prenom, p.email, p.date_naissance ? GENRE_LABEL[p.sexe] : '', age, tanaka(age), fm.v, fm.source,
+      lines.push((anon ? [e.date, groupId(e.uid), participantId(e.uid)] : [e.date, coursOf(e.uid), p.nom, p.prenom, p.email, participantId(e.uid), groupId(e.uid)]).concat([p.date_naissance ? GENRE_LABEL[p.sexe] : '', age, tanaka(age), fm.v, fm.source,
         h.n, h.minutes, h.avg, h.peak, h.pctValide].concat((h.zones || []).length ? h.zones.map(Math.round) : ['', '', '', '', '', ''], [pt, atelierDepart(tests)])
-        .concat(EXPORT_COLUMNS.map(([, type, key]) => typeof key === 'function' ? key(tests[type] || {}) : (tests[type] || {})[key]), [ecarts, autres]));
+        .concat(EXPORT_COLUMNS.map(([, type, key]) => typeof key === 'function' ? key(tests[type] || {}) : (tests[type] || {})[key]), [ecarts, autres])));
     });
   });
   return lines;
@@ -1655,7 +1666,28 @@ async function exportXlsx() {
   download(new Blob([buf], { type: XLSX_MIME }), name);
 }
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+async function exportAnon() {
+  const list = selected();
+  if (!list.length) { toast('Aucune donnée à exporter pour cette sélection.'); return; }
+  const res = resultsTable(list, true);
+  const base = 'suivi_anonymise_' + (fCours ? GROUP_IDS[fCours] || 'G0' : 'tous-groupes') + '_' + (fDate || 'toutes-dates') + '_' + stamp();
+  let X;
+  try { X = await loadXlsx(); } catch (e) { download(toCsv(res), base + '.csv'); toast('Excel indisponible : export anonymisé en CSV.'); return; }
+  const wb = X.utils.book_new();
+  X.utils.book_append_sheet(wb, toSheet(X, res), 'Résultats');
+  X.utils.book_append_sheet(wb, toSheet(X, recapTableRows(recapGroups()).map((r, i) => i ? r.map(v => GROUP_IDS[v] || v) : r.map(h => h === 'cours' ? 'id_groupe' : h))), 'Récap groupes');
+  const info = [['Export anonymisé', new Date().toLocaleString('fr-FR')], ['Groupe', fCours ? GROUP_IDS[fCours] || 'G0' : 'tous'],
+    ['Date', fDate ? dayLabel(fDate) : 'toutes les dates'], ['Lignes de résultats', res.length - 1],
+    ['Participants', new Set(res.slice(1).map(r => r[2])).size], [],
+    ['Identifiants', 'id_participant : un code par personne, toujours le même d’un export à l’autre (suivi T0 → T1 possible). Ni nom, ni prénom, ni e-mail, ni date de naissance (seulement l’âge).'],
+    ['', 'id_groupe : G1, G2, G3 = les trois cours (G0 = sans cours). La correspondance code → personne n’est que dans l’espace coach.'],
+    ['RGPD', 'Données pseudonymisées : à ne partager qu’avec des personnes de confiance, sans la table de correspondance.']];
+  const wi = X.utils.aoa_to_sheet(info); wi['!cols'] = [{ wch: 20 }, { wch: 110 }];
+  X.utils.book_append_sheet(wb, wi, 'Infos');
+  download(new Blob([X.write(wb, { bookType: 'xlsx', type: 'array', compression: true })], { type: XLSX_MIME }), base + '.xlsx');
+}
 $('#btnXlsx').addEventListener('click', exportXlsx);
+$('#btnAnon').addEventListener('click', exportAnon);
 $('#dataView').addEventListener('click', (ev) => { if (ev.target.closest('button.xlsxbtn')) exportXlsx(); });
 
 $('#btnExport').addEventListener('click', () => {
