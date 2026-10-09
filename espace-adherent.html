@@ -163,6 +163,25 @@
     border-radius:var(--r-md);padding:.9rem 1.05rem;margin:.8rem 0 1rem;font-size:.92rem;line-height:1.6;
   }
   .protocole-box b{color:var(--forest)}
+  .sensorstate.doubt{color:#A0630F;font-weight:600}
+  .sensorstate.doubt::before{background:#E0982E}
+  .hrbar.doubt .hrbar-sensor{color:#A0630F;font-weight:600}
+  .recup-consigne{font-size:1.15rem;font-weight:700;color:var(--forest);margin-bottom:.2rem}
+  .recup-result .invalid{color:var(--z5);font-weight:700}
+  .recup-result .valid{color:var(--z3);font-weight:700}
+  .ecartwarn{text-transform:none;letter-spacing:0;display:block;margin-top:.35rem;padding:.4rem .6rem;border-radius:8px;background:#FFF4DC;border:1px solid #E8CF8F;color:#7A5A12;font-size:.82rem;font-weight:600}
+  .ecartwarn[hidden]{display:none}
+  .trialgrid{display:grid;grid-template-columns:1fr 1fr;gap:.2rem .8rem;width:100%}
+  .trialgrid .th{font-weight:700;font-size:.85rem;color:var(--forest)}
+  .trialgrid input{width:100%;max-width:none}
+  .best,.amraptotal{width:100%;font-size:.9rem;margin:.2rem 0}
+  .checkline{display:flex;align-items:center;gap:.5rem;width:100%;font-size:.92rem}
+  .checkline input{width:22px;height:22px;min-height:0;min-width:0;padding:0;flex:none;accent-color:var(--pine)}
+  [hidden]{display:none!important}
+  .qform .field{width:100%;margin-bottom:.9rem}
+  .qform small{display:block;text-transform:none;letter-spacing:0;font-weight:400;margin-top:.3rem}
+  .qseg{flex-wrap:wrap;margin-top:.3rem}
+  .qseg button{min-width:42px}
   .goalbox{background:#FBEDE7;border:1px solid #E6C3B5;border-left:4px solid var(--terra);border-radius:10px;
     padding:.7rem .85rem;margin:.8rem 0;font-size:.9rem;line-height:1.5;color:var(--ink)}
   .goalbox b{color:var(--terra-deep)}
@@ -325,7 +344,7 @@
           <div class="spacer"></div>
           <div style="text-align:right">
             <div class="chrono" id="hrChrono">00:00</div>
-            <div class="muted" style="font-size:.8rem">RMSSD <b id="hrRmssd">—</b> ms</div>
+
           </div>
         </div>
         <div class="zonebars" id="zoneBars" hidden></div>
@@ -335,7 +354,7 @@
           <button class="btn-stop" id="btnStop" hidden>Arrêter &amp; enregistrer</button>
         </div>
         <p class="note">Votre fréquence cardiaque reste sur votre téléphone pendant la séance ; seul le résumé
-          (FC moy/min/pic, RMSSD, temps par zone) est enregistré dans votre compte à l'arrêt.</p>
+          (FC moy/min/pic, temps par zone) est enregistré dans votre compte à l'arrêt.</p>
       </div>
 
       <div class="panel">
@@ -377,6 +396,7 @@
               </div></div>
           </div>
           <p class="refhint" id="ptRefHint" hidden></p>
+          <p class="ecartwarn" id="ptStartWarn" hidden></p>
           <p class="note">Choisis le point de test et l'atelier par lequel tu commences (indiqués par ton coach) :
             tout le monde passe d'abord la préhension, puis l'app enchaîne les 4 ateliers dans l'ordre du circuit,
             et tout le monde se retrouve pour l'AMRAP.
@@ -570,9 +590,49 @@ let liveChannel = null;
 function ensureChannel() {
   if (liveChannel || !sb) return liveChannel;
   liveChannel = sb.channel('live-coach', { config: { broadcast: { self: false } } });
+  liveChannel.on('broadcast', { event: 'coach' }, ({ payload }) => onCoachEvent(payload));   // départ / STOP de l'AMRAP donnés par le coach
   liveChannel.subscribe();
   return liveChannel;
 }
+/* Le coach lance ou arrête l'AMRAP pour tout un groupe depuis l'espace coach. */
+function onCoachEvent(p) {
+  if (!p || $('#protoRun').hidden || (p.cours && profile && p.cours !== profile.cours)) return;
+  const ai = PROTOCOL_STEPS.findIndex(st => st.key === 'amrap_cardio');
+  if (p.type === 'amrap_start') {
+    if (protoRecup || protoAmrapStartAt) return;
+    protoAmrapHr = { sum: 0, n: 0, max: 0 };
+    protoAmrapStartAt = Date.now();
+    saveProtocolFlag();
+    signalBeep(1);
+    toast('Le coach a donné le départ de l’AMRAP !');
+    const forceDone = ['grip'].concat(FORCE_CIRCUIT).every(k => protoDone.includes(k));
+    if (protoStepIndex === ai || (protoStepIndex < ai && forceDone)) {
+      stopProtoTimers(); protoPhase = 'content'; protoStepIndex = ai; saveProtocolFlag(); renderProtoStep();
+    } else toast('Ton chrono AMRAP tourne déjà : termine ton atelier et rejoins l’AMRAP.');
+  } else if (p.type === 'amrap_stop') {
+    if (!protoAmrapStartAt || protoRecup) return;
+    startRecup(Date.now());
+    if (protoStepIndex === ai) renderProtoStep();
+  }
+}
+// Indicateur du capteur (vert / orange / rouge) et statut envoyé au coach pendant le protocole
+setInterval(() => {
+  if (!me || $('#protoRun').hidden) return;
+  const q = sensorQuality();
+  setSensorState(q === 'off' ? (live.device ? 'lost' : 'none') : q);
+  const now = Date.now();
+  if (sb && now - (live.lastStatus || 0) >= 2000) {
+    live.lastStatus = now;
+    const st = PROTOCOL_STEPS[protoStepIndex] || {};
+    try {
+      ensureChannel().send({ type: 'broadcast', event: 'status', payload: {
+        user_id: me.id, prenom: profile && profile.prenom, nom: profile && profile.nom, cours: profile && profile.cours,
+        q, hr: live.lastBeatAt && now - live.lastBeatAt < 5000 ? live.hr : null, fcMax: live.session ? live.session.fcMax : (profile && profile.fc_max),
+        capteur: sensorName(), etape: st.key || st.kind, amrap: protoAmrapRunning, recup: !!(protoRecup && !protoRecup.done), t: now,
+      } });
+    } catch (e) {}
+  }
+}, 1000);
 function castStat(type, data) {
   if (!sb || !me) return;
   try {
@@ -771,7 +831,8 @@ async function onSignedIn(user) {
     $('#igNaissance').value = profile.date_naissance || '';
     $('#identityGate').style.display = 'flex';
   }
-  syncTanaka();
+  syncFcMax();
+  loadObservedPeak();
   renderWho();
   fillProfileForm();
   ensureChannel();
@@ -794,17 +855,35 @@ function ageFrom(iso) {
 }
 function tanakaHtml(age) {
   if (age == null) return 'Renseigne ta date de naissance pour calculer ta FC max.';
+  const f = fcMaxInfo(age);
   return 'Âge : ' + age + ' ans — FC max théorique : <b>' + tanaka(age) + ' bpm</b><br>' +
+    'FC max retenue pour tes zones : <b>' + f.v + ' bpm</b> (' + (f.source === 'pic observé'
+      ? 'pic réellement observé le ' + frDate(f.date) + ', plus haut que la formule' : 'formule de Tanaka : aucun pic observé plus haut') + ').<br>' +
     'Formule de Tanaka : 208 − 0,7 × âge = 208 − 0,7 × ' + age + ' = ' + tanaka(age) + ' bpm.' +
     '<cite>Source : Tanaka H., Monahan K.D., Seals D.R. (2001). « Age-predicted maximal heart rate revisited ». ' +
     '<i>Journal of the American College of Cardiology</i>, 37(1), 153-156. ' +
     '<a href="https://doi.org/10.1016/S0735-1097(00)01054-8" target="_blank" rel="noopener">doi:10.1016/S0735-1097(00)01054-8</a></cite>';
 }
-// La FC max suit l'âge : recalculée à chaque connexion (anniversaire passé entre-temps).
-function syncTanaka() {
-  const age = ageFrom(profile && profile.date_naissance);
-  if (age == null || profile.fc_max === tanaka(age)) return;
-  profile.fc_max = tanaka(age);
+/* FC max retenue pour les zones et l'intensité : la plus haute entre la formule de Tanaka et
+   le pic de FC réellement observé chez la personne (séances au signal fiable, ≤ 220 bpm). */
+let observedPeak = null;   // { v, date }
+function fcMaxInfo(age) {
+  if (age === undefined) age = ageFrom(profile && profile.date_naissance);
+  const t = age != null ? tanaka(age) : null;
+  if (observedPeak && (t == null || observedPeak.v > t)) return { v: observedPeak.v, source: 'pic observé', date: observedPeak.date, tanaka: t };
+  return { v: t != null ? t : (profile && profile.fc_max) || 190, source: t != null ? 'Tanaka' : 'par défaut', tanaka: t };
+}
+async function loadObservedPeak() {
+  const { data } = await sb.from('hr_sessions').select('hr_peak,started_at').eq('user_id', me.id).lte('hr_peak', 220);
+  (data || []).forEach(r => { if (r.hr_peak && (!observedPeak || r.hr_peak > observedPeak.v)) observedPeak = { v: r.hr_peak, date: r.started_at }; });
+  syncFcMax();
+  fillProfileForm();
+}
+// La FC max retenue suit l'âge et les séances : recalculée à chaque connexion.
+function syncFcMax() {
+  const f = fcMaxInfo();
+  if (!profile || profile.fc_max === f.v || !(f.v >= 120 && f.v <= 230)) return;
+  profile.fc_max = f.v;
   sb.from('profiles').update({ fc_max: profile.fc_max }).eq('id', me.id).then(() => {}, () => {});
 }
 function fillProfileForm() {
@@ -833,7 +912,7 @@ $('#igSave').addEventListener('click', async () => {
   if (!GENRES.includes(sexe)) { toast('Choisis ton genre.'); return; }
   const age = ageFrom(date_naissance);
   if (age == null) { toast('Renseigne une date de naissance valide.'); return; }
-  const fc_max = tanaka(age);
+  const fc_max = fcMaxInfo(age).v;
   $('#igSave').disabled = true;
   const { error } = await sb.from('profiles').update({ prenom, nom, cours, sexe, date_naissance, fc_max }).eq('id', me.id);
   $('#igSave').disabled = false;
@@ -926,7 +1005,7 @@ $('#pSave').addEventListener('click', async () => {
   if (!GENRES.includes(sexe)) { toast('Choisis ton genre.'); return; }
   const age = ageFrom(date_naissance);
   if (age == null) { toast('Renseigne une date de naissance valide.'); return; }
-  const fc_max = tanaka(age);
+  const fc_max = fcMaxInfo(age).v;
   const { error } = await sb.from('profiles').update({ prenom, nom, cours, sexe, date_naissance, fc_max }).eq('id', me.id);
   if (error) { toast('Erreur : ' + error.message); return; }
   Object.assign(profile, { prenom, nom, cours, sexe, date_naissance, fc_max });
@@ -947,10 +1026,75 @@ if (!navigator.bluetooth) {
 
 const live = {
   device: null, hrChar: null, hrHandler: null,
-  hr: null, rrRecent: [], rmssd: null,
+  hr: null, lastBeatAt: 0, lastValid: false,
   session: null, // { startedAt, sum, n, max, min, zoneSec[], prevZone, lastZoneT, fcMax }
   tick: null, lastCast: 0, broadcast: false,
 };
+
+/* ---------- Qualité du signal ----------
+   Une valeur est un artefact si elle vaut 0, ou est < 40 ou > 220 bpm. Le signal est « plat »
+   si l'écart-type reste < 2 bpm sur 30 s pendant l'effort (FC moyenne ≥ 60 % de la FC max). */
+const HR_OK = (v) => v != null && v >= 40 && v <= 220;
+function samplesBetween(from, to) {   // [{ t (ms), hr }] de l'historique de la séance
+  const s = live.session; if (!s || !s.series) return [];
+  return s.series.map(([sec, hr]) => ({ t: s.startedAt + sec * 1000, hr })).filter(x => x.t >= from && x.t <= to);
+}
+const meanOf = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+const sdOf = (a) => { const m = meanOf(a); return Math.sqrt(meanOf(a.map(x => (x - m) ** 2))); };
+function maxGap(samples, from, to) {   // plus longue absence de signal (ms) dans la fenêtre
+  if (!samples.length) return to - from;
+  let g = Math.max(samples[0].t - from, to - samples[samples.length - 1].t);
+  for (let i = 1; i < samples.length; i++) g = Math.max(g, samples[i].t - samples[i - 1].t);
+  return g;
+}
+function flatSeconds(samples, fcMax) {   // secondes de signal plat pendant l'effort
+  let flat = 0, last = -Infinity;
+  for (let i = 0; i < samples.length; i++) {
+    const w = []; for (let j = i; j < samples.length && samples[j].t - samples[i].t <= 30000; j++) if (HR_OK(samples[j].hr)) w.push(samples[j].hr);
+    if (w.length >= 10 && samples[Math.min(samples.length - 1, i + w.length - 1)].t - samples[i].t >= 25000 &&
+        meanOf(w) >= 0.6 * fcMax && sdOf(w) < 2) {
+      const a = Math.max(samples[i].t, last), b = samples[i].t + 30000;
+      if (b > a) { flat += (b - a) / 1000; last = b; }
+    }
+  }
+  return Math.round(flat);
+}
+/* Analyse d'une fenêtre de mesure : moyenne et pic des valeurs valides, et motifs d'invalidité. */
+function analyseWindow(from, to, opts) {
+  const v = samplesBetween(from, to), ok = v.filter(x => HR_OK(x.hr)).map(x => x.hr);
+  const motifs = [];
+  if (v.some(x => !HR_OK(x.hr))) motifs.push('valeurs aberrantes (0, < 40 ou > 220 bpm)');
+  if (maxGap(v, from, to) > 5000) motifs.push('perte de signal de plus de 5 s');
+  if (opts && opts.effort && flatSeconds(v, (live.session && live.session.fcMax) || 190) > 0) motifs.push('signal plat (écart-type < 2 bpm sur 30 s)');
+  return { n: ok.length, moy: ok.length ? Math.round(meanOf(ok)) : null, pic: ok.length ? Math.max(...ok) : null, motifs };
+}
+/* Indicateur par capteur : 'ok' (vert), 'doubt' (orange, signal douteux), 'off' (rouge, déconnecté). */
+function sensorQuality() {
+  const now = Date.now();
+  if (!live.device || !(live.device.gatt && live.device.gatt.connected) || !live.lastBeatAt || now - live.lastBeatAt > 5000) return 'off';
+  if (!live.lastValid || now - live.lastBeatAt > 2500) return 'doubt';
+  if (protoAmrapRunning && live.session) {
+    const w = samplesBetween(now - 30000, now).filter(x => HR_OK(x.hr)).map(x => x.hr);
+    if (w.length >= 10 && sdOf(w) < 2) return 'doubt';
+  }
+  return 'ok';
+}
+/* % de données valides d'une séance : secondes couvertes par un signal présent (trou ≤ 5 s),
+   dans les limites physiologiques et non plat. */
+function sessionQuality(s) {
+  const v = (s.series || []).map(([sec, hr]) => ({ t: s.startedAt + sec * 1000, hr }));
+  const dur = Math.max(1, (Date.now() - s.startedAt) / 1000);
+  let valid = 0, gaps = 0;
+  for (let i = 1; i < v.length; i++) {
+    const dt = (v[i].t - v[i - 1].t) / 1000;
+    if (dt > 5) { gaps++; continue; }
+    if (HR_OK(v[i - 1].hr)) valid += dt;
+  }
+  const plat = flatSeconds(v, s.fcMax);
+  return { pct_valide: Math.max(0, Math.min(100, Math.round((valid - plat) / dur * 100))), duree_s: Math.round(dur),
+    artefacts: v.filter(x => !HR_OK(x.hr)).length, coupures_5s: gaps, plat_s: plat,
+    fc_max_retenue: s.fcMax, fc_max_source: fcMaxInfo().source };
+}
 
 function parseHeartRate(dv) {
   const flags = dv.getUint8(0);
@@ -963,16 +1107,6 @@ function parseHeartRate(dv) {
     for (; i + 1 < dv.byteLength; i += 2) rrs.push(dv.getUint16(i, true) * 1000 / 1024);
   }
   return { hr, rrs };
-}
-function rmssdOf(rrList, minBeats) {
-  if (rrList.length < minBeats) return null;
-  let sum = 0, n = 0;
-  for (let i = 1; i < rrList.length; i++) {
-    const d = rrList[i] - rrList[i - 1];
-    if (Math.abs(d) > 250) continue;
-    sum += d * d; n++;
-  }
-  return n >= minBeats - 1 ? Math.sqrt(sum / n) : null;
 }
 
 async function connectSensor() {
@@ -1029,8 +1163,10 @@ function renderSensorName(state) {
 function setSensorState(state) {
   renderSensorName(state);
   const el = $('#pSensorState'); if (!el) return;
-  el.className = 'sensorstate' + (state === 'none' ? '' : ' ' + state);
-  el.textContent = state === 'ok' ? 'Capteur connecté' : state === 'lost' ? 'Capteur déconnecté' : 'Capteur non connecté';
+  el.className = 'sensorstate' + (state === 'none' ? ' lost' : ' ' + state);
+  el.textContent = state === 'ok' ? 'Capteur connecté — signal correct' : state === 'doubt' ? 'Signal douteux — humidifie et resserre la ceinture'
+    : state === 'lost' ? 'Capteur déconnecté' : 'Capteur non connecté';
+  $('#pHrBar').classList.toggle('doubt', state === 'doubt');
   const b = $('#protoReconnect');
   b.textContent = state === 'none' ? 'Connecter le capteur' : 'Reconnecter le capteur';
   b.className = state === 'lost' ? 'btn-primary' : 'btn-soft';
@@ -1062,7 +1198,7 @@ $('#protoStop').addEventListener('click', async () => {
       'l’Historique). Pour recommencer, touche ensuite « Commencer le protocole ».')) return;
   stopProtoTimers();
   protoPhase = 'content';
-  protoRfcStarted = false;
+  clearRecup();
   clearProtocolFlag();
   await stopHrSession(true);   // la FC déjà enregistrée est gardée comme séance
   $('#protoRun').hidden = true;
@@ -1089,30 +1225,32 @@ async function connectGatt() {
 function feedData(hr, rrs) {
   const t = Date.now();
   live.hr = hr;
-  for (const rr of rrs) if (rr >= 300 && rr <= 2000) live.rrRecent.push({ t, rr });
-  while (live.rrRecent.length && t - live.rrRecent[0].t > 45000) live.rrRecent.shift();
-  live.rmssd = rmssdOf(live.rrRecent.map(o => o.rr), 8);
+  live.lastBeatAt = t;
+  live.lastValid = HR_OK(hr);
 
   const s = live.session;
   if (s) {
-    s.sum += hr; s.n++;
-    if (hr > s.max) s.max = hr;
-    if (hr < s.min) s.min = hr;
-    const z = zoneIndex(hr, s.fcMax);
-    if (s.lastZoneT !== null) {
-      const dt = Math.min((t - s.lastZoneT) / 1000, 5);
-      s.zoneSec[s.prevZone !== null ? s.prevZone : z] += dt;
+    if (live.lastValid) {   // les artefacts (0, < 40, > 220 bpm) ne comptent ni dans la moyenne, ni dans le pic, ni dans les zones
+      s.sum += hr; s.n++;
+      if (hr > s.max) s.max = hr;
+      if (hr < s.min) s.min = hr;
+      const z = zoneIndex(hr, s.fcMax);
+      if (s.lastZoneT !== null) {
+        const dt = Math.min((t - s.lastZoneT) / 1000, 5);
+        s.zoneSec[s.prevZone !== null ? s.prevZone : z] += dt;
+      }
+      s.prevZone = z; s.lastZoneT = t;
     }
-    s.prevZone = z; s.lastZoneT = t;
-    // historique compact (secondes depuis le début, FC) : sert à calculer la FC de l'AMRAP
-    if (!s.lastSample || t - s.lastSample >= 2000) { (s.series = s.series || []).push([Math.round((t - s.startedAt) / 1000), hr]); s.lastSample = t; }
+    // historique (secondes depuis le début au dixième, FC brute) : récupération, FC de l'AMRAP, qualité du signal
+    if (!s.lastSample || t - s.lastSample >= 900) { (s.series = s.series || []).push([Math.round((t - s.startedAt) / 100) / 10, hr]); s.lastSample = t; }
   }
-  if (live.session && live.broadcast && sb && me && t - live.lastCast > 1500) {
+  // pendant le protocole, la FC part avec le statut (toutes les 2 s) : pas de message en double
+  if (live.session && live.broadcast && sb && me && t - live.lastCast > 1500 && $('#protoRun').hidden) {
     live.lastCast = t;
     try {
       ensureChannel().send({ type: 'broadcast', event: 'hr', payload: {
         user_id: me.id, prenom: (profile && profile.prenom) || me.email,
-        hr, fcMax: live.session.fcMax, rmssd: live.rmssd ? Math.round(live.rmssd) : null, t, capteur: sensorName(),
+        hr, fcMax: live.session.fcMax, t, capteur: sensorName(), q: sensorQuality(),
       } });
     } catch (e) {}
   }
@@ -1127,7 +1265,6 @@ function renderLive() {
   $('#zBadge').textContent = z === 0 ? '—' : ZONES[z].label;
   $('#zBadge').style.background = ZONES[z].hex;
   $('#zPct').innerHTML = live.hr === null ? '&nbsp;' : Math.round((live.hr / fcMax) * 100) + ' % FCmax';
-  $('#hrRmssd').textContent = live.rmssd === null ? '—' : live.rmssd.toFixed(0);
   if (live.session) renderZoneBars();
   const pHr = $('#pHrBig'); if (pHr) pHr.textContent = live.hr === null ? '–' : live.hr;
   const pZ = $('#pZBadge'); if (pZ) { pZ.textContent = z === 0 ? '—' : ZONES[z].label; pZ.style.background = ZONES[z].hex; }
@@ -1223,6 +1360,7 @@ async function stopHrSession(silentIfEmpty) {
   $('#btnConnect').disabled = false;
   $('#hrChrono').textContent = '00:00';
   if (!s || s.n === 0) { if (!silentIfEmpty) toast('Séance arrêtée — aucune donnée enregistrée.'); return null; }
+  const qualite = sessionQuality(s);
   const zoneObj = {}; s.zoneSec.forEach((v, i) => { if (v > 0) zoneObj[i] = Math.round(v); });
   const row = {
     user_id: me.id,
@@ -1233,11 +1371,17 @@ async function stopHrSession(silentIfEmpty) {
     hr_avg: Math.round(s.sum / s.n),
     hr_min: s.min === 999 ? null : s.min,
     hr_peak: s.max || null,
-    rmssd: live.rmssd === null ? null : Math.round(live.rmssd),
     zone_seconds: zoneObj,
+    qualite,
   };
-  const { error } = await sb.from('hr_sessions').insert(row);
+  let { error } = await sb.from('hr_sessions').insert(row);
+  if (error && /qualite/.test(error.message)) {   // colonne absente (migration 13 pas encore exécutée)
+    delete row.qualite; ({ error } = await sb.from('hr_sessions').insert(row));
+  }
   if (error) { toast('Erreur d’enregistrement : ' + error.message); return null; }
+  if (row.hr_peak && row.hr_peak <= 220 && (!observedPeak || row.hr_peak > observedPeak.v) && qualite.pct_valide >= 80) {
+    observedPeak = { v: row.hr_peak, date: row.started_at }; syncFcMax();
+  }
   castStat('session', { hr_avg: row.hr_avg, hr_peak: row.hr_peak, duration_s: row.duration_s });
   $('#zoneBars').hidden = true;
   return row;   // la récupération est mesurée par l'étape RFC du protocole
@@ -1304,7 +1448,7 @@ function renderHrHist(rows) {
   el.innerHTML = rows.map(r =>
     '<div class="item" style="flex-wrap:wrap"><span>' + frDate(r.started_at) + ' · ' + mmss(r.duration_s) +
     '</span><span class="muted">FC moy <b>' + (r.hr_avg ?? '—') + '</b> · pic <b>' + (r.hr_peak ?? '—') +
-    '</b> · RMSSD <b>' + (r.rmssd ?? '—') + '</b></span>' +
+    '</b>' + (r.qualite && r.qualite.pct_valide != null ? ' · données valides <b>' + r.qualite.pct_valide + ' %</b>' : '') + '</span>' +
     delX('hr_sessions', [r.id], 'la séance capteur du ' + frDate(r.started_at)) +
     '<div style="flex-basis:100%">' + zonesLine(r.zone_seconds) + '</div></div>'
   ).join('');
@@ -1369,10 +1513,11 @@ const TEST_DEFS = {
   grip: {
     label: 'Force de préhension (dynamométrie)',
     category: 'Force — Préhension',
-    protocole: "Debout, bras le long du corps, coude légèrement fléchi. 2 essais par main en alternant droite → gauche → droite → gauche, 15 sec de repos entre chaque prise. Garder le meilleur essai par main.",
+    protocole: "Debout, bras le long du corps, coude légèrement fléchi. 3 essais par main en alternant droite → gauche " +
+      "(3 fois), 15 s de repos entre chaque prise. Le meilleur essai de chaque main est retenu automatiquement.",
+    trials: 3,
     fields: [
-      { key: 'force_main_gauche_kg', label: 'Main gauche (kg)', type: 'number', step: '0.1' },
-      { key: 'force_main_droite_kg', label: 'Main droite (kg)', type: 'number', step: '0.1' },
+      { key: 'main_dominante', label: 'Main dominante', type: 'select', options: ['droite', 'gauche', 'ambidextre'], keep: true, noEcart: true },
     ],
   },
   pompes: {
@@ -1391,10 +1536,11 @@ const TEST_DEFS = {
     label: 'Quadriceps — Wall-sit',
     category: 'Force — Bas du corps',
     protocole: "Dos plaqué au mur, cuisses parallèles au sol, genoux à 90°. On tient le plus longtemps possible, jusqu'au " +
-      "bout de l'effort : on arrête au premier décroché de position, ou au plafond de 3 minutes (le chrono s'arrête tout seul).",
-    stopwatch: { field: 'wallsit_secondes', cap: 180 },
+      "bout de l'effort : on arrête au premier décroché de position, ou au plafond de 5 minutes (le chrono s'arrête tout seul).",
+    stopwatch: { field: 'wallsit_secondes', cap: 300, flag: 'wallsit_plafond_atteint' },
     fields: [
-      { key: 'wallsit_secondes', label: 'Durée tenue (s, max 180)', type: 'number', step: '1', max: 180 },
+      { key: 'wallsit_secondes', label: 'Durée tenue (s, max 300)', type: 'number', step: '1', max: 300 },
+      { key: 'wallsit_plafond_atteint', label: 'Plafond de 300 s atteint', type: 'checkbox' },
     ],
   },
   rowing: {
@@ -1424,7 +1570,8 @@ const TEST_DEFS = {
     label: 'AMRAP Cardio 20 min',
     category: 'Cardio',
     protocole: "Circuit fixe à enchaîner en boucle pendant 20 min, sans interruption (le partenaire compte les tours " +
-      "à voix haute). Au signal stop, noter le nombre de tours complets + la dernière station atteinte dans le tour en cours.",
+      "à voix haute). Au STOP : récupération assis 2 min, puis noter les tours complets et les répétitions faites dans le " +
+      "tour en cours (ex. 20 jacks + 10 squats + 4 skatings = 34).",
     // [nom de la station, répétitions, variante sans saut (option « No impact »)]
     circuit: [
       ['Jumping jacks', 20, 'Step jacks — sans saut'],
@@ -1440,12 +1587,12 @@ const TEST_DEFS = {
     noImpact: true,
     fields: [
       { key: 'amrap_tours_complets', label: 'Tours complets', type: 'number', step: '1' },
-      { key: 'amrap_derniere_station', label: 'Dernière station atteinte', type: 'select',
-        options: ['jacks', 'squats', 'skatings', 'sprawls', 'burpee', 'pompes', 'supermans', 'climbers', 'squat jumps'] },
+      { key: 'amrap_reps_incomplet', label: 'Répétitions du tour incomplet', type: 'number', step: '1', max: 80 },
       { key: 'rpe', label: 'Effort ressenti (0 = repos … 10 = maximal)', type: 'select', numeric: true,
         options: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] },
     ],
     timedSeconds: 1200,
+    circuitVersion: 'C1-2026-10',   // à changer si la composition du circuit change
   },
 };
 /* Préhension pour tout le monde juste après l'échauffement (avant-bras frais,
@@ -1463,6 +1610,7 @@ function circuitFrom(start) {
 function buildProtocolSteps(start) {
   const order = circuitFrom(start);
   return [
+    { kind: 'questionnaire' },
     { kind: 'info', title: 'Échauffement général', text: 'Échauffement général, 8 à 10 minutes. Non noté.' },
     { kind: 'test', key: 'grip', restAfter: 60 },
     ...order.map((key, n) => ({ kind: 'test', key, atelier: n + 1, restAfter: n === order.length - 1 ? 240 : 75 })),
@@ -1477,18 +1625,22 @@ let PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
 function renderProtoOrder() {
   const order = circuitFrom(protoStartAtelier);
   $('#protoOrder').innerHTML =
+    '<li>Questionnaire : sommeil, fatigue, malade <span class="muted">(30 s)</span></li>' +
     '<li>Échauffement général 8–10 min <span class="muted">(non noté)</span></li>' +
     '<li>Force de préhension — tout le monde <span class="muted">→ repos 60 s</span></li>' +
     order.map((k, n) => '<li><b>Atelier ' + (n + 1) + '</b> — ' + escapeHtml(TEST_DEFS[k].label) + ' <span class="muted">→ ' +
       (n === order.length - 1 ? 'repos long 3–5 min' : 'repos 75 s, puis atelier suivant') + '</span></li>').join('') +
     '<li>AMRAP Cardio 20 min <span class="muted">→ FC pic/moyenne enregistrées automatiquement</span></li>' +
-    '<li>Récupération FC (RFC) — 2 min <span class="muted">immobile, mesure automatique</span></li>' +
+    '<li>Récupération cardiaque — 2 min <span class="muted">démarre toute seule au STOP : assis, immobile, sans parler</span></li>' +
     '<li>Retour au calme <span class="muted">(non noté)</span></li>';
 }
 function setStartAtelier(a) {
   protoStartAtelier = FORCE_CIRCUIT.includes(a) ? a : FORCE_CIRCUIT[0];
   $$('#ptStart button').forEach(x => x.classList.toggle('sel', x.dataset.a === protoStartAtelier));
   renderProtoOrder();
+  const w = $('#ptStartWarn'), refStart = protoRef && FORCE_CIRCUIT.find(k => protoRef.tests[k] && protoRef.tests[k].ordre_passage === 1);
+  if (w) { w.hidden = !refStart || refStart === protoStartAtelier;
+    if (!w.hidden) w.textContent = 'Attention, différent du ' + protoRef.point + ' (départ ' + ATELIER_LABELS[refStart] + ') : la comparaison ne sera pas valide.'; }
 }
 $('#ptStart').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (b) setStartAtelier(b.dataset.a);
@@ -1520,7 +1672,7 @@ async function loadProtoRef() {
   protoRef = { point: first, tests: {} };
   rows.filter(r => r.point_de_test === first).forEach(r => { protoRef.tests[r.test_type] = r.data || {}; });
   const start = FORCE_CIRCUIT.find(k => protoRef.tests[k] && protoRef.tests[k].ordre_passage === 1);
-  if (start && !readProtocolFlag()) setStartAtelier(start);
+  if (start && !readProtocolFlag()) setStartAtelier(start); else setStartAtelier(protoStartAtelier);
   const t = protoRef.tests, bits = [];
   if (start) bits.push('départ <b>' + ATELIER_LABELS[start] + '</b>');
   if (t.pompes && t.pompes.pompes_variante) bits.push('pompes <b>' + escapeHtml(t.pompes.pompes_variante) + '</b>');
@@ -1544,7 +1696,105 @@ function hrWindow(from, to) {
   if (v.length < 15) return null;   // moins de ~30 s de signal : pas fiable
   return { moy: Math.round(v.reduce((a, b) => a + b, 0) / v.length), pic: Math.max(...v), n: v.length };
 }
-let protoRfcStarted = false, protoRfcTimer = null, protoRfcRemaining = 120, protoRfcPic = null, protoRfc2min = null;
+/* Récupération cardiaque — démarre automatiquement au STOP de l'AMRAP (fin du chrono, STOP du
+   coach ou bouton « Fin de l'AMRAP »), sans attendre la saisie des tours. Mesures :
+   - FC à l'arrêt : moyenne des 5 dernières secondes avant le STOP ;
+   - FC à 60 s et à 120 s : moyenne sur 5 s centrées sur chaque instant ;
+   - HRR60 = FC arrêt − FC 60 s ; HRR120 = FC arrêt − FC 120 s.
+   Invalide si : valeur aberrante, perte de signal > 5 s, FC à 120 s ≥ FC à l'arrêt.
+   Tout repose sur l'heure du STOP et l'historique de la séance : le décompte continue d'un
+   écran à l'autre et après un rechargement. La FC pic de l'AMRAP reste une valeur à part. */
+const RECUP_S = 120;
+const dropTxt = (x) => x == null ? '—' : x >= 0 ? '−' + x : '+' + (-x);   // baisse de FC (une FC qui remonte : « +3 »)
+let protoRecup = null;      // { start, arret, fc60, fc120, motifs, done }
+let recupTimer = null;
+function hrAt(t, tol) {     // FC enregistrée la plus proche de l'instant t (historique de la séance)
+  const s = live.session; if (!s || !s.series || !s.series.length) return null;
+  let best = null, bd = Infinity;
+  s.series.forEach(([sec, hr]) => { const d = Math.abs(s.startedAt + sec * 1000 - t); if (d < bd) { bd = d; best = hr; } });
+  return bd <= (tol || 6000) ? best : null;
+}
+function computeRecup() {
+  const r = protoRecup; if (!r || r.done) return;
+  const now = Date.now(), w = (a, b) => analyseWindow(r.start + a, r.start + b);
+  if (r.arret == null && !r.mArret) { const m = w(-5000, 0); r.arret = m.moy; r.mArret = m.motifs; }
+  if (r.fc60 == null && !r.m60 && now >= r.start + 62500) { const m = w(57500, 62500); r.fc60 = m.moy; r.m60 = m.motifs; }
+  if (now >= r.start + 122500) {
+    const m = w(117500, 122500); r.fc120 = m.moy;
+    const motifs = new Set([...(r.mArret || []), ...(r.m60 || []), ...m.motifs]);
+    const all = samplesBetween(r.start - 5000, r.start + 122500);
+    if (all.length && maxGap(all, r.start - 5000, r.start + 122500) > 5000) motifs.add('perte de signal de plus de 5 s');
+    if (r.arret == null || r.fc60 == null || r.fc120 == null) motifs.add('données insuffisantes (capteur non connecté ?)');
+    if (r.arret != null && r.fc120 != null && r.fc120 >= r.arret) motifs.add('FC à 120 s ≥ FC à l’arrêt');
+    r.motifs = [...motifs]; r.done = true;
+    saveProtocolFlag();
+    signalBeep(3);
+    toast(r.motifs.length ? 'Récupération terminée — mesure invalide : ' + r.motifs[0] : 'Récupération terminée : HRR60 ' + dropTxt(r.arret - r.fc60) + ' · HRR120 ' + dropTxt(r.arret - r.fc120) + ' bpm');
+  }
+}
+function startRecup(at) {
+  if (protoRecup) return;
+  const t = at && at < Date.now() ? at : Date.now();
+  protoRecup = { start: t, arret: null, fc60: null, fc120: null, done: false };
+  clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
+  computeRecup();
+  saveProtocolFlag();
+  signalBeep(2);
+  toast('STOP ! Assis, immobile, sans parler pendant 2 minutes.');
+  ensureRecupTick();
+}
+function recupRemaining() { return protoRecup ? Math.max(0, RECUP_S - Math.floor((Date.now() - protoRecup.start) / 1000)) : RECUP_S; }
+function recupResultHtml() {
+  const r = protoRecup; if (!r) return '';
+  const f = (v) => v == null ? '…' : v + ' bpm';
+  let h = 'FC à l’arrêt : <b>' + f(r.arret) + '</b> · à 60 s : <b>' + f(r.fc60) + '</b>' +
+    (r.arret != null && r.fc60 != null ? ' (HRR60 ' + dropTxt(r.arret - r.fc60) + ')' : '') +
+    ' · à 120 s : <b>' + f(r.fc120) + '</b>' + (r.done && r.arret != null && r.fc120 != null ? ' (HRR120 ' + dropTxt(r.arret - r.fc120) + ')' : '');
+  if (r.done) h += r.motifs.length ? '<br><span class="invalid">Mesure invalide : ' + escapeHtml(r.motifs.join(', ')) + '</span>'
+    : '<br><span class="valid">Mesure valide ✔</span>';
+  return h;
+}
+function tickRecup() {
+  if (!protoRecup) { clearInterval(recupTimer); recupTimer = null; return; }
+  computeRecup();
+  const rem = recupRemaining();
+  $$('.recup-count').forEach(el => { el.textContent = rem > 0 ? mmss(rem) : protoRecup.done ? '00:00' : 'mesure…'; });
+  $$('.recup-result').forEach(el => { el.innerHTML = recupResultHtml(); });
+  if (protoRecup.done) {
+    clearInterval(recupTimer); recupTimer = null;
+    const b = $('#protoRfcNext'); if (b) b.disabled = false;
+    $$('.recup-after').forEach(el => { el.textContent = 'Récupération terminée : note maintenant tes tours ci-dessous.'; });
+  }
+}
+function ensureRecupTick() {
+  if (protoRecup && !protoRecup.done && !recupTimer) recupTimer = setInterval(tickRecup, 500);
+  tickRecup();
+}
+function recupBoxHtml() {
+  return '<div class="rest-box recupbox"><div class="recup-consigne">Assis, immobile, sans parler</div>' +
+    '<div class="rest-count recup-count">' + mmss(recupRemaining()) + '</div>' +
+    '<div class="rest-label recup-result">' + recupResultHtml() + '</div></div>';
+}
+function recupData() {
+  const r = protoRecup; if (!r || !r.done || (r.arret == null && r.fc60 == null && r.fc120 == null)) return null;
+  const d = { fc_arret: r.arret, fc_60: r.fc60, fc_120: r.fc120, valide: !r.motifs.length,
+    debut_recup: new Date(r.start).toISOString(), methode: 'FC arrêt (5 s) / 60 s / 120 s (5 s centrées)' };
+  if (r.arret != null && r.fc60 != null) d.hrr60 = r.arret - r.fc60;
+  if (r.arret != null && r.fc120 != null) d.hrr120 = r.arret - r.fc120;
+  if (r.motifs.length) d.motifs_invalidite = r.motifs.join(' ; ');
+  return d;
+}
+async function saveRfc() {
+  const data = recupData(); if (!data) return true;
+  const { error } = await sb.from('protocol_test_results')
+    .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'rfc', data },
+      { onConflict: 'participant_id,point_de_test,test_type' });
+  if (error) { toast('Erreur : ' + error.message); return false; }
+  protoExisting.rfc = data;
+  markProtoDone('rfc');
+  return true;
+}
+function clearRecup() { clearInterval(recupTimer); recupTimer = null; protoRecup = null; }
 
 /* Passation en cours, mémorisée sur l'appareil pour survivre à un rechargement :
    { p: point de test, i: étape en cours, done: tests enregistrés pendant CETTE passation }.
@@ -1554,7 +1804,7 @@ let protoDone = [];
 function protocolStorageKey() { return me ? ('vs-protocol-' + me.id) : null; }
 function saveProtocolFlag() {
   const k = protocolStorageKey();
-  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoStepIndex, done: protoDone, as: protoAmrapShownAt, ac: protoAmrapStartAt })); } catch (e) {} }
+  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoStepIndex, done: protoDone, as: protoAmrapShownAt, ac: protoAmrapStartAt, rc: protoRecup, v: 2 })); } catch (e) {} }
 }
 function clearProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.removeItem(k); } catch (e) {} } }
 function readProtocolFlag() {
@@ -1579,6 +1829,7 @@ function firstIncompleteStepIndex(existing) {
     const s = PROTOCOL_STEPS[i];
     if (s.kind === 'test' && !(s.key in existing)) return i;
     if (s.kind === 'rfc' && !('rfc' in existing)) return i;
+    if (s.kind === 'questionnaire' && !('questionnaire' in existing)) return i;
   }
   return PROTOCOL_STEPS.length - 1;
 }
@@ -1597,8 +1848,9 @@ async function beginProtocol() {
     const rows = data || [];
     protoDone = saved.legacy ? rows.map(r => r.test_type) : (saved.done || []);
     protoAmrapShownAt = saved.as || null; protoAmrapStartAt = saved.ac || null;
+    clearRecup(); protoRecup = saved.rc || null; ensureRecupTick();
     rows.forEach(r => { if (protoDone.includes(r.test_type)) protoExisting[r.test_type] = r.data; });
-    protoStepIndex = saved.legacy ? firstIncompleteStepIndex(protoExisting)
+    protoStepIndex = saved.legacy || saved.v !== 2 ? firstIncompleteStepIndex(protoExisting)
       : Math.min(Math.max(0, saved.i | 0), PROTOCOL_STEPS.length - 1);
   } else {
     if (data && data.length) {
@@ -1610,7 +1862,7 @@ async function beginProtocol() {
     }
     protoDone = [];
     protoStepIndex = 0;
-    protoAmrapShownAt = null; protoAmrapStartAt = null;
+    protoAmrapShownAt = null; protoAmrapStartAt = null; clearRecup();
     PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
   }
   protoPhase = 'content';
@@ -1651,13 +1903,11 @@ function stopProtoTimers() {
   clearInterval(protoSwTimer); protoSwTimer = null;
   clearInterval(protoRestTimer); protoRestTimer = null;
   clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
-  clearInterval(protoRfcTimer); protoRfcTimer = null;
 }
 
 function protoAdvance() {
   stopProtoTimers();
   protoPhase = 'content';
-  protoRfcStarted = false;
   protoStepIndex++;
   if (protoStepIndex >= PROTOCOL_STEPS.length) { clearProtocolFlag(); $('#protoHome').hidden = false; $('#protoRun').hidden = true; return; }
   saveProtocolFlag();
@@ -1702,6 +1952,49 @@ function renderProtoStep() {
     return;
   }
 
+  if (step.kind === 'questionnaire') {
+    const q = protoExisting.questionnaire || {};
+    card.innerHTML =
+      '<div class="stepmeta">Étape ' + (protoStepIndex + 1) + ' / ' + PROTOCOL_STEPS.length + ' · <span class="typebadge">Avant le test</span></div>' +
+      '<h3 style="margin-top:.5rem">Trois questions avant de commencer</h3>' +
+      '<div class="qform">' +
+        '<div class="field">Combien d’heures as-tu dormi la nuit dernière ?' +
+          '<input type="number" id="qSommeil" min="0" max="16" step="0.25" inputmode="decimal" placeholder="ex. 7,25" value="' + (q.sommeil_h ?? '') + '">' +
+          '<small class="muted">Au quart d’heure près : 7,25 = 7 h 15 · 7,5 = 7 h 30 · 7,75 = 7 h 45</small></div>' +
+        '<div class="field">Ta fatigue en ce moment, de 1 (pas du tout) à 10 (épuisé) ?' +
+          '<div class="seg qseg" id="qFatigue">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => '<button type="button" data-v="' + n + '"' +
+            (q.fatigue === n ? ' class="sel"' : '') + '>' + n + '</button>').join('') + '</div></div>' +
+        '<div class="field">Es-tu malade en ce moment (rhume, fièvre, gastro…) ?' +
+          '<div class="seg qseg" id="qMalade"><button type="button" data-v="non"' + (q.malade === false ? ' class="sel"' : '') + '>Non</button>' +
+          '<button type="button" data-v="oui"' + (q.malade === true ? ' class="sel"' : '') + '>Oui</button></div></div>' +
+      '</div>' +
+      '<p class="note">Date et heure de la séance enregistrées automatiquement : ' + new Date().toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' }) + '.</p>' +
+      '<div class="formrow" style="margin-top:1rem"><button class="btn-primary" id="protoQSave">Enregistrer et commencer</button></div>';
+    $$('#protoCard .qseg').forEach(seg => seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      $$('button', seg).forEach(x => x.classList.toggle('sel', x === b));
+    }));
+    $('#protoQSave').addEventListener('click', async () => {
+      const raw = $('#qSommeil').value.replace(',', '.'), h = parseFloat(raw);
+      const fat = $('#qFatigue .sel'), mal = $('#qMalade .sel');
+      if (raw === '' || !(h >= 0 && h <= 16)) { toast('Indique tes heures de sommeil (entre 0 et 16).'); return; }
+      if (!fat) { toast('Indique ta fatigue de 1 à 10.'); return; }
+      if (!mal) { toast('Indique si tu es malade.'); return; }
+      const now = new Date(), z = (n) => String(n).padStart(2, '0');
+      const data = { sommeil_h: Math.round(h * 4) / 4, fatigue: +fat.dataset.v, malade: mal.dataset.v === 'oui',
+        debut_seance: now.toISOString(), heure_seance: z(now.getHours()) + ':' + z(now.getMinutes()) };
+      $('#protoQSave').disabled = true;
+      const { error } = await sb.from('protocol_test_results')
+        .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'questionnaire', data },
+          { onConflict: 'participant_id,point_de_test,test_type' });
+      $('#protoQSave').disabled = false;
+      if (error) toast('Questionnaire non enregistré (le coach doit exécuter la migration 13) — on continue.');
+      else { protoExisting.questionnaire = data; markProtoDone('questionnaire'); }
+      protoAdvance();
+    });
+    return;
+  }
+
   if (step.kind === 'info') {
     card.innerHTML =
       '<h3>' + escapeHtml(step.title) + '</h3>' +
@@ -1723,62 +2016,20 @@ function renderProtoStep() {
   }
 
   if (step.kind === 'rfc') {
-    const amrapData = protoExisting.amrap_cardio || {};
-    if (!protoRfcStarted) {
-      protoRfcPic = amrapData.fc_pic_amrap != null ? amrapData.fc_pic_amrap : (live.hr != null ? live.hr : null);
-      protoRfc2min = null;
-      protoRfcRemaining = 120;
-      protoRfcStarted = true;
-    }
-    const canMeasure = protoRfcPic != null;
+    if (!protoRecup) startRecup();   // AMRAP passé sans STOP : la récupération démarre maintenant
     card.innerHTML =
       '<div class="stepmeta">Étape ' + (protoStepIndex + 1) + ' / ' + PROTOCOL_STEPS.length + ' · <span class="typebadge">Cardio</span></div>' +
-      '<h3 style="margin-top:.5rem">Récupération de la fréquence cardiaque (RFC)</h3>' +
-      '<div class="protocole-box">Reste immobile et respire calmement pendant 2 minutes après l’AMRAP. La RFC ' +
-        'mesure la baisse de FC entre la fin de l’effort et 2 minutes de repos : plus la baisse est grande, ' +
-        'meilleure est la récupération cardiovasculaire.</div>' +
-      (canMeasure
-        ? '<div class="rest-box">' +
-            '<div class="stepmeta">FC de fin d’effort : <b>' + protoRfcPic + '</b> bpm</div>' +
-            '<div class="rest-count" id="protoRfcCount">' + mmss(protoRfcRemaining) + '</div>' +
-            '<div class="rest-label" id="protoRfcResult">' +
-              (protoRfc2min != null ? 'FC à 2 min : ' + protoRfc2min + ' bpm · RFC : −' + (protoRfcPic - protoRfc2min) + ' bpm' : 'Mesure en cours…') +
-            '</div>' +
-          '</div>'
-        : '<p class="note">Capteur non connecté — impossible de mesurer la RFC pour cette séance. Tu peux passer cette étape.</p>') +
-      '<div class="formrow" style="margin-top:1.1rem"><button class="btn-primary" id="protoRfcNext"' +
-        (canMeasure && protoRfc2min == null ? ' disabled' : '') + '>' +
-        (canMeasure ? 'Enregistrer et continuer' : 'Passer') + '</button></div>';
-
-    if (canMeasure && protoRfc2min == null && !protoRfcTimer) {
-      protoRfcTimer = setInterval(() => {
-        protoRfcRemaining = Math.max(0, protoRfcRemaining - 1);
-        const el = $('#protoRfcCount'); if (el) el.textContent = mmss(protoRfcRemaining);
-        if (protoRfcRemaining === 0) {
-          clearInterval(protoRfcTimer); protoRfcTimer = null;
-          protoRfc2min = live.hr != null ? live.hr : null;
-          const res = $('#protoRfcResult');
-          if (res) res.textContent = protoRfc2min != null
-            ? 'FC à 2 min : ' + protoRfc2min + ' bpm · RFC : −' + (protoRfcPic - protoRfc2min) + ' bpm'
-            : 'FC non disponible à 2 min (capteur déconnecté).';
-          const btn = $('#protoRfcNext'); if (btn) btn.disabled = false;
-          toast('2 minutes de récupération écoulées.');
-        }
-      }, 1000);
-    }
-
+      '<h3 style="margin-top:.5rem">Récupération cardiaque</h3>' +
+      '<div class="protocole-box">Dès le STOP de l’AMRAP : <b>assis, immobile, sans parler</b> pendant 2 minutes. On mesure ' +
+        'la FC à l’arrêt (5 dernières secondes de l’effort), puis à 60 s et à 120 s. HRR60 et HRR120 = baisse de la FC : ' +
+        'plus elle est grande, meilleure est la récupération.</div>' +
+      recupBoxHtml() +
+      '<div class="formrow" style="margin-top:1.1rem"><button class="btn-primary" id="protoRfcNext"' + (protoRecup.done ? '' : ' disabled') +
+        '>Enregistrer et continuer</button></div>';
+    ensureRecupTick();
     $('#protoRfcNext').addEventListener('click', async () => {
-      if (canMeasure) {
-        const data = { fc_pic: protoRfcPic };
-        if (protoRfc2min != null) { data.fc_2min = protoRfc2min; data.rfc_2min = protoRfcPic - protoRfc2min; }
-        const { error } = await sb.from('protocol_test_results')
-          .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'rfc', data },
-            { onConflict: 'participant_id,point_de_test,test_type' });
-        if (error) { toast('Erreur : ' + error.message); return; }
-        protoExisting.rfc = data;
-        markProtoDone('rfc');
-        toast('RFC enregistrée ✔');
-      }
+      if (!(await saveRfc())) return;
+      if (recupData()) toast('Récupération enregistrée ✔');
       protoAdvance();
     });
     return;
@@ -1792,27 +2043,36 @@ function renderProtoStep() {
     def.fields.filter(f => f.keep && ref[f.key] != null).forEach(f => { prev[f.key] = ref[f.key]; fromRef.push(f.key); });
     if (def.noImpact && ref.no_impact != null) { prev.no_impact = ref.no_impact; fromRef.push('no_impact'); }
   }
-  const fieldsHtml = def.fields.map(f => {
+  const ecartBox = (key) => ref && ref[key] != null ? '<div class="ecartwarn" id="ecw_' + key + '" hidden>Attention, différent du ' + protoRef.point +
+    ' (' + escapeHtml(typeof ref[key] === 'boolean' ? (ref[key] ? 'oui' : 'non') : String(ref[key])) + ') : la comparaison ne sera pas valide.</div>' : '';
+  const trialsHtml = def.trials ? '<div class="trialgrid"><div class="th">Main gauche</div><div class="th">Main droite</div>' +
+    Array.from({ length: def.trials }, (_, i) => ['gauche', 'droite'].map(m => '<div class="field">Essai ' + (i + 1) +
+      '<input type="number" step="0.1" inputmode="decimal" id="ptg_' + m + i + '" value="' +
+      escapeHtml(((prev['essais_' + m + '_kg'] || [])[i]) ?? '') + '"></div>').join('')).join('') +
+    '</div><p class="best" id="gripBest"></p>' : '';
+  const fieldsHtml = trialsHtml + def.fields.map(f => {
     const val = prev[f.key] != null ? prev[f.key] : '';
     const lbl = escapeHtml(f.label) + (fromRef.includes(f.key) ? ' <span class="asref">comme au ' + protoRef.point + '</span>' : '');
+    if (f.type === 'checkbox') return '<label class="checkline"><input type="checkbox" id="ptf_' + f.key + '"' + (val === true ? ' checked' : '') + '> ' + lbl + '</label>';
     if (f.type === 'select') {
       const opts = f.options.slice();
       if (val !== '' && !opts.includes(String(val))) opts.unshift(String(val));   // ancienne valeur libre conservée
       return '<div class="field">' + lbl +
         '<select id="ptf_' + f.key + '"><option value="">—</option>' +
         opts.map(o => '<option value="' + escapeHtml(o) + '"' + (String(val) === o ? ' selected' : '') + '>' + escapeHtml(o) + '</option>').join('') +
-        '</select></div>';
+        '</select>' + (f.keep && !f.noEcart ? ecartBox(f.key) : '') + '</div>';
     }
     return '<div class="field">' + lbl +
-      '<input type="' + f.type + '" id="ptf_' + f.key + '" step="' + (f.step || 'any') + '" value="' + escapeHtml(val) + '"></div>';
-  }).join('');
+      '<input type="' + f.type + '" id="ptf_' + f.key + '" step="' + (f.step || 'any') + '" value="' + escapeHtml(val) + '">' +
+      (f.keep && !f.noEcart ? ecartBox(f.key) : '') + '</div>';
+  }).join('') + (def.circuit ? '<p class="amraptotal" id="amrapTotal"></p>' : '');
 
   let circuitHtml = '';
   if (def.circuit) {
     const ni = !!prev.no_impact;
     circuitHtml =
       (def.noImpact ? '<label class="noimpact"><input type="checkbox" id="ptNoImpact"' + (ni ? ' checked' : '') + '> ' +
-        '<span><b>No impact</b> — je ne fais pas les sauts (jumping jacks, squat jumps, burpee)</span></label>' : '') +
+        '<span><b>No impact</b> — je ne fais pas les sauts (jumping jacks, squat jumps, burpee)</span></label>' + ecartBox('no_impact') : '') +
       '<ol class="circuit" id="ptCircuit">' + circuitItems(def, ni) + '</ol>';
   }
 
@@ -1842,13 +2102,19 @@ function renderProtoStep() {
   if (def.timedSeconds) {
     timerHtml =
       '<div class="rest-box" style="margin-bottom:1rem">' +
-        '<div class="rest-count" id="protoAmrapCount">' + mmss(protoAmrapRemaining || def.timedSeconds) + '</div>' +
-        '<div class="rest-label">Touche « Démarrer » au top départ : ta FC moyenne et ta FC pic de l’AMRAP seront mesurées précisément.</div>' +
+        '<div class="rest-count" id="protoAmrapCount">' + mmss(protoRecup ? 0 : protoAmrapStartAt
+          ? Math.max(0, Math.ceil((protoAmrapStartAt + def.timedSeconds * 1000 - Date.now()) / 1000)) : def.timedSeconds) + '</div>' +
+        '<div class="rest-label">Touche « Démarrer » au top départ : ta FC de l’AMRAP sera mesurée précisément, et la ' +
+          'récupération de 2 min démarrera toute seule à la fin des ' + def.timedSeconds / 60 + ' min.</div>' +
         '<div class="rest-controls">' +
-          '<button class="btn-primary" id="protoAmrapStart">' + (protoAmrapRunning ? 'En cours…' : 'Démarrer les ' + def.timedSeconds / 60 + ' min') + '</button>' +
-          '<button class="btn-soft" id="protoAmrapReset">Réinitialiser</button>' +
+          '<button class="btn-primary" id="protoAmrapStart"' + (protoRecup ? ' disabled' : '') + '>' +
+            (protoRecup ? 'Terminé' : protoAmrapRunning ? 'En cours…' : 'Démarrer les ' + def.timedSeconds / 60 + ' min') + '</button>' +
+          '<button class="btn-soft" id="protoAmrapEnd"' + (protoRecup ? ' hidden' : '') + '>Fin de l’AMRAP → lancer la récup</button>' +
+          '<button class="btn-soft" id="protoAmrapReset"' + (protoRecup ? ' hidden' : '') + '>Réinitialiser</button>' +
         '</div>' +
-      '</div>';
+      '</div>' +
+      '<div id="recupSlot">' + (protoRecup ? recupBoxHtml() + '<p class="note recup-after" style="text-align:center">' +
+        (protoRecup.done ? 'Récupération terminée : note maintenant tes tours ci-dessous.' : 'Ne touche à rien pendant 2 minutes : tu noteras tes tours au bip.') + '</p>' : '') + '</div>';
   }
 
   card.innerHTML =
@@ -1889,6 +2155,7 @@ function renderProtoStep() {
       const sec = Math.min(sw.cap, Math.round((Date.now() - t0) / 1000));
       $('#protoSwCount').textContent = mmss(sec);
       $('#ptf_' + sw.field).value = sec;
+      if (sw.flag) $('#ptf_' + sw.flag).checked = sec >= sw.cap;
       $('#protoSwStart').disabled = false; $('#protoSwStart').textContent = 'Recommencer';
       $('#protoSwStop').disabled = true;
       toast(auto ? 'Plafond de ' + mmss(sw.cap) + ' atteint — bravo !' : 'Durée notée : ' + sec + ' s');
@@ -1908,39 +2175,92 @@ function renderProtoStep() {
   if (def.noImpact) {
     $('#ptNoImpact').addEventListener('change', () => { $('#ptCircuit').innerHTML = circuitItems(def, $('#ptNoImpact').checked); });
   }
+  if (def.trials) {
+    const best = () => {
+      const b = (m) => { const v = Array.from({ length: def.trials }, (_, i) => parseFloat(($('#ptg_' + m + i).value || '').replace(',', '.'))).filter(x => x > 0); return v.length ? Math.max(...v) : null; };
+      const g = b('gauche'), d = b('droite');
+      $('#gripBest').innerHTML = 'Meilleur essai retenu : main gauche <b>' + (g ?? '—') + ' kg</b> · main droite <b>' + (d ?? '—') + ' kg</b>';
+    };
+    $$('#protoCard .trialgrid input').forEach(i => i.addEventListener('input', best)); best();
+  }
+  if (def.circuit) {
+    const perRound = def.circuit.reduce((a, c) => a + c[1], 0);
+    const tot = () => {
+      const t = parseInt($('#ptf_amrap_tours_complets').value, 10), r = parseInt($('#ptf_amrap_reps_incomplet').value || '0', 10);
+      $('#amrapTotal').innerHTML = t >= 0 ? 'Total : <b>' + (t * perRound + (r || 0)) + ' répétitions</b> (' + perRound + ' par tour complet)' : perRound + ' répétitions par tour complet.';
+    };
+    ['#ptf_amrap_tours_complets', '#ptf_amrap_reps_incomplet'].forEach(id => $(id).addEventListener('input', tot)); tot();
+  }
+  if (ref) {   // conditions différentes du point de test de référence (T0) : avertissement immédiat
+    const chk = () => {
+      def.fields.filter(f => f.keep && !f.noEcart && ref[f.key] != null).forEach(f => {
+        const el = $('#ptf_' + f.key), w = $('#ecw_' + f.key); if (!el || !w) return;
+        w.hidden = el.value === '' || String(el.value) === String(ref[f.key]);
+      });
+      const ni = $('#ptNoImpact'), wn = $('#ecw_no_impact');
+      if (ni && wn) wn.hidden = !!ni.checked === !!ref.no_impact;
+    };
+    $$('#protoCard input, #protoCard select').forEach(el => el.addEventListener('change', chk));
+    $$('#protoCard input').forEach(el => el.addEventListener('input', chk)); chk();
+  }
   if (def.timedSeconds) {
     if (!protoAmrapShownAt) { protoAmrapShownAt = Date.now(); saveProtocolFlag(); }
-    if (protoAmrapRemaining === 0) protoAmrapRemaining = def.timedSeconds;
-    $('#protoAmrapStart').addEventListener('click', () => {
-      if (protoAmrapRunning) return;
+    const dur = def.timedSeconds * 1000;
+    // fin de l'effort : la récupération démarre tout de suite (at = heure de fin du chrono)
+    const endAmrap = (at) => {
+      if (protoRecup) return;
+      clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
+      startRecup(at);
+      ['#protoAmrapEnd', '#protoAmrapReset'].forEach(id => { const b = $(id); if (b) b.hidden = true; });
+      const b = $('#protoAmrapStart'); if (b) { b.textContent = 'Terminé'; b.disabled = true; }
+      const c = $('#protoAmrapCount'); if (c) c.textContent = mmss(0);
+      const slot = $('#recupSlot');
+      if (slot) { slot.innerHTML = recupBoxHtml() + '<p class="note recup-after" style="text-align:center">Ne touche à rien pendant 2 minutes : tu noteras tes tours au bip.</p>'; tickRecup(); }
+    };
+    // chrono calé sur l'heure de départ : juste même si le téléphone se met en veille ou si la page est rechargée
+    const tickAmrap = () => {
+      if (protoRecup) { clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false; return; }
+      const left = Math.max(0, Math.ceil((protoAmrapStartAt + dur - Date.now()) / 1000));
+      if (live.hr != null) { protoAmrapHr.sum += live.hr; protoAmrapHr.n++; if (live.hr > protoAmrapHr.max) protoAmrapHr.max = live.hr; }
+      const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(left);
+      if (left === 0) endAmrap(protoAmrapStartAt + dur);
+    };
+    const runAmrap = () => {
       protoAmrapRunning = true;
+      const b = $('#protoAmrapStart'); if (b) b.textContent = 'En cours…';
+      clearInterval(protoAmrapTimer); protoAmrapTimer = setInterval(tickAmrap, 500); tickAmrap();
+    };
+    $('#protoAmrapStart').addEventListener('click', () => {
+      if (protoAmrapRunning || protoRecup) return;
       protoAmrapHr = { sum: 0, n: 0, max: 0 };
       protoAmrapStartAt = Date.now(); saveProtocolFlag();
-      $('#protoAmrapStart').textContent = 'En cours…';
-      protoAmrapTimer = setInterval(() => {
-        protoAmrapRemaining = Math.max(0, protoAmrapRemaining - 1);
-        if (live.hr != null) { protoAmrapHr.sum += live.hr; protoAmrapHr.n++; if (live.hr > protoAmrapHr.max) protoAmrapHr.max = live.hr; }
-        const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(protoAmrapRemaining);
-        if (protoAmrapRemaining === 0) {
-          clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
-          toast(def.timedSeconds / 60 + ' minutes écoulées — note ton résultat.');
-          const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Terminé';
-        }
-      }, 1000);
+      signalBeep(1);
+      runAmrap();
     });
+    if (protoAmrapStartAt && !protoRecup) runAmrap();   // reprise après rechargement : le chrono continue
+    if (protoRecup) ensureRecupTick();
+    $('#protoAmrapEnd').addEventListener('click', () => endAmrap());
     $('#protoAmrapReset').addEventListener('click', () => {
       clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
-      protoAmrapRemaining = def.timedSeconds;
       protoAmrapHr = { sum: 0, n: 0, max: 0 };
       protoAmrapStartAt = null; saveProtocolFlag();
-      const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(protoAmrapRemaining);
+      const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(def.timedSeconds);
       const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Démarrer les ' + def.timedSeconds / 60 + ' min';
     });
   }
 
   $('#protoTestSave').addEventListener('click', async () => {
     const data = {};
+    if (def.trials) {
+      for (const m of ['gauche', 'droite']) {
+        const v = Array.from({ length: def.trials }, (_, i) => parseFloat(($('#ptg_' + m + i).value || '').replace(',', '.')));
+        if (v.some(x => !(x > 0))) { toast('Note les ' + def.trials + ' essais de la main ' + m + '.'); return; }
+        data['essais_' + m + '_kg'] = v;
+        data['force_main_' + m + '_kg'] = Math.max(...v);   // meilleur essai retenu
+      }
+    }
     for (const f of def.fields) {
+      if (f.type === 'checkbox') { data[f.key] = $('#ptf_' + f.key).checked; continue; }
       const raw = $('#ptf_' + f.key).value;
       if (raw === '') {
         if (!f.optional) { toast('Renseigne « ' + f.label + ' ».'); return; }
@@ -1949,22 +2269,37 @@ function renderProtoStep() {
       data[f.key] = f.type === 'number' || f.numeric ? parseFloat(raw) : raw;
       if (f.max != null && data[f.key] > f.max) { toast('« ' + f.label + ' » : ' + f.max + ' maximum.'); return; }
     }
+    if (def.stopwatch && def.stopwatch.flag && data[def.stopwatch.field] >= def.stopwatch.cap) data[def.stopwatch.flag] = true;
+    if (def.circuit) {
+      const perRound = def.circuit.reduce((a, c) => a + c[1], 0);
+      if (!(data.amrap_reps_incomplet >= 0)) data.amrap_reps_incomplet = 0;
+      if (data.amrap_reps_incomplet >= perRound) { toast('Le tour incomplet compte au plus ' + (perRound - 1) + ' répétitions.'); return; }
+      data.reps_par_tour = perRound;
+      data.amrap_reps_totales = data.amrap_tours_complets * perRound + data.amrap_reps_incomplet;
+      data.circuit_version = def.circuitVersion;
+      data.circuit = def.circuit.map(c => c[1] + ' ' + c[0]).join(', ');
+    }
     if (def.noImpact) data.no_impact = $('#ptNoImpact').checked;
     if (def.timedSeconds) data.duree_min = def.timedSeconds / 60;   // distingue l'ancien AMRAP de 10 min
     if (def.fixed) Object.assign(data, def.fixed);   // matériel imposé (barre)
     if (step.atelier) data.ordre_passage = step.atelier;   // position dans la rotation (1 = atelier de départ)
     if (step.key === 'amrap_cardio') {
-      const dur = def.timedSeconds * 1000, now = Date.now();
-      let fc = null;
-      if (protoAmrapHr.n > 0) {   // chrono de l'app lancé sur cette page
-        fc = { moy: Math.round(protoAmrapHr.sum / protoAmrapHr.n), pic: protoAmrapHr.max, src: 'chrono' };
-      } else if (protoAmrapStartAt) {   // chrono lancé, puis page rechargée
-        const w = hrWindow(protoAmrapStartAt, Math.min(now, protoAmrapStartAt + dur)); if (w) fc = Object.assign(w, { src: 'chrono' });
-      } else {   // chrono de l'app non utilisé : les 20 dernières minutes passées sur l'écran AMRAP
-        const w = hrWindow(Math.max(protoAmrapShownAt || 0, now - dur), now); if (w) fc = Object.assign(w, { src: 'estimee' });
+      if (!protoRecup) startRecup();   // enregistré sans STOP : la fin d'effort, c'est maintenant
+      const dur = def.timedSeconds * 1000, now = protoRecup.start;
+      // chrono (app ou coach) : FC sur sa durée exacte ; sinon les 20 dernières minutes passées sur l'écran AMRAP
+      const from = protoAmrapStartAt || Math.max(protoAmrapShownAt || 0, now - dur), to = protoAmrapStartAt ? Math.min(now, protoAmrapStartAt + dur) : now;
+      const a = analyseWindow(from, to, { effort: true });
+      let fc = a.n >= 15 ? { moy: a.moy, pic: a.pic, motifs: a.motifs } : protoAmrapHr.n > 0
+        ? { moy: Math.round(protoAmrapHr.sum / protoAmrapHr.n), pic: protoAmrapHr.max, motifs: ['données partielles'] } : null;
+      if (fc) {
+        const fm = fcMaxInfo();
+        Object.assign(data, { fc_moy_amrap: fc.moy, fc_pic_amrap: fc.pic, fc_amrap_source: protoAmrapStartAt ? 'chrono' : 'estimee',
+          fc_amrap_valide: !fc.motifs.length, fc_max_retenue: fm.v, fc_max_source: fm.source, intensite_pct: Math.round(fc.moy / fm.v * 100) });
+        if (fc.motifs.length) data.fc_amrap_motifs = fc.motifs.join(' ; ');
       }
-      if (fc) { data.fc_moy_amrap = fc.moy; data.fc_pic_amrap = fc.pic; data.fc_amrap_source = fc.src; }
     }
+    const ecarts = ecartsProtocole(step, def, data);
+    if (ecarts.length) data.ecart_protocole = ecarts.join(' ; ');
     $('#protoTestSave').disabled = true;
     const { error } = await sb.from('protocol_test_results')
       .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: step.key, data },
@@ -1984,9 +2319,28 @@ function renderProtoStep() {
       }, 1000);
     } else {
       protoAmrapRemaining = 0;
+      // AMRAP enregistré après la fin de la récupération : la récup est enregistrée aussi, on passe directement à la suite
+      if (step.key === 'amrap_cardio' && protoRecup && protoRecup.done) { if (await saveRfc()) protoStepIndex++; }
       protoAdvance();
     }
   });
+}
+
+/* Écart au protocole : conditions différentes du point de test de référence (T0). */
+function ecartsProtocole(step, def, data) {
+  const out = [], ref = protoRef && protoRef.tests[step.key], pt = protoRef && protoRef.point;
+  const fmt = (v) => typeof v === 'boolean' ? (v ? 'oui' : 'non') : String(v);
+  if (ref) {
+    def.fields.filter(f => f.keep && !f.noEcart && ref[f.key] != null && data[f.key] != null && String(ref[f.key]) !== String(data[f.key]))
+      .forEach(f => out.push(f.label + ' : ' + fmt(ref[f.key]) + ' (' + pt + ') → ' + fmt(data[f.key])));
+    if (def.noImpact && ref.no_impact != null && !!ref.no_impact !== !!data.no_impact)
+      out.push('No impact : ' + fmt(!!ref.no_impact) + ' (' + pt + ') → ' + fmt(!!data.no_impact));
+  }
+  if (step.atelier && protoRef) {
+    const refStart = FORCE_CIRCUIT.find(k => protoRef.tests[k] && protoRef.tests[k].ordre_passage === 1);
+    if (refStart && refStart !== protoStartAtelier) out.push('Station de départ : ' + ATELIER_LABELS[refStart] + ' (' + pt + ') → ' + ATELIER_LABELS[protoStartAtelier]);
+  }
+  return out;
 }
 
 function circuitItems(def, noImpact) {
@@ -2002,22 +2356,28 @@ function thirdsTxt(d, k) {
 function formatProtoData(testType, data) {
   data = data || {};
   switch (testType) {
-    case 'grip': return 'G ' + (data.force_main_gauche_kg ?? '—') + ' kg · D ' + (data.force_main_droite_kg ?? '—') + ' kg';
+    case 'grip': return 'G ' + (data.force_main_gauche_kg ?? '—') + ' kg · D ' + (data.force_main_droite_kg ?? '—') + ' kg' +
+      (data.essais_gauche_kg ? ' (meilleur de 3 essais)' : '');
     case 'pompes': return (data.pompes_reps ?? '—') + ' reps' + thirdsTxt(data, 'pompes_reps') + ' (' + (data.pompes_variante ?? '—') + ')';
-    case 'wallsit': return (data.wallsit_secondes ?? '—') + ' s';
+    case 'wallsit': return (data.wallsit_secondes ?? '—') + ' s' + (data.wallsit_plafond_atteint ? ' (plafond atteint)' : '');
     case 'rowing': return (data.rowing_reps ?? '—') + ' reps' + thirdsTxt(data, 'rowing_reps') + (data.rowing_modalite ? ' · ' + data.rowing_modalite : '') + (data.rowing_charge_kg != null ? ' · ' + data.rowing_charge_kg + ' kg' : '');
     case 'rdl': return (data.rdl_reps ?? '—') + ' reps' + thirdsTxt(data, 'rdl_reps') + (data.rdl_charge_kg != null ? ' · ' + data.rdl_charge_kg + ' kg' : '');
-    case 'amrap_cardio': return (data.amrap_tours_complets ?? '—') + ' tours (arrêt : ' + (data.amrap_derniere_station ?? '—') + ')' +
+    case 'amrap_cardio': return (data.amrap_reps_totales != null ? data.amrap_reps_totales + ' rép. (' + data.amrap_tours_complets + ' tours + ' + data.amrap_reps_incomplet + ')'
+      : (data.amrap_tours_complets ?? '—') + ' tours (arrêt : ' + (data.amrap_derniere_station ?? '—') + ')') +
+      (data.intensite_pct != null ? ' · intensité ' + data.intensite_pct + ' % FC max' : '') +
       ' · ' + (data.duree_min || 10) + ' min' + (data.no_impact ? ' · no impact' : '') + (data.rpe != null ? ' · effort ' + data.rpe + '/10' : '') +
       (data.fc_pic_amrap != null ? ' · FC pic ' + data.fc_pic_amrap : '') + (data.fc_moy_amrap != null ? ' / moy ' + data.fc_moy_amrap : '');
-    case 'rfc': return data.rfc_2min != null
+    case 'questionnaire': return 'Sommeil ' + (data.sommeil_h ?? '—') + ' h · fatigue ' + (data.fatigue ?? '—') + '/10 · malade : ' + (data.malade ? 'oui' : 'non');
+    case 'rfc': if (data.hrr60 != null || data.hrr120 != null) return 'HRR60 ' + dropTxt(data.hrr60) + ' · HRR120 ' + dropTxt(data.hrr120) + ' bpm' +
+      ' (arrêt ' + (data.fc_arret ?? '—') + ')' + (data.valide === false ? ' · mesure invalide' : '');
+      return data.rfc_2min != null
       ? '−' + data.rfc_2min + ' bpm (' + data.fc_pic + ' → ' + data.fc_2min + ')'
       : (data.fc_pic != null ? 'pic ' + data.fc_pic + ' bpm (récup. non mesurée)' : '—');
     default: return '—';
   }
 }
-const PROTO_TEST_ORDER = ['grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
-const PROTO_TEST_LABELS = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP Cardio', rfc: 'RFC (récup.)' };
+const PROTO_TEST_ORDER = ['questionnaire', 'grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
+const PROTO_TEST_LABELS = { questionnaire: 'Questionnaire', grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP Cardio', rfc: 'Récupération' };
 
 async function loadProtocolHistory() {
   if (!sb || !me) return '';
@@ -2086,7 +2446,7 @@ async function loadCharts() {
   const el = $('#charts'); el.innerHTML = '<p class="muted">Chargement…</p>';
   const [meas, hrs] = await Promise.all([
     sb.from('measurements').select('type,data,recorded_at').eq('user_id', me.id).order('recorded_at', { ascending: true }),
-    sb.from('hr_sessions').select('rmssd,started_at').eq('user_id', me.id).order('started_at', { ascending: true }),
+    sb.from('hr_sessions').select('started_at').eq('user_id', me.id).order('started_at', { ascending: true }),
   ]);
   const M = meas.data || [], S = hrs.data || [];
   const card = (title, svg) => '<div class="chartcard"><h4>' + title + '</h4>' + svg + '</div>';
@@ -2096,8 +2456,6 @@ async function loadCharts() {
     lineChartSVG(ser(M.filter(r => r.type === 'vo2max'), r => r.data.vo2max, r => r.recorded_at), '#2E82B8'));
   html += card('Récupération cardiaque — baisse FC en 60 s (bpm)',
     lineChartSVG(ser(M.filter(r => r.type === 'hrr'), r => r.data.hrr60, r => r.recorded_at), '#C95F38'));
-  html += card('VFC des séances — RMSSD (ms)',
-    lineChartSVG(ser(S.filter(r => r.rmssd != null), r => Math.round(r.rmssd), r => r.started_at), '#2F8A5B'));
   const byExo = {};
   M.filter(r => r.type === 'force').forEach(r => {
     const e = r.data.exercice || 'Force'; (byExo[e] = byExo[e] || []).push({ x: +new Date(r.recorded_at), y: r.data.e1rm });

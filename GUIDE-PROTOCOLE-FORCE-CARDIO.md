@@ -1,224 +1,153 @@
-# Guide — Protocole de test Force + Cardio (espace adhérent)
+# Guide — Protocole de test Force + Cardio
 
-Le protocole "Force + Cardio" est intégré directement dans `espace-adherent.html`,
-onglet **Protocole test**. Chaque adhérent le passe lui-même, sur son propre
-compte — plus besoin d'un outil séparé pour le coach.
+Le protocole « Force + Cardio » se passe dans l'**espace adhérent**
+(`espace-adherent.html`, onglet **Protocole test**) : chaque adhérent le passe
+sur son téléphone, avec son capteur cardiaque. Le coach suit, pilote et
+exporte tout depuis l'**espace coach** (`moniteur-groupe-polar.html`).
 
-Les tests cognitifs (Go/No-Go, Stroop, N-back) ont été retirés de l'app.
-
-## Installation
+## Installation (Supabase)
 
 Exécuter dans Supabase (SQL Editor → New query → Run), **dans l'ordre**, si ce
 n'est pas déjà fait :
-1. `supabase-migration-3-protocole-force-cardio.sql` — crée la table.
-2. `supabase-migration-4-protocole-adherent.sql` — adapte les droits pour que
-   chaque adhérent gère ses propres résultats (le protocole n'étant plus
-   administré par le coach mais auto-saisi).
-3. `supabase-migration-5-rfc-amrap.sql` — autorise le nouveau type de test
-   "rfc" (récupération de la fréquence cardiaque après l'AMRAP).
-4. `supabase-migration-6-nom-cours.sql` — ajoute le nom et le cours
-   (Gironville, Milly, Boutigny) au profil de chaque adhérent.
-5. `supabase-migration-7-genre-age-tanaka.sql` — ajoute le genre et la date de
-   naissance ; la FC max est calculée avec la formule de Tanaka.
-6. `supabase-migration-8-suppression-coach.sql` — autorise le compte coach à
-   supprimer des tests depuis l'espace coach.
-7. `supabase-migration-9-reparation-inscription.sql` — rattrape une migration
-   oubliée (colonnes nom, cours, date de naissance…) et rend la création de
-   compte robuste : elle ne peut plus échouer avec « Erreur base de données à
-   la création ». Sans risque, peut être relancée.
-8. `supabase-migration-10-modification-coach.sql` — autorise le compte coach à
-   corriger les résultats et les profils des adhérents.
-9. `supabase-migration-11-comptes-inscrits.sql` — crée le profil manquant des
-   comptes qui n'en ont pas, et permet à la vue « Inscrits » de lister tous
-   les comptes avec la confirmation de l'e-mail et la dernière connexion.
-10. `supabase-migration-12-saisie-suppression-coach.sql` — permet au coach de
-    saisir des résultats pour un adhérent et de supprimer un compte adhérent
-    (doublon).
+1. `supabase-migration-3-protocole-force-cardio.sql` — crée la table des résultats.
+2. `supabase-migration-4-protocole-adherent.sql` — chaque adhérent gère ses propres résultats.
+3. `supabase-migration-5-rfc-amrap.sql` — type de test « récupération ».
+4. `supabase-migration-6-nom-cours.sql` — nom et cours (Gironville, Milly, Boutigny).
+5. `supabase-migration-7-genre-age-tanaka.sql` — genre, date de naissance, FC max.
+6. `supabase-migration-8-suppression-coach.sql` — le coach peut supprimer des tests.
+7. `supabase-migration-9-reparation-inscription.sql` — création de compte robuste (rejouable sans risque).
+8. `supabase-migration-10-modification-coach.sql` — le coach peut corriger résultats et profils.
+9. `supabase-migration-11-comptes-inscrits.sql` — vue « Inscrits » complète.
+10. `supabase-migration-12-saisie-suppression-coach.sql` — saisie de résultats et suppression de doublons par le coach.
+11. `supabase-migration-13-questionnaire-qualite.sql` — questionnaire avant test et qualité du signal des séances.
 
-## FC max : formule de Tanaka
+## Déroulé d'une passation (côté adhérent)
 
-La FC max de chaque adhérent n'est plus saisie à la main : elle est calculée
-automatiquement à partir de son âge, **FC max = 208 − 0,7 × âge**, et
-recalculée à chaque connexion (elle suit les anniversaires). La formule et sa
-source sont affichées dans l'onglet « Mon profil » :
+À l'accueil de l'onglet **Protocole test**, l'adhérent choisit le **point de
+test** (T0, T1, T2…) et sa **station de départ**, connecte son capteur, puis
+touche « Commencer le protocole ». Chaque résultat est rattaché au point de
+test choisi. L'app enchaîne :
 
-> Tanaka H., Monahan K.D., Seals D.R. (2001). « Age-predicted maximal heart
-> rate revisited ». *Journal of the American College of Cardiology*, 37(1),
-> 153-156. doi:10.1016/S0735-1097(00)01054-8
+1. **Questionnaire** (30 s) : heures de sommeil la nuit précédente (au quart
+   d'heure près), fatigue de 1 (pas du tout) à 10 (épuisé), malade ou non. La
+   date et l'heure de la séance sont enregistrées automatiquement.
+2. **Échauffement** 8–10 min (non noté).
+3. **Force de préhension** pour tout le monde : 3 essais par main en alternant
+   droite → gauche, 15 s entre deux prises. Les 3 essais sont enregistrés et le
+   **meilleur est retenu automatiquement**. Main dominante notée. Puis 60 s de repos.
+4. **4 ateliers en rotation** (pompes, wall-sit, rowing barre, RDL barre),
+   plusieurs participants par atelier, à partir de la station de départ ; 75 s
+   pour tourner entre deux ateliers, 4 min de repos après le dernier.
+   - Pompes, rowing, RDL : chrono d'1 minute, **le maximum de répétitions sans
+     pause, jusqu'à l'échec** (la minute est un plafond, pas un temps à tenir).
+     Pompes : 3 variantes (genoux sans gainage, genoux avec gainage, jambes
+     tendues). Rowing et RDL : charge totale barre + disques.
+   - Wall-sit : chrono intégré, arrêt au premier décroché ou au **plafond de
+     300 s**, case « plafond atteint » cochée automatiquement.
+5. **AMRAP cardio 20 min** : 20 jumping jacks, 10 squats, 10 skatings,
+   5 sprawls, 1 burpee, 5 pompes, 5 supermans, 20 mountain climbers,
+   5 squat jumps (81 répétitions par tour). Option **No impact** : step jacks,
+   squats et burpee sans saut. Au STOP, l'adhérent note les **tours complets**
+   et les **répétitions du tour incomplet** ; l'app calcule les **répétitions
+   totales** et enregistre la **version du circuit** (`C1-2026-10`) et son contenu.
+   Effort ressenti (0 à 10).
+6. **Récupération cardiaque — automatique** : dès le STOP (fin du chrono, STOP
+   du coach ou bouton « Fin de l'AMRAP »), un compte à rebours de 2 min
+   s'affiche avec la consigne **« Assis, immobile, sans parler »**. L'app
+   mesure, sans aucune saisie :
+   - **FC à l'arrêt** : moyenne des 5 dernières secondes avant le STOP ;
+   - **FC à 60 s** et **FC à 120 s** : moyenne sur 5 s centrées sur chaque instant ;
+   - **HRR60** = FC arrêt − FC 60 s et **HRR120** = FC arrêt − FC 120 s.
 
-## Côté adhérent
+   La FC pic de l'AMRAP reste une valeur à part (ce n'est pas la FC à l'arrêt).
+   L'adhérent note ses tours après le bip des 2 minutes ; la récupération est
+   enregistrée en même temps.
+7. **Retour au calme**, fin de la séance.
 
-Onglet **Protocole test** :
-1. Choisir le point de test (T0/T1/T2/T3, indiqué par le coach).
-2. Facultatif : connecter son capteur cardiaque — la fréquence cardiaque est
-   alors enregistrée automatiquement pendant toute la durée du protocole
-   (l'onglet Capteur a été retiré : le capteur se connecte uniquement
-   depuis le protocole), sans action supplémentaire.
-   Choisir aussi l'**atelier de départ** (Préhension, Pompes, Wall-sit, Rowing
-   ou RDL), indiqué par le coach : les ateliers de force se passent **en
-   rotation**, plusieurs participants par atelier. L'app enchaîne ensuite les
-   5 ateliers dans l'ordre du circuit en boucle (ex. départ Rowing → Rowing,
-   RDL, Préhension, Pompes, Wall-sit), avec 75 s de repos pour tourner entre
-   deux ateliers et un repos long (4 min) après le 5e. Tout le groupe se
-   retrouve ensuite pour l'AMRAP, la RFC et le retour au calme. La position de
-   chaque atelier dans la rotation est enregistrée (colonne `atelier_depart`
-   de l'export).
-3. **Commencer le protocole** : l'app guide dans l'ordre prévu (échauffement,
-   préhension, pompes, wall-sit, rowing, RDL, repos, AMRAP cardio, récupération
-   FC, retour au calme), avec minuteurs de repos intégrés (60–90 s, puis
-   3–5 min avant le cardio) et chrono de **20 min** pour l'AMRAP.
-   - Circuit de l'AMRAP, en boucle : 20 jumping jacks, 10 squats, 10 skatings,
-     5 sprawls, 1 burpee, 5 pompes, 5 supermans, 20 mountain climbers,
-     5 squat jumps.
-   - Case **No impact** : pour ceux qui ne peuvent pas sauter, les jumping
-     jacks deviennent des step jacks, les squat jumps des squats et le burpee
-     se fait sans saut. Le choix est enregistré avec le résultat (colonne
-     `amrap_no_impact`), ainsi que la durée (`amrap_duree_min` : 20 ; vide
-     pour les anciens AMRAP de 10 min, à ne pas comparer directement).
-   - Si un capteur est connecté, la FC pic et la FC moyenne pendant l'AMRAP
-     sont enregistrées automatiquement avec le résultat du test. Mesure
-     précise si l'adhérent touche « Démarrer les 20 min » au top départ ; sinon
-     (chrono de l'app non lancé, page rechargée), elle est calculée sur les
-     20 dernières minutes passées sur l'écran AMRAP et marquée « estimée ».
-     Pour une séance passée sans FC d'AMRAP, la saisie coach propose de
-     reprendre le pic de FC de la séance capteur du jour.
-   - Juste après l'AMRAP, un chrono de **2 minutes de récupération** démarre
-     automatiquement : la FC relevée à la fin de ces 2 minutes, comparée à la
-     FC de fin d'effort, donne la **RFC** (récupération de la fréquence
-     cardiaque). Sans capteur connecté, cette étape peut être passée.
-4. Chaque étape est enregistrée dès qu'on clique sur "Enregistrer et
-   continuer" — **même en cas de rechargement de la page ou de fermeture de
-   l'app, rien n'est perdu** : au retour, le protocole reprend automatiquement
-   à l'étape exacte où l'adhérent s'était arrêté (le point de test choisi est
-   mémorisé sur l'appareil, et chaque étape déjà validée est déjà en base).
-   Pendant le test, deux boutons restent disponibles en haut :
-   - **Reconnecter le capteur** : si le capteur décroche (l'état passe en
-     rouge « Capteur déconnecté »), un toucher le reconnecte sans quitter le
-     test ; si ça échoue, un second toucher rouvre la liste Bluetooth. Pendant
-     la coupure, aucune FC n'est comptée (pas de valeur figée dans la moyenne).
-   - **Arrêter le test** : interrompt la passation (avec confirmation). Les
-     étapes déjà validées restent enregistrées, ainsi que la FC déjà mesurée.
-5. **Refaire un test** : une fois le protocole terminé, « Commencer le
-   protocole » repart de la première étape. Si des résultats existent déjà pour
-   ce point de test, l'app demande confirmation : les nouveaux résultats
-   remplacent les anciens de ce point au fur et à mesure. Pour garder les deux,
-   choisir le point de test suivant (T1, T2…).
-6. L'onglet **Mon historique** affiche ensuite ses résultats bruts,
-   test par test, colonne par point de test (T0 à T3) — aucun score calculé.
-   Chaque élément peut y être **supprimé par l'adhérent** en cas d'erreur
-   (✕ à côté d'une séance capteur, d'une mesure ou d'un résultat, ou bouton
-   « Supprimer le test T0 » pour toute une passation), avec confirmation.
+Tout est enregistré au fur et à mesure : un rechargement de page ou une mise en
+veille du téléphone ne fait rien perdre, et les chronos (AMRAP, récupération)
+continuent sur l'heure réelle. Boutons « Reconnecter le capteur » et « Arrêter
+le test » disponibles pendant toute la passation.
 
-## Pompes : 3 variantes
+### Comparer T0 et T1 : mêmes conditions
 
-1. genoux sans gainage, 2. genoux avec gainage, 3. jambes tendues. Chaque
-adhérent garde la même variante à chaque point de test. Les anciens résultats
-notés « classique » sont comptés comme « jambes tendues » dans le récap.
+Au T1 (et suivants), l'app **reprend automatiquement** les conditions du T0 :
+station de départ, variante de pompes, charges du rowing et du RDL, option No
+impact, main dominante. Si l'adhérent en change une, un avertissement s'affiche
+— « Attention, différent du T0 : la comparaison ne sera pas valide » — et
+l'écart est enregistré dans la colonne **« écart au protocole »**.
 
-## Standardisation (pour des progrès comparables d'un test à l'autre)
+À annoncer aux adhérents : même jour et même heure à chaque test, pas de séance
+intense dans les 48 h avant, mêmes habitudes (repas, café, sommeil). Faire
+remplir le Q-AAP (questionnaire de santé) avant le T0.
 
-- **Préhension en premier pour tout le monde**, juste après l'échauffement,
-  puis **4 ateliers en rotation** (pompes, wall-sit, rowing, RDL).
-- **Rowing et RDL à la barre**, charge totale obligatoire (barre + disques),
-  identique à chaque point de test.
-- **Pompes, rowing, RDL : chrono d'1 minute** intégré (triple bip à la fin) :
-  le maximum de répétitions sans pause, jusqu'à l'échec ; la minute est un
-  plafond. On note le nombre total de répétitions.
-- **FC visible pendant tout le protocole** (barre fixée en haut de l'écran),
-  avec le **nom du capteur** dessous (ex. « Polar H10 8A2B3C4D » : l'identifiant
-  est imprimé au dos du capteur) pour vérifier que c'est bien le sien. Le nom
-  du capteur apparaît aussi sur les cartes « En direct » de l'espace coach.
-- **Wall-sit plafonné à 3 min** : chrono intégré (Démarrer / Arrêt au
-  décroché), qui s'arrête seul à 3:00 et remplit la durée.
-- **Effort ressenti** (0 à 10) noté à la fin de l'AMRAP.
-- **Conditions du T0 reprises automatiquement** aux T1, T2, T3 : atelier de
-  départ, variante de pompes, matériel et charges, « No impact ». L'adhérent
-  voit un rappel « comme au T0 » et peut corriger si le coach le demande.
-- À annoncer aux adhérents : même jour et même heure à chaque test, pas de
-  séance intense dans les 48 h avant, mêmes habitudes (repas, café, sommeil),
-  même position pendant les 2 min de récupération. Faire remplir le Q-AAP
-  (questionnaire de santé) avant le T0.
+## Fréquence cardiaque : calculs et qualité du signal
+
+- **FC max retenue** = la plus haute entre la formule de Tanaka
+  (208 − 0,7 × âge) et le **pic de FC réellement observé** chez la personne
+  (séances au signal fiable). Elle sert aux zones d'effort (repos < 50 %,
+  Z1 50–60 %, Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 %) et à
+  l'**intensité de l'AMRAP** (FC moyenne en % de la FC max retenue). La source
+  utilisée (Tanaka ou pic observé) est indiquée partout.
+  > Tanaka H., Monahan K.D., Seals D.R. (2001). « Age-predicted maximal heart
+  > rate revisited ». *J Am Coll Cardiol*, 37(1), 153-156. doi:10.1016/S0735-1097(00)01054-8
+- La **RMSSD n'est plus calculée** (elle n'a pas de sens pendant l'effort).
+- **Mesure invalide** si : FC = 0, < 40 ou > 220 bpm ; signal plat (écart-type
+  < 2 bpm sur 30 s pendant l'effort) ; perte de signal de plus de 5 s pendant
+  la fenêtre de mesure ; FC à 120 s ≥ FC à l'arrêt. La mesure est conservée
+  mais marquée invalide, avec le motif, et exclue des moyennes du récap.
+- **% de données valides** calculé pour chaque séance.
+- Indicateur de signal pendant la passation : **vert** (connecté, signal
+  correct), **orange** (signal douteux : humidifier et resserrer la ceinture),
+  **rouge** (déconnecté).
+- Le **nom du capteur** (ex. « Polar H10 8A2B3C4D », identifiant imprimé au dos)
+  s'affiche sous la FC pour que chacun vérifie que c'est bien le sien.
 
 ## Côté coach
 
-Tout se passe dans l'**espace coach** (`moniteur-groupe-polar.html`), qui n'a
-plus qu'un seul écran :
-- filtre **Cours** (Tous / Gironville / Milly / Boutigny) et filtre **Date** ;
-- les données sont affichées **par date, puis par cours**, une ligne par
-  adhérent (séances capteur, résultats du protocole, autres mesures) ;
-- le bloc **En direct** montre la FC des adhérents en séance (filtré lui aussi
-  par cours) ; les données se rechargent automatiquement quand un adhérent
-  enregistre quelque chose, ou via **Rafraîchir** ;
-- **Exporter la sélection (CSV)** télécharge exactement ce qui est filtré.
-- le **temps passé dans chaque zone d'effort** (repos < 50 %, Z1 50–60 %,
-  Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 % de la FC max de Tanaka) est
-  affiché sous les séances capteur de chaque adhérent, avec une barre colorée ;
-- **Exporter en Excel (.xlsx)** : un classeur avec un onglet par vue —
-  Résultats, Récap groupes, Inscrits, À compléter, Infos (filtres utilisés).
-  Vrais nombres et vraies dates (format jj/mm/aaaa), en-têtes lisibles, filtres
-  automatiques sur chaque colonne. Les filtres cours / genre / date de l'écran
-  s'appliquent. Le bouton « CSV » reste disponible.
-- **À vérifier — détection d'anomalies** : valeurs impossibles ou très
-  inhabituelles (ex. préhension 270 kg, FC moyenne > FC pic, FC qui ne baisse
-  pas pendant la RFC, date dans le futur), valeurs très éloignées du reste du
-  groupe (même point de test, au moins 8 adhérents), variations de plus de
-  60 % depuis le T0, conditions différentes du T0 (charge, variante, no
-  impact, durée) et âges inhabituels. « Corriger » ouvre le test, « C'est
-  correct » retire l'alerte (sur cet appareil).
-- **À vérifier** (anciennement « À compléter », badge rouge + alerte en haut, et notification à la
-  connexion) : tests non saisis et valeurs vides pour chaque point de test
-  commencé (ex. « RFC — test non saisi », « Rowing : charge »), comptes à
-  vérifier (doublon, profil incomplet, e-mail non confirmé) et inscrits sans
-  aucun résultat. « Compléter » ouvre directement la saisie ; « Masquer »
-  retire une ligne sur cet appareil ; case pour ignorer les FC non mesurées
-  (participants sans capteur).
-- **+ Saisir des résultats** : tout le protocole d'un point de test sur un
-  seul formulaire, pour n'importe quel adhérent (venu sans téléphone, valeur
-  oubliée comme la FC de fin d'effort ou à 2 min). Les tests déjà enregistrés
-  sont préremplis et complétés ; la RFC est calculée. Aussi accessible par
-  « + résultats » sur chaque adhérent en mode « Modifier / supprimer ».
-- **Filtre Genre** (F + H / Femmes / Hommes) : s'applique au détail, au récap,
-  aux inscrits et aux exports. Le récap affiche pour chaque groupe et chaque
-  point de test le nombre de femmes et d'hommes et l'âge (moyenne, min–max).
-- **Supprimer un compte** (doublon) : vue « Inscrits », mode « Modifier /
-  supprimer », « ✕ compte ». Les comptes au même nom sont signalés « Doublon
-  possible ». Définitif : le compte et ses données sont effacés.
-- **Inscrits** : la liste de tous les comptes adhérents par cours, même ceux
-  qui n'ont encore rien enregistré (e-mail, genre, âge, date d'inscription,
-  tests passés, séances capteur, profil incomplet signalé), exportable en CSV.
-- **Récap des groupes** (bouton à gauche des filtres) : pour chaque cours, puis
-  tous groupes confondus, un tableau des moyennes par point de test (T0…T3)
-  avec min–max et nombre d'adhérents, et l'**évolution** entre le premier et le
-  dernier point de test, calculée uniquement sur les adhérents présents aux
-  deux (comparaison appariée). Les pompes ont une ligne par variante. Les
-  filtres cours et date s'appliquent. **Exporter le récap (CSV)** donne, par
-  groupe et par indicateur : n, moyenne, médiane, écart-type, min, max pour
-  chaque point de test, puis l'évolution ; **Imprimer / PDF** produit une
-  version propre à partager.
-- **Modifier / supprimer** active le mode correction : un crayon ✎ apparaît
-  à côté du nom de chaque adhérent (nom, prénom, cours, genre, date de
-  naissance) et de chaque test (valeurs, point de test, date), et une croix ✕
-  pour supprimer. Les autres valeurs du test sont conservées ; la RFC est
-  recalculée si on corrige une FC, la FC max si on corrige la date de
-  naissance. « Terminer les corrections » masque les boutons.
+### Lancer l'AMRAP (vérification des capteurs)
 
-Chaque adhérent doit renseigner **nom, prénom, cours, genre et date de naissance** (obligatoire à
-l'inscription ; les comptes existants le saisissent à leur prochaine
-connexion). Nécessite `supabase-migration-6-nom-cours.sql`. Un adhérent sans
-cours apparaît dans le groupe « Sans cours ».
+Onglet **Lancer l'AMRAP**, après avoir choisi le cours en haut :
+- la liste des téléphones en protocole s'affiche avec l'étape en cours, la FC,
+  le capteur et l'indicateur vert / orange / rouge ;
+- **Démarrer le chrono (20 min)** n'est possible que si **tous les capteurs
+  sont au vert** ; **Forcer le démarrage** permet de lancer quand même ;
+- le départ est donné au même moment sur tous les téléphones du cours ; à
+  20:00 (ou avec le bouton **STOP**), la récupération de 2 min démarre partout.
 
-Le fichier CSV contient une ligne par adhérent, par date et par point de test,
-avec date, cours, nom, prénom, genre, âge, FC max de Tanaka, résumé FC du jour,
-temps en secondes dans chaque zone (temps_repos_s, temps_z1_s … temps_z5_s), puis une colonne par valeur
-brute : préhension, pompes, wall-sit, rowing, RDL, AMRAP (tours, station, FC
-moyenne/pic) et RFC. Aucun score n'est calculé. Séparateur
-point-virgule et décimales à virgule : il s'ouvre directement dans Excel en
-français. Sur iPad, la feuille de partage propose « Enregistrer dans
-Fichiers ».
+### Autres vues
+
+- **Détail** : par date puis par cours, une ligne par adhérent (séances
+  capteur avec % de données valides et temps par zone, résultats du protocole,
+  questionnaire, ⚠ en cas d'écart au protocole), FC max retenue et sa source.
+- **Récap des groupes** : « Tous les groupes » puis chaque cours — moyennes par
+  point de test, min–max, effectif, évolution appariée (seulement les
+  adhérents présents aux deux points). Profil du groupe (femmes / hommes, âge),
+  sommeil, fatigue, malades, écarts au protocole. Répétitions totales de
+  l'AMRAP (estimées pour l'ancien format : tours × 81 + stations terminées),
+  intensité, HRR60 / HRR120 (mesures invalides exclues). L'ancien calcul de la
+  RFC (pic − FC à 2 min) reste affiché à part : il n'est pas comparable aux HRR.
+- **Inscrits** : tous les comptes, même sans résultat ; doublons possibles,
+  profils incomplets, e-mails non confirmés.
+- **À vérifier** (badge rouge, alerte et notification à la connexion) :
+  valeurs anormales ou mesures invalides, résultats incomplets, comptes à
+  vérifier, inscrits sans résultat. « Corriger » / « Compléter » ouvrent la
+  saisie ; « C'est correct » / « Masquer » retirent une alerte (sur cet appareil).
+- **+ Saisir des résultats** : tout le protocole d'un point de test sur un seul
+  formulaire, pour n'importe quel adhérent (venu sans téléphone, valeur
+  oubliée) ; meilleur essai, répétitions totales, HRR et validité calculés.
+- **Modifier / supprimer** : ✎ pour corriger un test ou un profil, ✕ pour
+  supprimer un test ou un compte (doublon).
+- Filtres **cours**, **genre** et **date** ; exports **Excel (.xlsx)**
+  multi-onglets (Résultats, Récap groupes, Inscrits, À vérifier, Infos) et
+  **CSV**. Chaque ligne de résultats contient toutes les valeurs brutes, dont
+  les 3 essais de préhension, les répétitions de l'AMRAP, l'intensité, la FC à
+  l'arrêt / 60 s / 120 s, HRR60 / HRR120, la validité et ses motifs, le
+  questionnaire et l'écart au protocole.
 
 ## Limite à connaître
 
-Si l'adhérent recharge la page **en plein milieu** d'une connexion Bluetooth
-active, la connexion au capteur est coupée (limitation du Bluetooth web, pas
-de l'app) : il faudra la refaire. Les résultats des tests déjà validés, eux,
-ne sont jamais perdus.
+Si l'adhérent recharge la page **en plein milieu** d'une connexion Bluetooth,
+la connexion au capteur est coupée (limitation du Bluetooth web) : il faut la
+refaire avec « Reconnecter le capteur ». Les résultats déjà validés et
+l'historique de FC de la séance, eux, ne sont jamais perdus.
