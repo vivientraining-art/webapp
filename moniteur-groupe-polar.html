@@ -484,6 +484,8 @@ function hrSummary(list) {
 }
 
 const PROTO_LABELS = { questionnaire: 'Questionnaire', grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'Récupération' };
+const ATELIERS_AMRAP = [['Jumping jacks', 20], ['Squats', 10], ['Skatings', 10], ['Sprawls', 5], ['Burpee', 1], ['Pompes', 5], ['Supermans', 5],
+  ['Mountain climbers', 20], ['Squat jumps', 5]];   // circuit C1-2026-10, tel que noté par l'adhérent
 const CIRCUIT_C1 = [['jacks', 20], ['squats', 10], ['skatings', 10], ['sprawls', 5], ['burpee', 1], ['pompes', 5], ['supermans', 5], ['climbers', 20], ['squat jumps', 5]];
 /* Répétitions totales de l'AMRAP : exactes (nouveau format), ou estimées pour l'ancien format 20 min
    (tours × 81 + stations terminées avant la dernière station atteinte : valeur basse). */
@@ -516,7 +518,8 @@ function protoValue0(type, d) {
     case 'wallsit': return v(d.wallsit_secondes) + ' s' + (d.wallsit_plafond_atteint ? ' (plafond atteint)' : '');
     case 'rowing': return v(d.rowing_reps) + ' reps' + thirdsTxt(d, 'rowing_reps') + (d.rowing_charge_kg != null ? ' · ' + frNum(d.rowing_charge_kg) + ' kg' : '');
     case 'rdl': return v(d.rdl_reps) + ' reps' + thirdsTxt(d, 'rdl_reps') + (d.rdl_charge_kg != null ? ' · ' + frNum(d.rdl_charge_kg) + ' kg' : '');
-    case 'amrap_cardio': return (d.amrap_reps_totales != null ? v(d.amrap_reps_totales) + ' rép. (' + v(d.amrap_tours_complets) + ' tours + ' + v(d.amrap_reps_incomplet) + ')'
+    case 'amrap_cardio': return (d.amrap_reps_totales != null ? v(d.amrap_reps_totales) + ' rép. (' + v(d.amrap_tours_complets) + ' tours + ' + v(d.amrap_reps_incomplet) +
+        (d.amrap_atelier_arret ? ', arrêt ' + d.amrap_atelier_arret + ' : ' + v(d.amrap_reps_atelier_arret) : '') + ')'
       : v(d.amrap_tours_complets) + ' tours' + (d.amrap_derniere_station ? ' (' + d.amrap_derniere_station + ')' : '')) +
       ' · ' + (d.duree_min || 10) + ' min' + (d.no_impact ? ' · no impact' : '') + (d.rpe != null ? ' · effort ' + d.rpe + '/10' : '') +
       (d.fc_moy_amrap != null ? ' · FC moy ' + d.fc_moy_amrap : '') + (d.fc_pic_amrap != null ? ' / pic ' + d.fc_pic_amrap : '') +
@@ -689,7 +692,8 @@ const EDIT_FIELDS = {   // [clé, libellé, type, options]
   wallsit: [['wallsit_secondes', 'Durée tenue (s)', 'number'], ['wallsit_plafond_atteint', 'Plafond de 300 s atteint', 'checkbox']],
   rowing: [['rowing_reps', 'Répétitions', 'number'], ['rowing_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
   rdl: [['rdl_reps', 'Répétitions', 'number'], ['rdl_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
-  amrap_cardio: [['amrap_tours_complets', 'Tours complets', 'number'], ['amrap_reps_incomplet', 'Rép. du tour incomplet', 'number'],
+  amrap_cardio: [['amrap_tours_complets', 'Tours complets', 'number'], ['amrap_atelier_arret', 'Atelier d’arrêt', 'select', ATELIERS_AMRAP.map(a => a[0])],
+    ['amrap_reps_atelier_arret', 'Rép. sur cet atelier', 'number'], ['amrap_reps_incomplet', 'Rép. du dernier tour (calculé si l’atelier est indiqué)', 'number'],
     ['no_impact', 'No impact (sans saut)', 'checkbox'], ['duree_min', 'Durée (min)', 'number'], ['rpe', 'Effort ressenti (0–10)', 'number'],
     ['fc_moy_amrap', 'FC moyenne', 'number'], ['fc_pic_amrap', 'FC pic', 'number']],
   rfc: [['fc_arret', 'FC à l’arrêt', 'number'], ['fc_60', 'FC à 60 s', 'number'], ['fc_120', 'FC à 120 s', 'number']],
@@ -716,6 +720,8 @@ function normalizeTestData(type, d, uid, date) {
   });
   if (type === 'wallsit' && num(d.wallsit_secondes) >= 300) d.wallsit_plafond_atteint = true;
   if (type === 'amrap_cardio') {
+    const ai = ATELIERS_AMRAP.findIndex(a => a[0] === d.amrap_atelier_arret);
+    if (ai >= 0) d.amrap_reps_incomplet = ATELIERS_AMRAP.slice(0, ai).reduce((a, c) => a + c[1], 0) + (num(d.amrap_reps_atelier_arret) || 0);
     if (d.amrap_tours_complets != null && (d.amrap_reps_incomplet != null || d.circuit_version)) {
       d.reps_par_tour = d.reps_par_tour || 81; d.circuit_version = d.circuit_version || 'C1-2026-10';
       d.amrap_reps_totales = d.amrap_tours_complets * d.reps_par_tour + (d.amrap_reps_incomplet || 0);
@@ -1525,6 +1531,8 @@ const EXPORT_COLUMNS = [
   ['rowing_reps', 'rowing', 'rowing_reps'], ['rowing_modalite', 'rowing', 'rowing_modalite'], ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
   ['rdl_reps', 'rdl', 'rdl_reps'], ['rdl_charge_kg', 'rdl', 'rdl_charge_kg'],
   ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'], ['amrap_reps_tour_incomplet', 'amrap_cardio', 'amrap_reps_incomplet'],
+  ['amrap_atelier_arret', 'amrap_cardio', 'amrap_atelier_arret'], ['amrap_reps_atelier_arret', 'amrap_cardio', 'amrap_reps_atelier_arret'],
+  ['amrap_compteur_tours', 'amrap_cardio', 'compteur_tours'],
   ['amrap_reps_totales', 'amrap_cardio', (d) => { const r = amrapReps(d); return r && !r.est ? r.v : null; }],
   ['amrap_reps_totales_estimees_ancien_format', 'amrap_cardio', (d) => { const r = amrapReps(d); return r && r.est ? r.v : null; }],
   ['amrap_circuit_version', 'amrap_cardio', 'circuit_version'], ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],

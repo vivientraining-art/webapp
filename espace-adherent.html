@@ -175,6 +175,10 @@
   .trialgrid .th{font-weight:700;font-size:.85rem;color:var(--forest)}
   .trialgrid input{width:100%;max-width:none}
   .best,.amraptotal{width:100%;font-size:.9rem;margin:.2rem 0}
+  .lapbox{display:flex;align-items:center;justify-content:center;gap:1rem;margin:.4rem 0 .3rem;padding:.7rem;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .lapcount{font-family:'Libre Baskerville',Georgia,serif;font-size:2.4rem;line-height:1;text-align:center;font-variant-numeric:tabular-nums}
+  .laplbl{font-size:.75rem;color:var(--muted);text-align:center}
+  .lapplus{font-size:1.15rem;padding:.9rem 1.6rem;min-height:56px;white-space:nowrap}
   .checkline{display:flex;align-items:center;gap:.5rem;width:100%;font-size:.92rem}
   .checkline input{width:22px;height:22px;min-height:0;min-width:0;padding:0;flex:none;accent-color:var(--pine)}
   [hidden]{display:none!important}
@@ -1589,8 +1593,8 @@ const TEST_DEFS = {
     label: 'AMRAP Cardio 20 min',
     category: 'Cardio',
     protocole: "Circuit fixe à enchaîner en boucle pendant 20 min, sans interruption (le partenaire compte les tours " +
-      "à voix haute). Au STOP : récupération assis 2 min, puis noter les tours complets et les répétitions faites dans le " +
-      "tour en cours (ex. 20 jacks + 10 squats + 4 skatings = 34).",
+      "à voix haute, ou bouton « +1 tour »). Au STOP : récupération assis 2 min, puis noter les tours complets, l'atelier " +
+      "sur lequel on s'est arrêté et le nombre de répétitions faites sur cet atelier.",
     // [nom de la station, répétitions, variante sans saut (option « No impact »)]
     circuit: [
       ['Jumping jacks', 20, 'Step jacks — sans saut'],
@@ -1606,7 +1610,9 @@ const TEST_DEFS = {
     noImpact: true,
     fields: [
       { key: 'amrap_tours_complets', label: 'Tours complets', type: 'number', step: '1' },
-      { key: 'amrap_reps_incomplet', label: 'Répétitions du tour incomplet', type: 'number', step: '1', max: 80 },
+      { key: 'amrap_atelier_arret', label: 'Atelier où tu t’es arrêté', type: 'select',
+        options: ["Jumping jacks", "Squats", "Skatings", "Sprawls", "Burpee", "Pompes", "Supermans", "Mountain climbers", "Squat jumps"], optionLabels: ["1. Jumping jacks (20)", "2. Squats (10)", "3. Skatings (10)", "4. Sprawls (5)", "5. Burpee (1)", "6. Pompes (5)", "7. Supermans (5)", "8. Mountain climbers (20)", "9. Squat jumps (5)"] },
+      { key: 'amrap_reps_atelier_arret', label: 'Répétitions faites sur cet atelier', type: 'number', step: '1', optional: true },
       { key: 'rpe', label: 'Effort ressenti (0 = repos … 10 = maximal)', type: 'select', numeric: true,
         options: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] },
     ],
@@ -1708,6 +1714,7 @@ let protoRestTimer = null, protoRestRemaining = 0, protoRestTotal = 0;
 let protoAmrapTimer = null, protoAmrapRemaining = 0, protoAmrapRunning = false;
 let protoAmrapHr = { sum: 0, n: 0, max: 0 };
 let protoAmrapShownAt = null, protoAmrapStartAt = null;   // écran AMRAP affiché / chrono de l'app lancé
+let protoLaps = 0;          // compteur de tours de l'AMRAP (bouton « +1 tour »)
 let protoCoachRun = null;   // départ du coach qui a lancé ce chrono (le STOP du coach ne vise que ce départ)
 /* Retour en arrière : l'adhérent corrige une étape déjà passée, puis reprend là où il en était.
    protoEdit = { i, phase } : position réelle (étape et éventuel repos en cours, dont le décompte continue). */
@@ -1888,7 +1895,7 @@ let protoDone = [];
 function protocolStorageKey() { return me ? ('vs-protocol-' + me.id) : null; }
 function saveProtocolFlag() {
   const k = protocolStorageKey();
-  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoPos(), done: protoDone, as: protoAmrapShownAt, ac: protoAmrapStartAt, cr: protoCoachRun, rc: protoRecup, v: 2 })); } catch (e) {} }
+  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoPos(), done: protoDone, as: protoAmrapShownAt, ac: protoAmrapStartAt, lp: protoLaps, cr: protoCoachRun, rc: protoRecup, v: 2 })); } catch (e) {} }
 }
 function clearProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.removeItem(k); } catch (e) {} } }
 function readProtocolFlag() {
@@ -1931,7 +1938,7 @@ async function beginProtocol() {
     PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
     const rows = data || [];
     protoDone = saved.legacy ? rows.map(r => r.test_type) : (saved.done || []);
-    protoAmrapShownAt = saved.as || null; protoAmrapStartAt = saved.ac || null; protoCoachRun = saved.cr || null;
+    protoAmrapShownAt = saved.as || null; protoAmrapStartAt = saved.ac || null; protoCoachRun = saved.cr || null; protoLaps = saved.lp || 0;
     clearRecup(); protoRecup = saved.rc || null; ensureRecupTick();
     rows.forEach(r => { if (protoDone.includes(r.test_type)) protoExisting[r.test_type] = r.data; });
     protoStepIndex = saved.legacy || saved.v !== 2 ? firstIncompleteStepIndex(protoExisting)
@@ -1946,7 +1953,7 @@ async function beginProtocol() {
     }
     protoDone = [];
     protoStepIndex = 0;
-    protoAmrapShownAt = null; protoAmrapStartAt = null; protoCoachRun = null; clearRecup();
+    protoAmrapShownAt = null; protoAmrapStartAt = null; protoCoachRun = null; protoLaps = 0; clearRecup();
     PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
   }
   protoPhase = 'content';
@@ -2149,7 +2156,8 @@ function renderProtoStepCard() {
       if (val !== '' && !opts.includes(String(val))) opts.unshift(String(val));   // ancienne valeur libre conservée
       return '<div class="field">' + lbl +
         '<select id="ptf_' + f.key + '"><option value="">—</option>' +
-        opts.map(o => '<option value="' + escapeHtml(o) + '"' + (String(val) === o ? ' selected' : '') + '>' + escapeHtml(o) + '</option>').join('') +
+        opts.map(o => '<option value="' + escapeHtml(o) + '"' + (String(val) === o ? ' selected' : '') + '>' +
+          escapeHtml(f.optionLabels && f.options.includes(o) ? f.optionLabels[f.options.indexOf(o)] : o) + '</option>').join('') +
         '</select>' + (f.keep && !f.noEcart ? ecartBox(f.key) : '') + '</div>';
     }
     return '<div class="field">' + lbl +
@@ -2204,6 +2212,10 @@ function renderProtoStepCard() {
           '<button class="btn-soft" id="protoAmrapReset"' + (protoRecup ? ' hidden' : '') + '>Réinitialiser</button>' +
         '</div>' +
       '</div>' +
+      '<div class="lapbox"><div><div class="lapcount" id="lapCount">' + protoLaps + '</div><div class="laplbl">tour' + (protoLaps > 1 ? 's' : '') +
+        ' terminé' + (protoLaps > 1 ? 's' : '') + '</div></div><button type="button" class="btn-primary lapplus" id="lapPlus">+1 tour</button>' +
+        '<button type="button" class="btn-soft" id="lapMinus" aria-label="Retirer un tour">−1</button></div>' +
+      '<p class="note" style="text-align:center;margin-top:0">Touche « +1 tour » à la fin de chaque tour (après les squat jumps) : plus besoin de retenir.</p>' +
       '<div id="recupSlot">' + (protoRecup ? recupBoxHtml() + '<p class="note recup-after" style="text-align:center">' +
         (protoRecup.done ? 'Récupération terminée : note maintenant tes tours ci-dessous.' : 'Ne touche à rien pendant 2 minutes : tu noteras tes tours au bip.') + '</p>' : '') + '</div>';
   }
@@ -2277,10 +2289,16 @@ function renderProtoStepCard() {
   if (def.circuit) {
     const perRound = def.circuit.reduce((a, c) => a + c[1], 0);
     const tot = () => {
-      const t = parseInt($('#ptf_amrap_tours_complets').value, 10), r = parseInt($('#ptf_amrap_reps_incomplet').value || '0', 10);
-      $('#amrapTotal').innerHTML = t >= 0 ? 'Total : <b>' + (t * perRound + (r || 0)) + ' répétitions</b> (' + perRound + ' par tour complet)' : perRound + ' répétitions par tour complet.';
+      const t = parseInt($('#ptf_amrap_tours_complets').value, 10);
+      const r = amrapIncomplet(def, $('#ptf_amrap_atelier_arret').value, $('#ptf_amrap_reps_atelier_arret').value);
+      $('#amrapTotal').innerHTML = t >= 0 ? 'Total : <b>' + (t * perRound + (r || 0)) + ' répétitions</b> (' + t + ' × ' + perRound + ' + ' + (r || 0) + ' dans le dernier tour)'
+        : perRound + ' répétitions par tour complet.';
     };
-    ['#ptf_amrap_tours_complets', '#ptf_amrap_reps_incomplet'].forEach(id => $(id).addEventListener('input', tot)); tot();
+    ['#ptf_amrap_tours_complets', '#ptf_amrap_atelier_arret', '#ptf_amrap_reps_atelier_arret'].forEach(id => {
+      $(id).addEventListener('input', tot); $(id).addEventListener('change', tot); });
+    const tc = $('#ptf_amrap_tours_complets');
+    if (tc.value === '' && protoLaps > 0) tc.value = protoLaps;   // compteur de tours
+    tot();
   }
   if (ref) {   // conditions différentes du point de test de référence (T0) : avertissement immédiat
     const chk = () => {
@@ -2332,11 +2350,21 @@ function renderProtoStepCard() {
     if (protoAmrapStartAt && !protoRecup) runAmrap();   // reprise après rechargement : le chrono continue
     if (protoRecup) ensureRecupTick();
     $('#protoAmrapEnd').addEventListener('click', () => endAmrap());
+    const laps = (d) => {
+      protoLaps = Math.max(0, protoLaps + d); saveProtocolFlag();
+      $('#lapCount').textContent = protoLaps;
+      $('#lapCount').nextElementSibling.textContent = 'tour' + (protoLaps > 1 ? 's' : '') + ' terminé' + (protoLaps > 1 ? 's' : '');
+      const tc = $('#ptf_amrap_tours_complets'); if (tc) { tc.value = protoLaps; tc.dispatchEvent(new Event('input')); }
+      try { if (navigator.vibrate) navigator.vibrate(d > 0 ? 60 : [30, 40, 30]); } catch (e) {}
+    };
+    $('#lapPlus').addEventListener('click', () => laps(1));
+    $('#lapMinus').addEventListener('click', () => laps(-1));
     $('#protoAmrapReset').addEventListener('click', () => {
       clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
       protoAmrapHr = { sum: 0, n: 0, max: 0 };
       if (protoCoachRun) protoCoachQuit = protoCoachRun;
-      protoAmrapStartAt = null; protoCoachRun = null; saveProtocolFlag();
+      protoAmrapStartAt = null; protoCoachRun = null; protoLaps = 0; saveProtocolFlag();
+      const lc = $('#lapCount'); if (lc) lc.textContent = '0';
       const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(def.timedSeconds);
       const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Démarrer les ' + def.timedSeconds / 60 + ' min';
     });
@@ -2376,8 +2404,13 @@ function renderProtoStepCard() {
     if (def.stopwatch && def.stopwatch.flag) data[def.stopwatch.flag] = data[def.stopwatch.field] >= def.stopwatch.cap;
     if (def.circuit) {
       const perRound = def.circuit.reduce((a, c) => a + c[1], 0);
-      if (!(data.amrap_reps_incomplet >= 0)) data.amrap_reps_incomplet = 0;
-      if (data.amrap_reps_incomplet >= perRound) { toast('Le tour incomplet compte au plus ' + (perRound - 1) + ' répétitions.'); return; }
+      const si = def.circuit.findIndex(c => c[0] === data.amrap_atelier_arret), max = si >= 0 ? def.circuit[si][1] : 0;
+      if (!(data.amrap_reps_atelier_arret >= 0)) data.amrap_reps_atelier_arret = 0;
+      if (data.amrap_reps_atelier_arret >= max) {
+        toast(max > 1 ? 'Sur cet atelier, au plus ' + (max - 1) + ' répétitions : s’il était terminé, choisis l’atelier suivant avec 0.'
+          : 'Atelier terminé : choisis l’atelier suivant avec 0.'); return; }
+      data.amrap_reps_incomplet = amrapIncomplet(def, data.amrap_atelier_arret, data.amrap_reps_atelier_arret);   // calculé, plus rien à compter
+      if (protoLaps) data.compteur_tours = protoLaps;
       data.reps_par_tour = perRound;
       data.amrap_reps_totales = data.amrap_tours_complets * perRound + data.amrap_reps_incomplet;
       data.circuit_version = def.circuitVersion;
@@ -2452,6 +2485,12 @@ function ecartsProtocole(step, def, data) {
   return out;
 }
 
+/* Répétitions du dernier tour : ateliers terminés avant l'atelier d'arrêt + répétitions faites dessus. */
+function amrapIncomplet(def, station, reps) {
+  const i = def.circuit.findIndex(c => c[0] === station);
+  if (i < 0) return null;
+  return def.circuit.slice(0, i).reduce((a, c) => a + c[1], 0) + (parseInt(reps, 10) || 0);
+}
 function circuitItems(def, noImpact) {
   return def.circuit.map(([nom, reps, sansSaut]) => {
     const alt = noImpact && sansSaut;
@@ -2475,7 +2514,8 @@ function formatProtoData(testType, data) {
     case 'wallsit': return (data.wallsit_secondes ?? '—') + ' s' + (data.wallsit_plafond_atteint ? ' (plafond atteint)' : '');
     case 'rowing': return (data.rowing_reps ?? '—') + ' reps' + thirdsTxt(data, 'rowing_reps') + (data.rowing_modalite ? ' · ' + data.rowing_modalite : '') + (data.rowing_charge_kg != null ? ' · ' + data.rowing_charge_kg + ' kg' : '');
     case 'rdl': return (data.rdl_reps ?? '—') + ' reps' + thirdsTxt(data, 'rdl_reps') + (data.rdl_charge_kg != null ? ' · ' + data.rdl_charge_kg + ' kg' : '');
-    case 'amrap_cardio': return (data.amrap_reps_totales != null ? data.amrap_reps_totales + ' rép. (' + data.amrap_tours_complets + ' tours + ' + data.amrap_reps_incomplet + ')'
+    case 'amrap_cardio': return (data.amrap_reps_totales != null ? data.amrap_reps_totales + ' rép. (' + data.amrap_tours_complets + ' tours + ' + data.amrap_reps_incomplet +
+        (data.amrap_reps_atelier_arret != null ? ', arrêt ' + data.amrap_atelier_arret + ' : ' + data.amrap_reps_atelier_arret : '') + ')'
       : (data.amrap_tours_complets ?? '—') + ' tours (arrêt : ' + (data.amrap_derniere_station ?? '—') + ')') +
       (data.intensite_pct != null ? ' · intensité ' + data.intensite_pct + ' % FC max' : '') +
       ' · ' + (data.duree_min || 10) + ' min' + (data.no_impact ? ' · no impact' : '') + (data.rpe != null ? ' · effort ' + data.rpe + '/10' : '') +
