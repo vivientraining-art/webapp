@@ -500,12 +500,17 @@ const drop = (x) => x == null || x === '' ? '—' : x >= 0 ? '−' + frNum(x) : 
 function protoValue(type, d) {
   return protoValue0(type, d) + (d.ecart_protocole ? ' ⚠ écart au protocole' : '');
 }
+function gripTrialsTxt(d) {   // nombre d'essais notés par main (3 prévus, l'adhérent peut continuer avec moins)
+  if (!d.essais_gauche_kg && !d.essais_droite_kg) return '';
+  const n = (m) => (d['essais_' + m + '_kg'] || []).filter(x => x != null).length, g = n('gauche'), dr = n('droite');
+  return g === 3 && dr === 3 ? ' (meilleur de 3)' : ' (essais : G ' + g + '/3, D ' + dr + '/3)';
+}
 function protoValue0(type, d) {
   switch (type) {
     case 'questionnaire': return 'sommeil ' + v(d.sommeil_h) + ' h · fatigue ' + v(d.fatigue) + '/10 · malade : ' + (d.malade ? 'oui' : 'non') +
       (d.heure_seance ? ' · ' + d.heure_seance : '');
     case 'grip': return 'G ' + v(d.force_main_gauche_kg) + ' / D ' + v(d.force_main_droite_kg) + ' kg' +
-      (d.essais_gauche_kg ? ' (meilleur de 3)' : '') + (d.main_dominante ? ' · dominante ' + d.main_dominante : '');
+      gripTrialsTxt(d) + (d.main_dominante ? ' · dominante ' + d.main_dominante : '');
     case 'pompes': return v(d.pompes_reps) + thirdsTxt(d, 'pompes_reps') + (d.pompes_variante ? ' (' + d.pompes_variante + ')' : '');
     case 'wallsit': return v(d.wallsit_secondes) + ' s' + (d.wallsit_plafond_atteint ? ' (plafond atteint)' : '');
     case 'rowing': return v(d.rowing_reps) + ' reps' + thirdsTxt(d, 'rowing_reps') + (d.rowing_charge_kg != null ? ' · ' + frNum(d.rowing_charge_kg) + ' kg' : '');
@@ -1158,7 +1163,7 @@ const MISS_TYPES = ['questionnaire', 'grip', 'pompes', 'wallsit', 'rowing', 'rdl
 // nouveau format (depuis la refonte du protocole) : les nouvelles valeurs sont attendues
 const newFormat = (tests) => Object.values(tests).some(d => !d.saisi_par_coach && (d.essais_gauche_kg || d.circuit_version || d.sommeil_h != null));
 function requiredFor(t, d, nf) {
-  if (t === 'grip') return REQUIRED.grip.concat(d.essais_gauche_kg ? [['main_dominante', 'main dominante']] : []);
+  if (t === 'grip') return REQUIRED.grip.concat(d.essais_gauche_kg || d.essais_droite_kg ? [['main_dominante', 'main dominante']] : []);
   if (t === 'amrap_cardio') return REQUIRED.amrap_cardio.concat(d.circuit_version ? [['amrap_reps_incomplet', 'rép. du tour incomplet']] : []);
   if (t === 'rfc') return d.fc_pic != null && d.fc_arret == null ? [['fc_pic', 'FC fin d’effort', true], ['fc_2min', 'FC à 2 min', true]]
     : [['fc_arret', 'FC à l’arrêt', true], ['fc_60', 'FC à 60 s', true], ['fc_120', 'FC à 120 s', true]];
