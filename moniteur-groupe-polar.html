@@ -90,6 +90,8 @@
   .bigclock{font-family:'Libre Baskerville',Georgia,serif;font-size:3rem;font-variant-numeric:tabular-nums;text-align:center;color:var(--forest);margin:.4rem 0}
   .seance-acts{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin:.6rem 0}
   .btn-stop{background:#C9442C;color:#fff;font-size:1.2rem;padding:.8rem 2.2rem}
+  .sinc-l{display:flex;align-items:center;gap:.6rem;cursor:pointer}
+  .sinc{width:20px;height:20px;accent-color:var(--forest);flex:none}
   .livecard .nm{font-weight:700;font-size:.95rem}
   .livecard .cr{font-size:.75rem;color:var(--muted)}
   .livecard .bpm{font-variant-numeric:tabular-nums;font-size:1.9rem;font-weight:700;line-height:1.1}
@@ -1679,7 +1681,7 @@ function subscribeLive() {
   ch.on('broadcast', { event: 'stat' }, () => scheduleReload());
   ch.subscribe();
   setInterval(pruneLive, 4000);
-  setInterval(() => { if (view === 'seance') renderSeance(); renderLive(); }, 1000);
+  setInterval(() => { seanceTick(); if (view === 'seance' && !seancePress) renderSeance(); renderLive(); }, 1000);
 }
 function scheduleReload() {   // une donnée vient d'être enregistrée : rechargement groupé
   clearTimeout(reloadTimer);
@@ -1717,83 +1719,180 @@ function liveQuality(uid, c) {
 }
 
 /* =====================================================================
-   Lancer l'AMRAP — vérification des capteurs, puis départ et STOP pour tout le groupe
-   Les téléphones en protocole envoient leur statut toutes les 2 s ; le départ n'est possible
-   que si tous les capteurs sont au vert, sauf départ forcé. Le STOP déclenche partout la
-   récupération (FC à l'arrêt, 60 s, 120 s).
+   Lancer l'AMRAP — vérification des capteurs, puis départ et STOP pour le groupe présent
+   Les téléphones en protocole envoient leur statut toutes les 2 s. Tous apparaissent, quel que
+   soit leur cours d'inscription : un adhérent peut passer son test pendant un autre cours.
+   Le départ vise nommément les téléphones prêts (ateliers de force terminés) cochés par le
+   coach : un groupe encore aux ateliers n'est pas concerné. Il n'est possible que si tous ces
+   capteurs sont au vert, sauf départ forcé. Le STOP déclenche la récupération (FC à l'arrêt,
+   60 s, 120 s) sur les seuls téléphones partis avec ce départ. Un téléphone qui a manqué le
+   départ ou le STOP (connexion coupée) le reçoit à nouveau, recalé sur l'heure réelle.
    ===================================================================== */
-const AMRAP_S = 20 * 60;
-let groupRun = null;   // { start, cours, stopAt }
+const AMRAP_S = 20 * 60, RUN_KEY = 'vs-group-run';
+let groupRun = null;   // { run, start, ids, stopAt, force } — mémorisé : recharger la page ne perd pas le groupe en cours
+try { const g = JSON.parse(localStorage.getItem(RUN_KEY) || 'null'); if (g && g.run && Date.now() - g.start < (AMRAP_S + 600) * 1000) groupRun = g; } catch (e) {}
+function saveRun() { try { if (groupRun) localStorage.setItem(RUN_KEY, JSON.stringify(groupRun)); else localStorage.removeItem(RUN_KEY); } catch (e) {} }
+const seanceExclus = new Set();   // téléphones prêts décochés par le coach : ils ne partent pas avec ce groupe
+const liveName = (st) => profiles[st.user_id] ? nameOf(st.user_id) : [st.nom, st.prenom].filter(Boolean).join(' ') || 'Adhérent';
 function seanceParticipants() {
-  return Object.values(statusMap).filter(st => Date.now() - st.at < 12000 && (!fCours || st.cours === fCours) && genreOk(st.user_id))
-    .sort((a, b) => nameOf(a.user_id).localeCompare(nameOf(b.user_id), 'fr'));
+  return Object.values(statusMap).filter(st => Date.now() - st.at < 12000)
+    .sort((a, b) => liveName(a).localeCompare(liveName(b), 'fr'));
 }
-function sendCoach(type) {
-  try { coachChannel.send({ type: 'broadcast', event: 'coach', payload: { type, cours: fCours || null, t: Date.now() } }); return true; }
-  catch (e) { toast('Envoi impossible : ' + e.message); return false; }
+const seanceSelection = () => seanceParticipants().filter(st => st.pret && !seanceExclus.has(st.user_id));
+function sendCoach(type, ids, at) {
+  try {
+    coachChannel.send({ type: 'broadcast', event: 'coach', payload: { type, ids, run: groupRun.run, depuis: Math.max(0, Date.now() - at), t: Date.now() } });
+    return true;
+  } catch (e) { toast('Envoi impossible : ' + e.message); return false; }
 }
-function groupStop() {
+function groupStart(force) {
+  const ids = seanceSelection().map(st => st.user_id);
+  if (!ids.length) return;
+  groupRun = { run: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), start: Date.now(), ids, stopAt: null, force };
+  if (!sendCoach('amrap_start', ids, groupRun.start)) { groupRun = null; return; }
+  saveRun();
+  toast('Départ donné à ' + ids.length + ' téléphone' + (ids.length > 1 ? 's' : '') + ' : chrono de 20 min lancé.');
+}
+function groupStop(at) {
   if (!groupRun || groupRun.stopAt) return;
-  sendCoach('amrap_stop'); groupRun.stopAt = Date.now();
-  toast('STOP envoyé : récupération de 2 minutes sur tous les téléphones.');
-  render();
+  groupRun.stopAt = at || Date.now();
+  sendCoach('amrap_stop', groupRun.ids, groupRun.stopAt);
+  saveRun();
+  toast('STOP envoyé : récupération de 2 minutes sur les téléphones du groupe.');
+  if (view === 'seance') renderSeance();
 }
-const ETAPES = { questionnaire: 'questionnaire', info: 'échauffement / calme', grip: 'préhension', pompes: 'pompes', wallsit: 'wall-sit', rowing: 'rowing',
-  rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'récupération' };
+/* Chaque seconde, quelle que soit la vue affichée : STOP automatique à 20:00, et rattrapage des
+   téléphones du groupe qui n'ont pas reçu le départ (ou le STOP). Un téléphone ignore un message déjà reçu. */
+function seanceTick() {
+  if (!groupRun || !coachChannel) return;
+  const now = Date.now();
+  if (!groupRun.stopAt && now - groupRun.start >= AMRAP_S * 1000) groupStop(groupRun.start + AMRAP_S * 1000);
+  const stop = !!groupRun.stopAt;
+  if (now - Math.max(groupRun.relance || 0, groupRun.stopAt || 0, groupRun.start) < 4000 || (stop && now - groupRun.stopAt > 120000)) return;
+  const late = groupRun.ids.filter(id => {
+    const st = statusMap[id];
+    return st && now - st.at < 8000 && (stop ? st.run === groupRun.run && st.amrap : st.pret && st.run !== groupRun.run && st.quitte !== groupRun.run);
+  });
+  if (late.length) { groupRun.relance = now; sendCoach(stop ? 'amrap_stop' : 'amrap_start', late, stop ? groupRun.stopAt : groupRun.start); }
+}
+const ETAPES = { questionnaire: 'questionnaire', echauffement: 'échauffement', calme: 'retour au calme', info: 'échauffement / retour au calme',
+  grip: 'préhension', pompes: 'atelier pompes',
+  wallsit: 'atelier wall-sit', rowing: 'atelier rowing', rdl: 'atelier RDL', amrap_cardio: 'AMRAP', rfc: 'récupération' };
+function etatTel(st) {   // où en est le téléphone
+  const mine = groupRun && st.run === groupRun.run;
+  if (st.recup) return 'récupération' + (mine || !groupRun ? '' : ' (autre départ)');
+  if (st.amrap) return mine ? 'AMRAP en cours ✓' : 'AMRAP en cours (son propre chrono)';
+  if (st.fini) return st.etape === 'amrap_cardio' ? 'récupération terminée, note ses tours' : ETAPES[st.etape] || 'terminé';
+  if (st.pret && groupRun && groupRun.ids.includes(st.user_id) && st.quitte === groupRun.run) return 'chrono réinitialisé par l’adhérent';
+  if (st.pret) return groupRun && !groupRun.stopAt && groupRun.ids.includes(st.user_id) ? 'départ pas encore reçu…' : 'prêt pour l’AMRAP';
+  return ETAPES[st.etape] || st.etape || '—';
+}
+function telRows(list, check) {
+  return list.map(st => {
+    const q = Date.now() - st.at < 12000 ? st.q : 'off';
+    const nm = '<b>' + esc(liveName(st)) + '</b><small>' + esc(st.cours || 'sans cours') + '</small>';
+    return '<tr><td>' + (check ? '<label class="sinc-l"><input type="checkbox" class="sinc" data-uid="' + esc(st.user_id) + '"' +
+        (seanceExclus.has(st.user_id) ? '' : ' checked') + '><span>' + nm + '</span></label>' : nm) + '</td>' +
+      '<td>' + esc(Date.now() - st.at < 12000 ? etatTel(st) : st.attente ? 'en attente de son téléphone…' : 'plus de nouvelles depuis ' + mmss(Math.floor((Date.now() - st.at) / 1000))) + '</td>' +
+      '<td>' + (q === 'off' ? '—' : st.hr || '—') + '</td><td>' + esc(st.capteur || '—') + '</td>' +
+      '<td><span class="qdot ' + q + '"></span><span class="qlabel ' + q + '">' + Q_LABELS[q] + '</span></td></tr>';
+  }).join('');
+}
+function telTable(title, note, list, check) {
+  return '<section class="panel"><div class="recaphead"><h2>' + title + '</h2><span class="muted">' + note + '</span></div>' +
+    '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Adhérent</th><th>Où il en est</th><th>FC</th><th>Capteur</th><th>Signal</th></tr></thead><tbody>' +
+    telRows(list, check) + '</tbody></table></div></section>';
+}
+let seancePress = false;   // pas de rafraîchissement pendant un appui : le bouton ou la case touchés ne doivent pas être remplacés
+/* Met à jour l'écran en place (FC, signal, chrono…) sans recréer les boutons et les cases : un appui n'est jamais perdu. */
+function morph(cur, next) {
+  const cn = [...cur.childNodes], nn = [...next.childNodes];
+  nn.forEach((n, i) => {
+    const c = cn[i];
+    if (!c) cur.appendChild(n);
+    else if (c.nodeType !== n.nodeType || c.nodeName !== n.nodeName) cur.replaceChild(n, c);
+    else if (n.nodeType === 3) { if (c.nodeValue !== n.nodeValue) c.nodeValue = n.nodeValue; }
+    else if (n.nodeType === 1) {
+      [...c.attributes].forEach(a => { if (!n.hasAttribute(a.name)) c.removeAttribute(a.name); });
+      [...n.attributes].forEach(a => { if (c.getAttribute(a.name) !== a.value) c.setAttribute(a.name, a.value); });
+      if (c.tagName === 'INPUT') c.checked = n.hasAttribute('checked');
+      morph(c, n);
+    }
+  });
+  for (let i = cn.length - 1; i >= nn.length; i--) cn[i].remove();
+}
 function renderSeance() {
-  const list = seanceParticipants(), nOk = list.filter(st => st.q === 'ok').length, allOk = list.length && nOk === list.length;
-  const scope = fCours || 'TOUS les cours';
-  if (groupRun && !groupRun.stopAt && Date.now() - groupRun.start >= AMRAP_S * 1000) groupStop();   // fin des 20 minutes
-  let html = '<div class="panel"><div class="recaphead"><h2>Lancer l’AMRAP — ' + esc(scope) + '</h2></div>';
+  const all = seanceParticipants(), n = all.length, s = (k) => k > 1 ? 's' : '';
+  let html = '<div class="panel"><div class="recaphead"><h2>Lancer l’AMRAP</h2></div>', tables = '';
   if (!groupRun) {
-    html += '<p class="recapnote">1. Chaque adhérent ouvre son protocole et connecte son capteur. 2. Vérifie ci-dessous que tous les capteurs sont ' +
-      '<b style="color:#2F7D3D">au vert</b>. 3. Lance le chrono : il démarre au même moment sur tous les téléphones' + (fCours ? ' du cours ' + esc(fCours) : '') +
-      '. À la fin des 20 min (ou au STOP), la récupération de 2 min démarre automatiquement partout.' +
-      (fCours ? '' : ' <b>Choisis un cours en haut pour ne lancer que ce groupe.</b>') + '</p>' +
-      '<p style="text-align:center;font-weight:700">' + list.length + ' téléphone' + (list.length > 1 ? 's' : '') + ' connecté' + (list.length > 1 ? 's' : '') +
+    const prets = all.filter(st => st.pret), sel = prets.filter(st => !seanceExclus.has(st.user_id));
+    const nOk = sel.filter(st => st.q === 'ok').length, allOk = sel.length && nOk === sel.length;
+    html += '<p class="recapnote"><b>1.</b> Chaque adhérent connecte son capteur et fait ses ateliers de force. Dès qu’il les a terminés, il apparaît ' +
+      'dans « Prêts pour l’AMRAP », <b>quel que soit son cours d’inscription</b> (un adhérent venu à un autre cours que le sien part avec le groupe présent). ' +
+      '<b>2.</b> Vérifie que les capteurs cochés sont <b style="color:#2F7D3D">au vert</b> ; décoche quelqu’un qui ne part pas avec ce groupe. ' +
+      '<b>3.</b> Lance le chrono : il démarre au même moment sur les téléphones cochés, et seulement sur eux (un 2<sup>e</sup> groupe encore aux ateliers ' +
+      'n’est pas concerné). À 20:00 (ou au STOP), la récupération de 2 min démarre automatiquement sur ces téléphones.</p>' +
+      '<p style="text-align:center;font-weight:700">' + prets.length + ' prêt' + s(prets.length) + ' pour l’AMRAP · ' + sel.length + ' coché' + s(sel.length) +
       ' · ' + nOk + ' au vert</p><div class="seance-acts">' +
       '<button type="button" class="btn-primary sbtn" data-act="start"' + (allOk ? '' : ' disabled') + '>Démarrer le chrono (20 min)</button>' +
-      '<button type="button" class="btn-soft sbtn" data-act="force"' + (list.length ? '' : ' disabled') + '>Forcer le démarrage</button></div>' +
-      (!allOk && list.length ? '<p class="recapnote" style="text-align:center">Démarrage bloqué : ' + (list.length - nOk) + ' capteur' + (list.length - nOk > 1 ? 's' : '') +
+      '<button type="button" class="btn-soft sbtn" data-act="force"' + (sel.length ? '' : ' disabled') + '>Forcer le démarrage</button></div>' +
+      (!allOk && sel.length ? '<p class="recapnote" style="text-align:center">Démarrage bloqué : ' + (sel.length - nOk) + ' capteur' + s(sel.length - nOk) +
         ' pas au vert. « Forcer le démarrage » lance quand même (leurs mesures pourront être invalides).</p>' : '');
-  } else if (!groupRun.stopAt) {
-    const left = Math.max(0, AMRAP_S - Math.floor((Date.now() - groupRun.start) / 1000));
-    html += '<div class="bigclock">' + mmss(left) + '</div><p class="recapnote" style="text-align:center">AMRAP en cours — ' + esc(groupRun.cours || 'tous les cours') +
-      '. Le STOP part automatiquement à 00:00.</p><div class="seance-acts"><button type="button" class="btn-stop sbtn" data-act="stop">STOP</button></div>';
+    tables = (prets.length ? telTable('Prêts pour l’AMRAP', 'cochés = partent au départ', prets, true)
+      : '<section class="panel"><div class="recaphead"><h2>Prêts pour l’AMRAP</h2></div><p class="empty">' + (n ? 'Personne pour l’instant : ' +
+        'un adhérent apparaît ici dès qu’il a terminé ses ateliers de force.' : 'Aucun téléphone en protocole pour l’instant. Les adhérents doivent ouvrir ' +
+        '« Protocole test » et toucher « Commencer le protocole ».') + '</p></section>') +
+      (prets.length < n ? telTable('Autres téléphones', 'pas prêts : ne reçoivent pas ce départ', all.filter(st => !st.pret), false) : '');
   } else {
-    const left = Math.max(0, 120 - Math.floor((Date.now() - groupRun.stopAt) / 1000));
-    html += '<div class="bigclock">' + (left ? mmss(left) : 'Terminé') + '</div><p class="recapnote" style="text-align:center">' +
-      (left ? 'Récupération : tout le monde <b>assis, immobile, sans parler</b>.' : 'Récupération terminée : les adhérents notent leurs tours et répétitions.') +
-      '</p><div class="seance-acts"><button type="button" class="btn-soft sbtn" data-act="reset">Nouveau groupe</button></div>';
+    const ids = groupRun.ids, k = ids.length;
+    if (!groupRun.stopAt) {
+      const left = Math.max(0, AMRAP_S - Math.floor((Date.now() - groupRun.start) / 1000));
+      html += '<div class="bigclock">' + mmss(left) + '</div><p class="recapnote" style="text-align:center">AMRAP en cours — ' + k + ' téléphone' + s(k) +
+        (groupRun.force ? ' (départ forcé)' : '') + '. Le STOP part automatiquement à 00:00.</p>' +
+        '<div class="seance-acts"><button type="button" class="btn-stop sbtn" data-act="stop">STOP</button></div>';
+    } else {
+      const left = Math.max(0, 120 - Math.floor((Date.now() - groupRun.stopAt) / 1000));
+      html += '<div class="bigclock">' + (left ? mmss(left) : 'Terminé') + '</div><p class="recapnote" style="text-align:center">' +
+        (left ? 'Récupération : tout le monde <b>assis, immobile, sans parler</b>.' : 'Récupération terminée : les adhérents notent leurs tours et répétitions.') +
+        ' Pour le groupe suivant, touche « Nouveau groupe ».</p><div class="seance-acts"><button type="button" class="btn-soft sbtn" data-act="reset">Nouveau groupe</button></div>';
+    }
+    const groupe = ids.map(id => statusMap[id] || { user_id: id, at: 0, attente: true, cours: profiles[id] && profiles[id].cours });
+    const autres = all.filter(st => !ids.includes(st.user_id));
+    tables = telTable('Groupe lancé', k + ' téléphone' + s(k), groupe, false) +
+      (autres.length ? telTable('Autres téléphones', 'pas dans ce départ', autres, false) : '');
   }
-  html += '</div>';
-  html += '<section class="panel"><div class="recaphead"><h2>Vérification des capteurs</h2><span class="muted">mise à jour en continu</span></div>' +
-    (list.length ? '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Adhérent</th><th>Étape</th><th>FC</th><th>Capteur</th><th>Signal</th></tr></thead><tbody>' +
-      list.map(st => '<tr><td><b>' + esc(profiles[st.user_id] ? nameOf(st.user_id) : [st.nom, st.prenom].filter(Boolean).join(' ')) + '</b><small>' + esc(st.cours || 'sans cours') + '</small></td>' +
-        '<td>' + esc(ETAPES[st.etape] || st.etape || '—') + (st.amrap ? ' <small>chrono en cours</small>' : '') + (st.recup ? ' <small>récupération</small>' : '') + '</td>' +
-        '<td>' + (st.hr || '—') + '</td><td>' + esc(st.capteur || '—') + '</td>' +
-        '<td><span class="qdot ' + st.q + '"></span><span class="qlabel ' + st.q + '">' + Q_LABELS[st.q] + '</span></td></tr>').join('') +
-      '</tbody></table></div>'
-      : '<p class="empty">Aucun téléphone en protocole pour l’instant' + (fCours ? ' dans le cours ' + esc(fCours) : '') + '. Les adhérents doivent ouvrir « Protocole test » ' +
-        'et toucher « Commencer le protocole ».</p>') + '</section>';
-  const keepFocus = document.activeElement && document.activeElement.classList.contains('sbtn') ? document.activeElement.dataset.act : null;
-  $('#dataView').innerHTML = html;
-  if (keepFocus) { const b = $('#dataView .sbtn[data-act="' + keepFocus + '"]'); if (b) b.focus(); }
-  $('#summary').textContent = 'Séance de test — ' + list.length + ' téléphone' + (list.length > 1 ? 's' : '') + ' en protocole' + (fCours ? ' (' + fCours + ')' : '') + '.';
+  html += '</div>' + tables;
+  const root = $('#seanceRoot');
+  if (!root) $('#dataView').innerHTML = '<div id="seanceRoot">' + html + '</div>';
+  else if (root._html !== html) { const t = document.createElement('div'); t.innerHTML = html; morph(root, t); }
+  $('#seanceRoot')._html = html;
+  $('#summary').textContent = 'Séance de test — ' + n + ' téléphone' + s(n) + ' en protocole' +
+    (groupRun ? ', ' + groupRun.ids.length + ' dans le groupe lancé.' : ', ' + all.filter(st => st.pret).length + ' prêt' + s(all.filter(st => st.pret).length) + ' pour l’AMRAP.');
 }
+$('#dataView').addEventListener('pointerdown', () => { seancePress = true; });
+window.addEventListener('pointerup', () => setTimeout(() => { seancePress = false; }, 50));
+window.addEventListener('pointercancel', () => { seancePress = false; });
+$('#dataView').addEventListener('change', (ev) => {
+  const c = ev.target.closest('input.sinc'); if (!c) return;
+  if (c.checked) seanceExclus.delete(c.dataset.uid); else seanceExclus.add(c.dataset.uid);
+  renderSeance();
+});
 $('#dataView').addEventListener('click', (ev) => {
   const b = ev.target.closest('button.sbtn'); if (!b) return;
   const act = b.dataset.act;
   if (act === 'start' || act === 'force') {
-    const list = seanceParticipants(), bad = list.filter(st => st.q !== 'ok');
+    const sel = seanceSelection(), bad = sel.filter(st => st.q !== 'ok');
+    if (!sel.length || groupRun) return;
+    if (act === 'start' && bad.length) {   // un téléphone vient d'arriver dans la liste avec un capteur pas au vert
+      toast('Capteur pas au vert : ' + bad.map(st => liveName(st)).join(', ') + '. Vérifie la liste.'); render(); return;
+    }
     if (act === 'force' && !confirm('Forcer le démarrage ?\n\n' + (bad.length ? bad.length + ' capteur(s) pas au vert : ' +
-      bad.map(st => nameOf(st.user_id) + ' (' + Q_LABELS[st.q] + ')').join(', ') + '.\nLeurs mesures de FC pourront être invalides.'
+      bad.map(st => liveName(st) + ' (' + Q_LABELS[st.q] + ')').join(', ') + '.\nLeurs mesures de FC pourront être invalides.'
       : 'Tous les capteurs sont au vert.'))) return;
-    if (!fCours && !confirm('Aucun cours choisi : le départ sera donné à TOUS les téléphones en protocole. Continuer ?')) return;
-    if (sendCoach('amrap_start')) { groupRun = { start: Date.now(), cours: fCours || null, stopAt: null, force: act === 'force' }; toast('Départ donné : chrono de 20 min lancé.'); }
+    groupStart(act === 'force');
   } else if (act === 'stop') {
-    if (confirm('Envoyer le STOP maintenant ? La récupération de 2 min démarre sur tous les téléphones.')) groupStop();
-  } else if (act === 'reset') groupRun = null;
+    if (confirm('Envoyer le STOP maintenant ? La récupération de 2 min démarre sur les téléphones du groupe.')) groupStop();
+  } else if (act === 'reset') { groupRun = null; saveRun(); }
   render();
 });
 
@@ -1801,7 +1900,6 @@ function renderLive() {
   const grid = $('#liveGrid');
   let shown = 0;
   liveCards.forEach((c, uid) => {
-    if (fCours && coursOf(uid) !== fCours) { c.el.remove(); return; }
     if (!c.el.isConnected) grid.appendChild(c.el);
     shown++;
     const z = zoneIndex(c.hr, c.fcMax);
