@@ -89,6 +89,20 @@
   .qlabel.ok{color:#2F7D3D}.qlabel.doubt{color:#A0630F;font-weight:700}.qlabel.off{color:#B23A22;font-weight:700}
   .bigclock{font-family:'Libre Baskerville',Georgia,serif;font-size:3rem;font-variant-numeric:tabular-nums;text-align:center;color:var(--forest);margin:.4rem 0}
   .seance-acts{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin:.6rem 0}
+  .crvctl{display:flex;flex-wrap:wrap;gap:.5rem 1.1rem;align-items:center;margin:.3rem 0 .6rem;font-size:.9rem}
+  .crvctl select{margin-left:.3rem}
+  .clg{display:inline-flex;align-items:center;gap:.35rem;cursor:pointer}
+  .clg span{display:inline-block;width:14px;height:4px;border-radius:2px}
+  .crvwrap{position:relative}
+  .crvsvg{width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:10px;touch-action:manipulation}
+  .crvsvg .cg{stroke:#ECE6DA;stroke-width:1}
+  .crvsvg .cx,.crvsvg .cy{font-size:11px;fill:#6E7B73;text-anchor:middle}.crvsvg .cy{text-anchor:end}
+  .crvsvg .cstop{stroke:#22302A;stroke-width:1.5;stroke-dasharray:4 4}.crvsvg .cstopt{font-size:11px;font-weight:700;fill:#22302A}
+  .crvsvg .cl{fill:none;stroke-width:1.6;opacity:.75;stroke-linejoin:round}
+  .crvsvg .chit{fill:none;stroke:transparent;stroke-width:12;cursor:pointer}
+  .crvsvg .cmoy{fill:none;stroke-width:4;stroke-dasharray:10 5;pointer-events:none}
+  .crvsvg.focus .cl{opacity:.15}.crvsvg .crv.on .cl{opacity:1;stroke-width:3.2}
+  .crvtip{position:absolute;background:#22302A;color:#fff;font-size:.8rem;line-height:1.45;padding:.45rem .6rem;border-radius:8px;pointer-events:none;max-width:230px;z-index:5}
   .btn-stop{background:#C9442C;color:#fff;font-size:1.2rem;padding:.8rem 2.2rem}
   .sinc-l{display:flex;align-items:center;gap:.6rem;cursor:pointer}
   .sinc{width:20px;height:20px;accent-color:var(--forest);flex:none}
@@ -210,6 +224,7 @@
         <button type="button" data-v="recap">Récap des groupes</button>
         <button type="button" data-v="inscrits">Inscrits</button>
         <button type="button" data-v="seance">Lancer l’AMRAP</button>
+        <button type="button" data-v="courbes">Courbes FC</button>
         <button type="button" data-v="manquants">À vérifier<span class="badge" id="missBadge"></span></button>
       </div>
       <div class="seg" id="fCours">
@@ -606,6 +621,7 @@ function render() {
   if (view === 'inscrits') { renderInscrits(); renderLive(); return; }
   if (view === 'seance') { renderSeance(); renderLive(); return; }
   if (view === 'manquants') { renderManquants(); renderLive(); return; }
+  if (view === 'courbes') { renderCourbes(); renderLive(); return; }
   const list = selected();
   const nbAdh = new Set(list.map(e => e.uid)).size;
   const nbDays = new Set(list.map(e => e.date)).size;
@@ -1940,6 +1956,91 @@ $('#dataView').addEventListener('click', (ev) => {
   } else if (act === 'reset') { groupRun = null; saveRun(); }
   render();
 });
+
+/* =====================================================================
+   Courbes FC — AMRAP (20 min) puis récupération (2 min), une courbe par adhérent.
+   Temps en minutes par rapport au STOP (0) : l'effort à gauche, la récupération à droite.
+   Les courbes sont enregistrées avec les résultats depuis cette version (courbe_fc).
+   ===================================================================== */
+const GROUP_COLORS = { Gironville: '#2F6FB0', Milly: '#C26B4A', Boutigny: '#3E8E5A', 'Sans cours': '#8A7F72' };
+let crvPoint = '', crvHidden = new Set(), crvMoy = false;
+function curvePoints(d, stopMs) {   // [[minutes depuis le STOP, bpm], …]
+  const c = d && d.courbe_fc; if (!c || !c.fc) return [];
+  const t0 = Date.parse(c.debut);
+  return c.fc.map((v, i) => v == null ? null : [(t0 + (i + 0.5) * c.pas * 1000 - stopMs) / 60000, v]);
+}
+function courbesData() {
+  const out = [], sans = [];
+  selected().forEach(e => Object.keys(e.proto).forEach(pt => {
+    if (crvPoint && pt !== crvPoint) return;
+    const a = e.proto[pt].amrap_cardio, r = e.proto[pt].rfc; if (!a && !r) return;
+    if (!(a && a.courbe_fc) && !(r && r.courbe_fc)) { if (a) sans.push(e.uid); return; }
+    const ac = a && a.courbe_fc;
+    const stop = r && r.debut_recup ? Date.parse(r.debut_recup) : r && r.courbe_fc ? Date.parse(r.courbe_fc.debut)
+      : Date.parse(ac.debut) + ac.fc.length * ac.pas * 1000;
+    out.push({ uid: e.uid, pt, date: e.date, groupe: coursOf(e.uid), pts: curvePoints(a, stop).concat(curvePoints(r, stop)),
+      moy: a && a.fc_moy_amrap, pic: a && a.fc_pic_amrap, hrr60: r && r.hrr60 });
+  }));
+  return { out, sans: new Set(sans).size };
+}
+function renderCourbes() {
+  const { out, sans } = courbesData();
+  const pts = [...new Set(selected().flatMap(e => Object.keys(e.proto)))].sort();
+  const groupes = [...new Set(out.map(c => c.groupe))];
+  const shown = out.filter(c => !crvHidden.has(c.groupe));
+  const W = 900, H = 420, L = 46, R = 14, T = 14, B = 36;
+  const xs = shown.flatMap(c => c.pts.filter(Boolean).map(p => p[0])), ys = shown.flatMap(c => c.pts.filter(Boolean).map(p => p[1]));
+  const x0 = Math.min(-20, Math.floor(Math.min(0, ...xs))), x1 = 2;
+  const y0 = Math.max(40, Math.floor((Math.min(...ys, 100) - 5) / 10) * 10), y1 = Math.min(230, Math.ceil((Math.max(...ys, 160) + 5) / 10) * 10);
+  // échelle en deux parties : l'AMRAP sur les 3/4 de la largeur, les 2 min de récupération sur le dernier quart (lisibles)
+  const PW = W - L - R, XA = 0.75 * PW;
+  const X = (m) => { m = Math.max(x0, Math.min(x1, m)); return m < 0 ? L + (m - x0) / -x0 * XA : L + XA + m / x1 * (PW - XA); };
+  const Xinv = (px) => px - L < XA ? x0 + (px - L) / XA * -x0 : (px - L - XA) / (PW - XA) * x1, Y = (v) => T + (y1 - v) / (y1 - y0) * (H - T - B);
+  const path = (p) => { let d = '', pen = false; p.forEach(q => { if (!q || q[0] < x0 || q[0] > x1) { pen = false; return; }
+    d += (pen ? 'L' : 'M') + X(q[0]).toFixed(1) + ' ' + Y(q[1]).toFixed(1); pen = true; }); return d; };
+  let grid = '';
+  for (let v = y0; v <= y1; v += 20) grid += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" class="cg"/><text x="' + (L - 6) + '" y="' + (Y(v) + 4) + '" class="cy">' + v + '</text>';
+  const ticks = []; for (let m = Math.ceil(x0 / 5) * 5; m < 0; m += 5) ticks.push(m); ticks.push(0, 0.5, 1, 1.5, 2);
+  ticks.forEach(m => { grid += '<line y1="' + T + '" y2="' + (H - B) + '" x1="' + X(m) + '" x2="' + X(m) + '" class="cg"/>' +
+    '<text x="' + X(m) + '" y="' + (H - B + 16) + '" class="cx">' + (m < 0 ? m + ' min' : m === 0 ? '0' : '+' + mmss(m * 60)) + '</text>'; });
+  grid += '<line y1="' + T + '" y2="' + (H - B) + '" x1="' + X(0) + '" x2="' + X(0) + '" class="cstop"/><text x="' + (X(0) + 4) + '" y="' + (T + 12) + '" class="cstopt">STOP</text>' +
+    '<text x="' + ((L + X(0)) / 2) + '" y="' + (H - 4) + '" class="cx">AMRAP (minutes avant le STOP)</text><text x="' + ((X(0) + W - R) / 2) + '" y="' + (H - 4) + '" class="cx">récupération (2 min)</text>';
+  let lines = shown.map((c, i) => '<g class="crv" data-i="' + out.indexOf(c) + '"><path d="' + path(c.pts) + '" stroke="' + (GROUP_COLORS[c.groupe] || '#555') + '" class="cl"/>' +
+    '<path d="' + path(c.pts) + '" class="chit"/></g>').join('');
+  if (crvMoy) groupes.filter(g => !crvHidden.has(g)).forEach(g => {   // moyenne du groupe, par pas de 15 s
+    const acc = {}; shown.filter(c => c.groupe === g).forEach(c => c.pts.forEach(q => { if (!q) return; const k = Math.round(q[0] * 4) / 4; (acc[k] = acc[k] || []).push(q[1]); }));
+    const mp = Object.keys(acc).map(Number).sort((a, b) => a - b).map(k => [k, acc[k].reduce((a, b) => a + b, 0) / acc[k].length]);
+    lines += '<path d="' + path(mp) + '" stroke="' + (GROUP_COLORS[g] || '#555') + '" class="cmoy"/>';
+  });
+  const legend = groupes.map(g => '<label class="clg"><input type="checkbox" data-g="' + esc(g) + '"' + (crvHidden.has(g) ? '' : ' checked') + '><span style="background:' +
+    (GROUP_COLORS[g] || '#555') + '"></span>' + esc(g) + ' (' + out.filter(c => c.groupe === g).length + ')</label>').join('');
+  $('#dataView').innerHTML = '<section class="panel"><div class="recaphead"><h2>Courbes de FC — AMRAP et récupération</h2></div>' +
+    '<div class="crvctl"><label>Point de test <select id="crvPoint"><option value="">tous</option>' + pts.map(p => '<option' + (p === crvPoint ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></label>' +
+    legend + '<label class="clg"><input type="checkbox" id="crvMoy"' + (crvMoy ? ' checked' : '') + '> Moyenne par groupe</label></div>' +
+    (out.length ? '<div class="crvwrap"><svg viewBox="0 0 ' + W + ' ' + H + '" class="crvsvg" role="img" aria-label="Courbes de fréquence cardiaque">' + grid + lines + '</svg><div class="crvtip" id="crvTip" hidden></div></div>'
+      : '<p class="empty">Aucune courbe pour cette sélection.</p>') +
+    '<p class="recapnote">Passe la souris (ou touche) une courbe pour voir la personne. Les cours, le genre et la date se choisissent en haut. ' +
+    (sans ? '<b>' + sans + ' adhérent' + (sans > 1 ? 's' : '') + '</b> sans courbe : tests passés avant l’enregistrement des courbes (seules la moyenne et le pic existent).' : '') + '</p></section>';
+  $('#summary').textContent = shown.length + ' courbe' + (shown.length > 1 ? 's' : '') + ' affichée' + (shown.length > 1 ? 's' : '') + '.';
+  const svg = $('.crvsvg'), tip = $('#crvTip');
+  $('#crvPoint').addEventListener('change', (ev) => { crvPoint = ev.target.value; renderCourbes(); });
+  $('#crvMoy').addEventListener('change', (ev) => { crvMoy = ev.target.checked; renderCourbes(); });
+  $$('#dataView .clg input[data-g]').forEach(i => i.addEventListener('change', () => { i.checked ? crvHidden.delete(i.dataset.g) : crvHidden.add(i.dataset.g); renderCourbes(); }));
+  if (!svg) return;
+  const show = (ev) => {
+    const g = ev.target.closest('.crv'); $$('.crvsvg .crv').forEach(x => x.classList.toggle('on', x === g)); svg.classList.toggle('focus', !!g);
+    if (!g) { tip.hidden = true; return; }
+    const c = out[+g.dataset.i], box = svg.getBoundingClientRect(), wrap = svg.parentNode.getBoundingClientRect();
+    const m = Xinv((ev.clientX - box.left) / box.width * W);
+    const near = c.pts.filter(Boolean).reduce((a, q) => !a || Math.abs(q[0] - m) < Math.abs(a[0] - m) ? q : a, null);
+    tip.innerHTML = '<b>' + esc(nameOf(c.uid)) + '</b> · ' + esc(c.groupe) + ' · ' + c.pt + '<br>' + (near ? near[1] + ' bpm à ' + (near[0] < 0 ? '−' : '+') + mmss(Math.round(Math.abs(near[0]) * 60)) : '') +
+      (c.moy ? '<br>AMRAP : moy. ' + c.moy + ' · pic ' + c.pic : '') + (c.hrr60 != null ? ' · HRR60 ' + c.hrr60 : '');
+    tip.hidden = false;
+    tip.style.left = Math.min(ev.clientX - wrap.left + 12, wrap.width - 230) + 'px'; tip.style.top = (ev.clientY - wrap.top + 12) + 'px';
+  };
+  svg.addEventListener('mousemove', show); svg.addEventListener('click', show);
+  svg.addEventListener('mouseleave', () => { tip.hidden = true; svg.classList.remove('focus'); $$('.crvsvg .crv').forEach(x => x.classList.remove('on')); });
+}
 
 function renderLive() {
   const grid = $('#liveGrid');

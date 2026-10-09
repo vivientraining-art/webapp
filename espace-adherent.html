@@ -1720,7 +1720,7 @@ let protoCoachRun = null;   // départ du coach qui a lancé ce chrono (le STOP 
    protoEdit = { i, phase } : position réelle (étape et éventuel repos en cours, dont le décompte continue). */
 let protoEdit = null;
 function protoPos() { return protoEdit ? protoEdit.i : protoStepIndex; }
-const AMRAP_FC_KEYS = ['fc_moy_amrap', 'fc_pic_amrap', 'fc_amrap_source', 'fc_amrap_valide', 'fc_amrap_motifs', 'fc_max_retenue', 'fc_max_source', 'intensite_pct'];
+const AMRAP_FC_KEYS = ['courbe_fc', 'fc_moy_amrap', 'fc_pic_amrap', 'fc_amrap_source', 'fc_amrap_valide', 'fc_amrap_motifs', 'fc_max_retenue', 'fc_max_source', 'intensite_pct'];
 const STEP_NAMES = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP' };
 function stepName(i, phase) {
   const s = PROTOCOL_STEPS[i] || {};
@@ -1780,6 +1780,17 @@ function addProtoNav() {
 }
 let protoCoachQuit = null;  // départ du coach annulé par l'adhérent (« Réinitialiser ») : on ne le reprend pas
 /* FC moyenne et pic sur une fenêtre de temps, depuis l'historique de la séance. */
+/* Courbe compacte de FC pour le graphique du coach : moyenne des valeurs valides par pas de « pas » secondes. */
+function hrCurve(from, to, pas) {
+  const s = live.session; if (!s || !s.series || !(to > from)) return null;
+  const n = Math.ceil((to - from) / (pas * 1000)), sum = new Array(n).fill(0), cnt = new Array(n).fill(0);
+  s.series.forEach(([sec, hr]) => {
+    const t = s.startedAt + sec * 1000; if (t < from || t >= to || !HR_OK(hr)) return;
+    const i = Math.floor((t - from) / (pas * 1000)); sum[i] += hr; cnt[i]++;
+  });
+  const fc = sum.map((x, i) => cnt[i] ? Math.round(x / cnt[i]) : null);
+  return fc.some(v => v != null) ? { debut: new Date(from).toISOString(), pas, fc } : null;
+}
 function hrWindow(from, to) {
   const s = live.session; if (!s || !s.series) return null;
   const v = s.series.filter(([sec]) => { const t = s.startedAt + sec * 1000; return t >= from && t <= to; }).map(x => x[1]);
@@ -1873,6 +1884,7 @@ function recupData() {
   if (r.arret != null && r.fc60 != null) d.hrr60 = r.arret - r.fc60;
   if (r.arret != null && r.fc120 != null) d.hrr120 = r.arret - r.fc120;
   if (r.motifs.length) d.motifs_invalidite = r.motifs.join(' ; ');
+  const crv = hrCurve(r.start, r.start + RECUP_S * 1000, 2); if (crv) d.courbe_fc = crv;   // courbe de la récupération
   return d;
 }
 async function saveRfc() {
@@ -2429,6 +2441,7 @@ function renderProtoStepCard() {
       // chrono (app ou coach) : FC sur sa durée exacte ; sinon les 20 dernières minutes passées sur l'écran AMRAP
       const from = protoAmrapStartAt || Math.max(protoAmrapShownAt || 0, now - dur), to = protoAmrapStartAt ? Math.min(now, protoAmrapStartAt + dur) : now;
       const a = analyseWindow(from, to, { effort: true });
+      const crv = hrCurve(from, to, 5); if (crv) data.courbe_fc = crv;   // courbe de l'effort (graphique du coach)
       let fc = a.n >= 15 ? { moy: a.moy, pic: a.pic, motifs: a.motifs } : protoAmrapHr.n > 0
         ? { moy: Math.round(protoAmrapHr.sum / protoAmrapHr.n), pic: protoAmrapHr.max, motifs: ['données partielles'] } : null;
       if (fc) {
