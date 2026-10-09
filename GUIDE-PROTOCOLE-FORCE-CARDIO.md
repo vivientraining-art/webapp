@@ -180,6 +180,13 @@ le filtre de cours.
   les 3 essais de préhension, les répétitions de l'AMRAP, l'intensité, la FC à
   l'arrêt / 60 s / 120 s, HRR60 / HRR120, la validité et ses motifs, le
   questionnaire et l'écart au protocole.
+- **Export anonymisé** (Excel, ou CSV si Excel est indisponible) : mêmes
+  résultats sans nom, prénom, e-mail ni date de naissance (l'âge reste). Chaque
+  personne a un **id_participant** (ex. P07T47MV), toujours le même d'un export
+  à l'autre pour suivre T0 → T1, et chaque cours un **id_groupe** (G1 Gironville,
+  G2 Milly, G3 Boutigny, G0 sans cours). La correspondance n'existe que dans
+  l'export Excel normal (colonnes id_participant et id_groupe). Ce sont des
+  données pseudonymisées : à partager seulement avec des personnes de confiance.
 
 ## Limite à connaître
 
