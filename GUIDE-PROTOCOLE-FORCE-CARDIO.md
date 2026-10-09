@@ -53,10 +53,14 @@ test choisi. L'app enchaîne :
    5 squat jumps (81 répétitions par tour). Option **No impact** : step jacks,
    squats et burpee sans saut. Le chrono démarre tout seul si le coach donne le
    départ depuis son espace ; sinon l'adhérent touche « Démarrer les 20 min » au
-   top départ. Au STOP, l'adhérent note les **tours complets**
-   et les **répétitions du tour incomplet** ; l'app calcule les **répétitions
-   totales** et enregistre la **version du circuit** (`C1-2026-10`) et son contenu.
-   Effort ressenti (0 à 10).
+   top départ. Bouton **« +1 tour »** (et « −1 ») sur l'écran : l'adhérent le touche à la
+   fin de chaque tour, le compteur pré-remplit les tours complets (il survit à un
+   rechargement). Au STOP, l'adhérent note les **tours complets**, l'**atelier
+   où il s'est arrêté** (liste 1 à 9) et les **répétitions faites sur cet
+   atelier** : rien à additionner, l'app calcule le dernier tour (ex. arrêt aux
+   skatings avec 4 = 20 + 10 + 4 = 34) et les **répétitions totales**, et
+   enregistre la **version du circuit** (`C1-2026-10`). Atelier terminé pile au
+   STOP : choisir l'atelier suivant avec 0. Effort ressenti (0 à 10).
 6. **Récupération cardiaque — automatique** : dès le STOP (fin du chrono, STOP
    du coach ou bouton « Fin de l'AMRAP »), un compte à rebours de 2 min
    s'affiche avec la consigne **« Assis, immobile, sans parler »**. L'app
