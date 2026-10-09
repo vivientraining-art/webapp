@@ -160,6 +160,13 @@ le filtre de cours.
   autre cours apparaît sous le sien), une ligne par adhérent (séances
   capteur avec % de données valides et temps par zone, résultats du protocole,
   questionnaire, ⚠ en cas d'écart au protocole), FC max retenue et sa source.
+- **Courbes FC** : la FC de l'AMRAP (20 min) puis des 2 min de récupération,
+  une courbe par adhérent, le STOP au milieu. Choix du point de test, des
+  groupes (cases à cocher, en plus des filtres cours / genre / date) et
+  « Moyenne par groupe ». Survoler (ou toucher) une courbe montre la personne,
+  sa FC à cet instant, sa moyenne, son pic et son HRR60. Les courbes sont
+  enregistrées avec les résultats depuis le 9 octobre 2026 (≈ 1,3 Ko par
+  personne) : les tests passés avant n'ont que la moyenne et le pic.
 - **Récap des groupes** : « Tous les groupes » puis chaque cours — moyennes par
   point de test, min–max, effectif, évolution appariée (seulement les
   adhérents présents aux deux points). Profil du groupe (femmes / hommes, âge),
