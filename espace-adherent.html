@@ -594,24 +594,34 @@ function ensureChannel() {
   liveChannel.subscribe();
   return liveChannel;
 }
-/* Le coach lance ou arrête l'AMRAP pour tout un groupe depuis l'espace coach. */
-function onCoachEvent(p) {
-  if (!p || $('#protoRun').hidden || (p.cours && profile && p.cours !== profile.cours)) return;
+/* Prêt pour l'AMRAP : préhension et ateliers de force terminés (ou déjà sur l'écran AMRAP),
+   chrono pas encore lancé. Un téléphone encore aux ateliers ne reçoit pas le départ du coach. */
+function amrapReady() {
   const ai = PROTOCOL_STEPS.findIndex(st => st.key === 'amrap_cardio');
+  if (ai < 0 || protoRecup || protoAmrapStartAt || protoStepIndex > ai) return false;
+  return protoStepIndex === ai || ['grip'].concat(FORCE_CIRCUIT).every(k => protoDone.includes(k));
+}
+/* Le coach lance ou arrête l'AMRAP depuis l'espace coach pour une liste nominative de téléphones
+   (ceux qu'il voit prêts), quel que soit le cours d'inscription : un adhérent venu à un autre cours
+   part avec le groupe présent, un groupe encore aux ateliers n'est pas concerné. Le STOP ne vise
+   que les téléphones partis avec ce départ (p.run). « depuis » : message renvoyé en retard
+   (connexion coupée), le chrono et la récupération sont recalés sur l'heure réelle du départ / STOP. */
+function onCoachEvent(p) {
+  if (!p || !me || $('#protoRun').hidden) return;
+  if (Array.isArray(p.ids) ? !p.ids.includes(me.id) : (p.cours && profile && p.cours !== profile.cours)) return;
+  const ai = PROTOCOL_STEPS.findIndex(st => st.key === 'amrap_cardio');
+  const depuis = (max) => Math.min(Math.max(0, Number(p.depuis) || 0), max);
   if (p.type === 'amrap_start') {
-    if (protoRecup || protoAmrapStartAt) return;
+    if (!amrapReady() || (p.run && p.run === protoCoachQuit)) return;   // ateliers pas finis, chrono déjà lancé, AMRAP déjà fait ou départ annulé
     protoAmrapHr = { sum: 0, n: 0, max: 0 };
-    protoAmrapStartAt = Date.now();
-    saveProtocolFlag();
+    protoAmrapStartAt = Date.now() - depuis(19 * 60 * 1000);
+    protoCoachRun = p.run || null;
+    stopProtoTimers(); protoPhase = 'content'; protoStepIndex = ai; saveProtocolFlag(); renderProtoStep();
     signalBeep(1);
     toast('Le coach a donné le départ de l’AMRAP !');
-    const forceDone = ['grip'].concat(FORCE_CIRCUIT).every(k => protoDone.includes(k));
-    if (protoStepIndex === ai || (protoStepIndex < ai && forceDone)) {
-      stopProtoTimers(); protoPhase = 'content'; protoStepIndex = ai; saveProtocolFlag(); renderProtoStep();
-    } else toast('Ton chrono AMRAP tourne déjà : termine ton atelier et rejoins l’AMRAP.');
   } else if (p.type === 'amrap_stop') {
-    if (!protoAmrapStartAt || protoRecup) return;
-    startRecup(Date.now());
+    if (!protoAmrapStartAt || protoRecup || (p.run && p.run !== protoCoachRun)) return;
+    startRecup(Date.now() - depuis(RECUP_S * 1000));
     if (protoStepIndex === ai) renderProtoStep();
   }
 }
@@ -628,7 +638,8 @@ setInterval(() => {
       ensureChannel().send({ type: 'broadcast', event: 'status', payload: {
         user_id: me.id, prenom: profile && profile.prenom, nom: profile && profile.nom, cours: profile && profile.cours,
         q, hr: live.lastBeatAt && now - live.lastBeatAt < 5000 ? live.hr : null, fcMax: live.session ? live.session.fcMax : (profile && profile.fc_max),
-        capteur: sensorName(), etape: st.key || st.kind, amrap: protoAmrapRunning, recup: !!(protoRecup && !protoRecup.done), t: now,
+        capteur: sensorName(), etape: st.key || (st.kind === 'info' ? (st.isLast ? 'calme' : 'echauffement') : st.kind), amrap: protoAmrapRunning || !!(protoAmrapStartAt && !protoRecup),
+        recup: !!(protoRecup && !protoRecup.done), fini: !!(protoRecup && protoRecup.done), pret: amrapReady(), run: protoCoachRun, quitte: protoCoachQuit, t: now,
       } });
     } catch (e) {}
   }
@@ -1689,6 +1700,8 @@ let protoRestTimer = null, protoRestRemaining = 0, protoRestTotal = 0;
 let protoAmrapTimer = null, protoAmrapRemaining = 0, protoAmrapRunning = false;
 let protoAmrapHr = { sum: 0, n: 0, max: 0 };
 let protoAmrapShownAt = null, protoAmrapStartAt = null;   // écran AMRAP affiché / chrono de l'app lancé
+let protoCoachRun = null;   // départ du coach qui a lancé ce chrono (le STOP du coach ne vise que ce départ)
+let protoCoachQuit = null;  // départ du coach annulé par l'adhérent (« Réinitialiser ») : on ne le reprend pas
 /* FC moyenne et pic sur une fenêtre de temps, depuis l'historique de la séance. */
 function hrWindow(from, to) {
   const s = live.session; if (!s || !s.series) return null;
@@ -1804,7 +1817,7 @@ let protoDone = [];
 function protocolStorageKey() { return me ? ('vs-protocol-' + me.id) : null; }
 function saveProtocolFlag() {
   const k = protocolStorageKey();
-  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoStepIndex, done: protoDone, as: protoAmrapShownAt, ac: protoAmrapStartAt, rc: protoRecup, v: 2 })); } catch (e) {} }
+  if (k) { try { localStorage.setItem(k, JSON.stringify({ p: pointDeTest, s: protoStartAtelier, i: protoStepIndex, done: protoDone, as: protoAmrapShownAt, ac: protoAmrapStartAt, cr: protoCoachRun, rc: protoRecup, v: 2 })); } catch (e) {} }
 }
 function clearProtocolFlag() { const k = protocolStorageKey(); if (k) { try { localStorage.removeItem(k); } catch (e) {} } }
 function readProtocolFlag() {
@@ -1847,7 +1860,7 @@ async function beginProtocol() {
     PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
     const rows = data || [];
     protoDone = saved.legacy ? rows.map(r => r.test_type) : (saved.done || []);
-    protoAmrapShownAt = saved.as || null; protoAmrapStartAt = saved.ac || null;
+    protoAmrapShownAt = saved.as || null; protoAmrapStartAt = saved.ac || null; protoCoachRun = saved.cr || null;
     clearRecup(); protoRecup = saved.rc || null; ensureRecupTick();
     rows.forEach(r => { if (protoDone.includes(r.test_type)) protoExisting[r.test_type] = r.data; });
     protoStepIndex = saved.legacy || saved.v !== 2 ? firstIncompleteStepIndex(protoExisting)
@@ -1862,7 +1875,7 @@ async function beginProtocol() {
     }
     protoDone = [];
     protoStepIndex = 0;
-    protoAmrapShownAt = null; protoAmrapStartAt = null; clearRecup();
+    protoAmrapShownAt = null; protoAmrapStartAt = null; protoCoachRun = null; clearRecup();
     PROTOCOL_STEPS = buildProtocolSteps(protoStartAtelier);
   }
   protoPhase = 'content';
@@ -2104,8 +2117,9 @@ function renderProtoStep() {
       '<div class="rest-box" style="margin-bottom:1rem">' +
         '<div class="rest-count" id="protoAmrapCount">' + mmss(protoRecup ? 0 : protoAmrapStartAt
           ? Math.max(0, Math.ceil((protoAmrapStartAt + def.timedSeconds * 1000 - Date.now()) / 1000)) : def.timedSeconds) + '</div>' +
-        '<div class="rest-label">Touche « Démarrer » au top départ : ta FC de l’AMRAP sera mesurée précisément, et la ' +
-          'récupération de 2 min démarrera toute seule à la fin des ' + def.timedSeconds / 60 + ' min.</div>' +
+        '<div class="rest-label">Si le coach donne le départ depuis son espace, ton chrono démarre tout seul. Sinon, touche ' +
+          '« Démarrer » au top départ. Ta FC de l’AMRAP sera mesurée précisément, et la récupération de 2 min démarrera ' +
+          'toute seule à la fin des ' + def.timedSeconds / 60 + ' min.</div>' +
         '<div class="rest-controls">' +
           '<button class="btn-primary" id="protoAmrapStart"' + (protoRecup ? ' disabled' : '') + '>' +
             (protoRecup ? 'Terminé' : protoAmrapRunning ? 'En cours…' : 'Démarrer les ' + def.timedSeconds / 60 + ' min') + '</button>' +
@@ -2233,7 +2247,7 @@ function renderProtoStep() {
     $('#protoAmrapStart').addEventListener('click', () => {
       if (protoAmrapRunning || protoRecup) return;
       protoAmrapHr = { sum: 0, n: 0, max: 0 };
-      protoAmrapStartAt = Date.now(); saveProtocolFlag();
+      protoAmrapStartAt = Date.now(); protoCoachRun = null; saveProtocolFlag();
       signalBeep(1);
       runAmrap();
     });
@@ -2243,7 +2257,8 @@ function renderProtoStep() {
     $('#protoAmrapReset').addEventListener('click', () => {
       clearInterval(protoAmrapTimer); protoAmrapTimer = null; protoAmrapRunning = false;
       protoAmrapHr = { sum: 0, n: 0, max: 0 };
-      protoAmrapStartAt = null; saveProtocolFlag();
+      if (protoCoachRun) protoCoachQuit = protoCoachRun;
+      protoAmrapStartAt = null; protoCoachRun = null; saveProtocolFlag();
       const el = $('#protoAmrapCount'); if (el) el.textContent = mmss(def.timedSeconds);
       const btn = $('#protoAmrapStart'); if (btn) btn.textContent = 'Démarrer les ' + def.timedSeconds / 60 + ' min';
     });

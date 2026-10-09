@@ -47,7 +47,9 @@ test choisi. L'app enchaîne :
 5. **AMRAP cardio 20 min** : 20 jumping jacks, 10 squats, 10 skatings,
    5 sprawls, 1 burpee, 5 pompes, 5 supermans, 20 mountain climbers,
    5 squat jumps (81 répétitions par tour). Option **No impact** : step jacks,
-   squats et burpee sans saut. Au STOP, l'adhérent note les **tours complets**
+   squats et burpee sans saut. Le chrono démarre tout seul si le coach donne le
+   départ depuis son espace ; sinon l'adhérent touche « Démarrer les 20 min » au
+   top départ. Au STOP, l'adhérent note les **tours complets**
    et les **répétitions du tour incomplet** ; l'app calcule les **répétitions
    totales** et enregistre la **version du circuit** (`C1-2026-10`) et son contenu.
    Effort ressenti (0 à 10).
@@ -107,17 +109,36 @@ remplir le Q-AAP (questionnaire de santé) avant le T0.
 
 ### Lancer l'AMRAP (vérification des capteurs)
 
-Onglet **Lancer l'AMRAP**, après avoir choisi le cours en haut :
-- la liste des téléphones en protocole s'affiche avec l'étape en cours, la FC,
-  le capteur et l'indicateur vert / orange / rouge ;
+Ce n'est pas obligatoire : chaque adhérent peut aussi toucher « Démarrer les
+20 min » au top départ, ou « Fin de l'AMRAP → lancer la récup » au STOP. Mais
+pour un groupe qui part ensemble, l'onglet **Lancer l'AMRAP** est le plus fiable
+(même départ pour tous, capteurs vérifiés, STOP et récupération synchronisés) :
+- tous les téléphones en protocole s'affichent, **quel que soit le cours
+  d'inscription** : un adhérent qui passe son test pendant un autre cours que
+  le sien part avec le groupe présent (ses résultats restent rattachés à son
+  propre cours). Le filtre de cours n'a pas d'effet sur cet onglet ;
+- **Prêts pour l'AMRAP** : ceux qui ont terminé leurs ateliers de force, cochés
+  par défaut ; décocher quelqu'un qui ne part pas avec ce groupe ;
+- **Autres téléphones** : ceux qui sont encore aux ateliers, par exemple le
+  2e groupe quand on tourne en deux groupes avec les mêmes capteurs. Ils ne
+  reçoivent ni le départ ni le STOP, et leur capteur rouge ne bloque rien ;
 - **Démarrer le chrono (20 min)** n'est possible que si **tous les capteurs
-  sont au vert** ; **Forcer le démarrage** permet de lancer quand même ;
-- le départ est donné au même moment sur tous les téléphones du cours ; à
-  20:00 (ou avec le bouton **STOP**), la récupération de 2 min démarre partout.
+  cochés sont au vert** ; **Forcer le démarrage** permet de lancer quand même ;
+- le départ est donné au même moment sur les téléphones cochés, et seulement
+  sur eux ; à 20:00 (ou avec le bouton **STOP**), la récupération de 2 min
+  démarre sur ces téléphones. Un téléphone qui a raté le départ ou le STOP
+  (connexion coupée) le reçoit à nouveau quelques secondes plus tard, recalé
+  sur l'heure réelle ;
+- **Nouveau groupe** prépare le départ suivant. Recharger la page ne fait pas
+  perdre le groupe en cours.
+
+La FC en direct affiche aussi tous les téléphones en protocole, quel que soit
+le filtre de cours.
 
 ### Autres vues
 
-- **Détail** : par date puis par cours, une ligne par adhérent (séances
+- **Détail** : par date puis par cours d'inscription (un adhérent venu à un
+  autre cours apparaît sous le sien), une ligne par adhérent (séances
   capteur avec % de données valides et temps par zone, résultats du protocole,
   questionnaire, ⚠ en cas d'écart au protocole), FC max retenue et sa source.
 - **Récap des groupes** : « Tous les groupes » puis chaque cours — moyennes par
