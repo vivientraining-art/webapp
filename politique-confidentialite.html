@@ -62,10 +62,15 @@
     <h2>Quelles données sont collectées ?</h2>
     <ul>
       <li><strong>Identification</strong> : prénom, nom, e-mail, cours suivi (Gironville, Milly ou Boutigny).</li>
-      <li><strong>Profil physiologique</strong> : genre et date de naissance, qui servent uniquement à calculer ta fréquence cardiaque maximale théorique (formule de Tanaka, 2001 : 208 − 0,7 × âge) et donc tes zones d'effort.</li>
+      <li><strong>Profil physiologique</strong> : genre et date de naissance, qui servent uniquement à calculer ta fréquence cardiaque maximale (formule de Tanaka, 2001 : 208 − 0,7 × âge, ou la plus haute fréquence cardiaque réellement mesurée lors de tes séances si elle est supérieure) et donc tes zones d'effort.</li>
       <li><strong>Données de suivi sportif</strong>, dont des <strong>données de santé</strong> au sens du RGPD :
-        fréquence cardiaque (séances, récupération, variabilité), force et 1RM estimée, force de préhension,
-        VO2max estimée, résultats de tests cognitifs (Go/No-Go, Stroop, N-back).</li>
+        fréquence cardiaque pendant les tests (moyenne, pic, temps par zone d'effort, récupération après l'effort),
+        indicateurs de qualité du signal du capteur, résultats des tests (force de préhension, pompes, wall-sit,
+        rowing, RDL, AMRAP cardio, effort ressenti) et, le cas échéant, mesures enregistrées avec d'anciennes
+        versions de l'application (VO2max estimée, force et 1RM estimée, tests cognitifs).</li>
+      <li><strong>Questionnaire avant chaque test</strong> : heures de sommeil la nuit précédente, niveau de fatigue
+        (de 1 à 10), et si tu es malade le jour du test (donnée de santé), avec la date et l'heure de la séance.
+        Ces réponses servent uniquement à interpréter tes résultats.</li>
       <li><strong>Date de consentement</strong>, enregistrée lors de la création du compte.</li>
     </ul>
     <p>Aucune autre donnée n'est demandée (pas d'adresse postale, pas de données bancaires, pas de données de
@@ -84,7 +89,9 @@
     <h2>Qui a accès à ces données ?</h2>
     <ul>
       <li><strong>Toi</strong>, sur ton espace personnel.</li>
-      <li><strong>Vivien Strudel</strong>, en tant que coach, pour assurer le suivi.</li>
+      <li><strong>Vivien Strudel</strong>, en tant que coach, pour assurer le suivi. Pendant une séance de test, ta
+        fréquence cardiaque, l'étape du test en cours et l'état de ton capteur lui sont aussi transmis en direct
+        (affichage uniquement : ces informations en direct ne sont pas conservées).</li>
       <li><strong>Supabase Inc.</strong>, l'hébergeur technique de la base de données (sous-traitant), qui n'accède
         pas aux données pour son propre compte. Les données sont hébergées dans l'Union européenne.</li>
     </ul>

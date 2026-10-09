@@ -84,6 +84,12 @@
   #liveGrid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
   .livecard{background:#fff;border:1px solid var(--line);border-left:7px solid #9AA69E;border-radius:12px;padding:.7rem .85rem}
   .livecard.stale{opacity:.4}
+  .qdot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:.35rem;vertical-align:0;background:#B9C1BB}
+  .qdot.ok{background:#3E9B4F}.qdot.doubt{background:#E0982E}.qdot.off{background:#C9442C}
+  .qlabel.ok{color:#2F7D3D}.qlabel.doubt{color:#A0630F;font-weight:700}.qlabel.off{color:#B23A22;font-weight:700}
+  .bigclock{font-family:'Libre Baskerville',Georgia,serif;font-size:3rem;font-variant-numeric:tabular-nums;text-align:center;color:var(--forest);margin:.4rem 0}
+  .seance-acts{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin:.6rem 0}
+  .btn-stop{background:#C9442C;color:#fff;font-size:1.2rem;padding:.8rem 2.2rem}
   .livecard .nm{font-weight:700;font-size:.95rem}
   .livecard .cr{font-size:.75rem;color:var(--muted)}
   .livecard .bpm{font-variant-numeric:tabular-nums;font-size:1.9rem;font-weight:700;line-height:1.1}
@@ -201,6 +207,7 @@
         <button type="button" data-v="detail" class="sel">Détail</button>
         <button type="button" data-v="recap">Récap des groupes</button>
         <button type="button" data-v="inscrits">Inscrits</button>
+        <button type="button" data-v="seance">Lancer l’AMRAP</button>
         <button type="button" data-v="manquants">À vérifier<span class="badge" id="missBadge"></span></button>
       </div>
       <div class="seg" id="fCours">
@@ -349,6 +356,13 @@ let fCours = '', fDate = '', fGenre = '', view = 'detail';
 const genreOf = (uid) => { const p = profiles[uid]; return p && p.date_naissance && (p.sexe === 'F' || p.sexe === 'H') ? p.sexe : null; };
 const genreOk = (uid) => !fGenre || genreOf(uid) === fGenre;
 let protoRows = {};
+let observedPeaks = {};      // uid -> { v, date } : plus haut pic de FC observé (séances fiables)
+/* FC max retenue = la plus haute entre Tanaka et le pic réellement observé chez la personne. */
+function fcMaxRetenue(uid, date) {
+  const p = profiles[uid] || {}, age = ageAt(p.date_naissance, date || dayKey(Date.now())), t = tanaka(age), o = observedPeaks[uid];
+  if (o && (t == null || o.v > t)) return { v: o.v, source: 'pic observé' };
+  return t != null ? { v: t, source: 'Tanaka' } : null;
+}
 let authUsers = null;        // comptes Supabase (migration 11) : id -> { email, created_at, email_confirmed_at, last_sign_in_at }          // id -> ligne protocol_test_results (pour la modification)
 
 async function fetchAll(table, cols) {
@@ -391,7 +405,7 @@ async function loadData() {
   try {
     [profs, hrs, protos, meas] = await Promise.all([
       fetchAll('profiles', 'id,prenom,nom,cours,email,sexe,date_naissance,fc_max,role,created_at,consent_at'),
-      fetchAll('hr_sessions', 'id,user_id,started_at,duration_s,hr_avg,hr_peak,rmssd,zone_seconds'),
+      fetchAll('hr_sessions', '*'),
       fetchAll('protocol_test_results', 'id,participant_id,point_de_test,date_test,test_type,data'),
       fetchAll('measurements', 'id,user_id,type,data,recorded_at'),
     ]);
@@ -418,6 +432,10 @@ async function loadData() {
     return entries.get(k);
   };
   hrs.forEach(r => entry(r.user_id, dayKey(r.started_at)).hr.push(r));
+  // pic de FC réellement observé par adhérent (séances au signal fiable) : sert à la FC max retenue
+  observedPeaks = {};
+  hrs.forEach(r => { if (r.hr_peak && r.hr_peak <= 220 && !(r.qualite && r.qualite.pct_valide < 80) &&
+    (!observedPeaks[r.user_id] || r.hr_peak > observedPeaks[r.user_id].v)) observedPeaks[r.user_id] = { v: r.hr_peak, date: r.started_at }; });
   protoRows = {};
   protos.forEach(r => {
     protoRows[r.id] = r;
@@ -454,29 +472,52 @@ function hrSummary(list) {
   const anyAvg = list.find(s => s.hr_avg != null);
   const avg = wDur ? Math.round(w.reduce((a, s) => a + s.hr_avg * s.duration_s, 0) / wDur) : (anyAvg ? anyAvg.hr_avg : null);
   const peaks = list.map(s => s.hr_peak).filter(v => v != null);
-  const longest = list.slice().sort((a, b) => (b.duration_s || 0) - (a.duration_s || 0))[0];
   const zones = [0, 0, 0, 0, 0, 0];   // secondes par zone (repos, Z1…Z5), toutes séances du jour
   list.forEach(r => Object.entries(r.zone_seconds || {}).forEach(([i, sec]) => { if (zones[i] != null) zones[i] += Number(sec) || 0; }));
-  return { zones, n: list.length, minutes: Math.round(dur / 60), avg, peak: peaks.length ? Math.max(...peaks) : null,
-    rmssd: longest.rmssd != null ? Math.round(longest.rmssd) : null };
+  const q = list.filter(r => r.qualite && r.qualite.pct_valide != null);
+  const qDur = q.reduce((a, r) => a + (r.duration_s || 0), 0);
+  const pctValide = q.length ? Math.round(q.reduce((a, r) => a + r.qualite.pct_valide * (r.duration_s || 0), 0) / (qDur || 1)) : null;
+  return { zones, n: list.length, minutes: Math.round(dur / 60), avg, peak: peaks.length ? Math.max(...peaks) : null, pctValide };
 }
 
-const PROTO_LABELS = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'RFC' };
+const PROTO_LABELS = { questionnaire: 'Questionnaire', grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'Récupération' };
+const CIRCUIT_C1 = [['jacks', 20], ['squats', 10], ['skatings', 10], ['sprawls', 5], ['burpee', 1], ['pompes', 5], ['supermans', 5], ['climbers', 20], ['squat jumps', 5]];
+/* Répétitions totales de l'AMRAP : exactes (nouveau format), ou estimées pour l'ancien format 20 min
+   (tours × 81 + stations terminées avant la dernière station atteinte : valeur basse). */
+function amrapReps(d) {
+  if (d.amrap_reps_totales != null) return { v: num(d.amrap_reps_totales), est: false };
+  const t = num(d.amrap_tours_complets); if (t == null || (d.duree_min || 10) !== 20) return null;
+  const i = CIRCUIT_C1.findIndex(c => c[0] === d.amrap_derniere_station);
+  return { v: t * 81 + (i > 0 ? CIRCUIT_C1.slice(0, i).reduce((a, c) => a + c[1], 0) : 0), est: true };
+}
 const v = (x) => x == null || x === '' ? '—' : frNum(x);
 /* Répétitions par tiers de minute (0–20 s / 20–40 s / 40–60 s), si notées. */
 function thirdsTxt(d, k) { return d[k + '_t1'] != null ? ' [' + d[k + '_t1'] + '/' + d[k + '_t2'] + '/' + d[k + '_t3'] + ']' : ''; }
+// baisse de FC : « −27 » ; une FC qui remonte s'affiche « +3 »
+const drop = (x) => x == null || x === '' ? '—' : x >= 0 ? '−' + frNum(x) : '+' + frNum(-x);
 function protoValue(type, d) {
+  return protoValue0(type, d) + (d.ecart_protocole ? ' ⚠ écart au protocole' : '');
+}
+function protoValue0(type, d) {
   switch (type) {
-    case 'grip': return 'G ' + v(d.force_main_gauche_kg) + ' / D ' + v(d.force_main_droite_kg) + ' kg';
+    case 'questionnaire': return 'sommeil ' + v(d.sommeil_h) + ' h · fatigue ' + v(d.fatigue) + '/10 · malade : ' + (d.malade ? 'oui' : 'non') +
+      (d.heure_seance ? ' · ' + d.heure_seance : '');
+    case 'grip': return 'G ' + v(d.force_main_gauche_kg) + ' / D ' + v(d.force_main_droite_kg) + ' kg' +
+      (d.essais_gauche_kg ? ' (meilleur de 3)' : '') + (d.main_dominante ? ' · dominante ' + d.main_dominante : '');
     case 'pompes': return v(d.pompes_reps) + thirdsTxt(d, 'pompes_reps') + (d.pompes_variante ? ' (' + d.pompes_variante + ')' : '');
-    case 'wallsit': return v(d.wallsit_secondes) + ' s';
+    case 'wallsit': return v(d.wallsit_secondes) + ' s' + (d.wallsit_plafond_atteint ? ' (plafond atteint)' : '');
     case 'rowing': return v(d.rowing_reps) + ' reps' + thirdsTxt(d, 'rowing_reps') + (d.rowing_charge_kg != null ? ' · ' + frNum(d.rowing_charge_kg) + ' kg' : '');
     case 'rdl': return v(d.rdl_reps) + ' reps' + thirdsTxt(d, 'rdl_reps') + (d.rdl_charge_kg != null ? ' · ' + frNum(d.rdl_charge_kg) + ' kg' : '');
-    case 'amrap_cardio': return v(d.amrap_tours_complets) + ' tours' + (d.amrap_derniere_station ? ' (' + d.amrap_derniere_station + ')' : '') +
+    case 'amrap_cardio': return (d.amrap_reps_totales != null ? v(d.amrap_reps_totales) + ' rép. (' + v(d.amrap_tours_complets) + ' tours + ' + v(d.amrap_reps_incomplet) + ')'
+      : v(d.amrap_tours_complets) + ' tours' + (d.amrap_derniere_station ? ' (' + d.amrap_derniere_station + ')' : '')) +
       ' · ' + (d.duree_min || 10) + ' min' + (d.no_impact ? ' · no impact' : '') + (d.rpe != null ? ' · effort ' + d.rpe + '/10' : '') +
       (d.fc_moy_amrap != null ? ' · FC moy ' + d.fc_moy_amrap : '') + (d.fc_pic_amrap != null ? ' / pic ' + d.fc_pic_amrap : '') +
-      (d.fc_amrap_source === 'estimee' ? ' (FC estimée : chrono non lancé)' : '');
-    case 'rfc': return d.rfc_2min != null ? '−' + d.rfc_2min + ' bpm en 2 min' : '—';
+      (d.fc_amrap_source === 'estimee' ? ' (FC estimée : chrono non lancé)' : '') +
+      (d.intensite_pct != null ? ' · intensité ' + d.intensite_pct + ' %' : '') + (d.fc_amrap_valide === false ? ' · FC invalide' : '');
+    case 'rfc':
+      if (d.fc_arret != null || d.hrr60 != null || d.hrr120 != null)
+        return 'HRR60 ' + drop(d.hrr60) + ' · HRR120 ' + drop(d.hrr120) + ' bpm (arrêt ' + v(d.fc_arret) + ')' + (d.valide === false ? ' · invalide' : '');
+      return d.rfc_2min != null ? '−' + d.rfc_2min + ' bpm en 2 min (ancien calcul)' : '—';
     default: return '—';
   }
 }
@@ -522,7 +563,7 @@ function rowHTML(e) {
   const h = hrSummary(e.hr);
   if (h) lines.push('<b>Capteur</b> · ' + h.n + ' séance' + (h.n > 1 ? 's' : '') + ' · ' + h.minutes + ' min' +
     (h.avg != null ? ' · FC moy ' + h.avg : '') + (h.peak != null ? ' / pic ' + h.peak : '') +
-    (h.rmssd != null ? ' · RMSSD ' + h.rmssd : '') +
+    (h.pctValide != null ? ' · données valides ' + h.pctValide + ' %' : '') +
     delBtn('hr_sessions', e.hr.map(r => r.id), 'les séances capteur de ' + who + ' du ' + when, 'Supprimer les séances capteur') +
     zonesHTML(h.zones));
   Object.keys(e.proto).sort().forEach(pt => {
@@ -538,8 +579,9 @@ function rowHTML(e) {
   if (m.length) lines.push('<b>Mesures</b> · ' + m.map(r => esc(measValue(r)) +
     delBtn('measurements', [r.id], 'la mesure « ' + measValue(r) + ' » de ' + who, 'Supprimer cette mesure')).join(' · '));
   const p = profiles[e.uid] || {}, age = ageAt(p.date_naissance, e.date);
+  const fm = fcMaxRetenue(e.uid, e.date);
   const info = [p.date_naissance ? GENRE_LABEL[p.sexe] : null, age != null ? age + ' ans' : null,
-    age != null ? 'FC max ' + tanaka(age) + ' (Tanaka)' : null].filter(Boolean).join(' · ');
+    fm ? 'FC max ' + fm.v + ' (' + fm.source + ')' : null].filter(Boolean).join(' · ');
   const pts = Object.keys(e.proto).sort();
   return '<div class="arow"><div class="nm">' + esc(nameOf(e.uid)) + editBtn('profile', e.uid, 'Modifier le profil') +
     editBtn('add', e.uid, 'Saisir ou compléter des résultats', { point: pts[0] || '', date: e.date }) +
@@ -551,6 +593,7 @@ function render() {
   if (view === 'recap') { updateMissing(); renderRecap(); renderLive(); return; }
   updateMissing();
   if (view === 'inscrits') { renderInscrits(); renderLive(); return; }
+  if (view === 'seance') { renderSeance(); renderLive(); return; }
   if (view === 'manquants') { renderManquants(); renderLive(); return; }
   const list = selected();
   const nbAdh = new Set(list.map(e => e.uid)).size;
@@ -628,16 +671,62 @@ $('#dataView').addEventListener('click', async (ev) => {
 const POMPES_VARIANTES = ['genoux sans gainage', 'genoux avec gainage', 'jambes tendues'];
 const STATIONS = ['jacks', 'squats', 'skatings', 'sprawls', 'burpee', 'pompes', 'supermans', 'climbers', 'squat jumps'];
 const EDIT_FIELDS = {   // [clé, libellé, type, options]
-  grip: [['force_main_gauche_kg', 'Main gauche (kg)', 'number'], ['force_main_droite_kg', 'Main droite (kg)', 'number']],
+  questionnaire: [['sommeil_h', 'Sommeil (heures)', 'number'], ['fatigue', 'Fatigue (1 à 10)', 'number'], ['heure_seance', 'Heure de la séance (hh:mm)', 'text'],
+    ['malade', 'Malade le jour du test', 'checkbox']],
+  grip: [['essai_g1', 'Gauche — essai 1', 'number'], ['essai_d1', 'Droite — essai 1', 'number'], ['essai_g2', 'Gauche — essai 2', 'number'],
+    ['essai_d2', 'Droite — essai 2', 'number'], ['essai_g3', 'Gauche — essai 3', 'number'], ['essai_d3', 'Droite — essai 3', 'number'],
+    ['force_main_gauche_kg', 'Gauche — meilleur (kg)', 'number'], ['force_main_droite_kg', 'Droite — meilleur (kg)', 'number'],
+    ['main_dominante', 'Main dominante', 'select', ['droite', 'gauche', 'ambidextre']]],
   pompes: [['pompes_reps', 'Répétitions', 'number'], ['pompes_variante', 'Variante', 'select', POMPES_VARIANTES]],
-  wallsit: [['wallsit_secondes', 'Durée tenue (s)', 'number']],
+  wallsit: [['wallsit_secondes', 'Durée tenue (s)', 'number'], ['wallsit_plafond_atteint', 'Plafond de 300 s atteint', 'checkbox']],
   rowing: [['rowing_reps', 'Répétitions', 'number'], ['rowing_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
   rdl: [['rdl_reps', 'Répétitions', 'number'], ['rdl_charge_kg', 'Charge totale (kg, barre + disques)', 'number']],
-  amrap_cardio: [['amrap_tours_complets', 'Tours complets', 'number'], ['amrap_derniere_station', 'Dernière station', 'select', STATIONS],
+  amrap_cardio: [['amrap_tours_complets', 'Tours complets', 'number'], ['amrap_reps_incomplet', 'Rép. du tour incomplet', 'number'],
     ['no_impact', 'No impact (sans saut)', 'checkbox'], ['duree_min', 'Durée (min)', 'number'], ['rpe', 'Effort ressenti (0–10)', 'number'],
     ['fc_moy_amrap', 'FC moyenne', 'number'], ['fc_pic_amrap', 'FC pic', 'number']],
-  rfc: [['fc_pic', 'FC fin d’effort', 'number'], ['fc_2min', 'FC à 2 min', 'number']],
+  rfc: [['fc_arret', 'FC à l’arrêt', 'number'], ['fc_60', 'FC à 60 s', 'number'], ['fc_120', 'FC à 120 s', 'number']],
 };
+// champs de l'ancien format, affichés seulement s'ils existent dans le résultat
+const LEGACY_FIELDS = { amrap_cardio: [['amrap_derniere_station', 'Dernière station (ancien format)', 'select', STATIONS]],
+  rfc: [['fc_pic', 'FC fin d’effort (ancien calcul)', 'number'], ['fc_2min', 'FC à 2 min (ancien calcul)', 'number']] };
+function editDefs(type, d) {
+  return (EDIT_FIELDS[type] || []).concat((LEGACY_FIELDS[type] || []).filter(f => d && d[f[0]] != null));
+}
+// les essais de préhension sont stockés en tableaux : on les déplie pour le formulaire
+function expandForEdit(type, d) {
+  const o = Object.assign({}, d || {});
+  if (type === 'grip') ['gauche', 'droite'].forEach(m => (o['essais_' + m + '_kg'] || []).forEach((x, i) => { o['essai_' + m[0] + (i + 1)] = x; }));
+  return o;
+}
+/* Après correction ou saisie : essais → meilleur, total AMRAP, intensité, HRR et validité de la récupération. */
+function normalizeTestData(type, d, uid, date) {
+  if (type === 'grip') ['gauche', 'droite'].forEach(m => {
+    const keys = [1, 2, 3].map(i => 'essai_' + m[0] + i), arr = keys.map(k => num(d[k]));
+    keys.forEach(k => delete d[k]);
+    if (arr.some(x => x != null)) { d['essais_' + m + '_kg'] = arr; d['force_main_' + m + '_kg'] = Math.max(...arr.filter(x => x != null)); }
+    else delete d['essais_' + m + '_kg'];
+  });
+  if (type === 'wallsit' && num(d.wallsit_secondes) >= 300) d.wallsit_plafond_atteint = true;
+  if (type === 'amrap_cardio') {
+    if (d.amrap_tours_complets != null && (d.amrap_reps_incomplet != null || d.circuit_version)) {
+      d.reps_par_tour = d.reps_par_tour || 81; d.circuit_version = d.circuit_version || 'C1-2026-10';
+      d.amrap_reps_totales = d.amrap_tours_complets * d.reps_par_tour + (d.amrap_reps_incomplet || 0);
+    }
+    const fm = fcMaxRetenue(uid, date);
+    if (d.fc_moy_amrap != null && fm) { d.fc_max_retenue = d.fc_max_retenue || fm.v; d.intensite_pct = Math.round(d.fc_moy_amrap / d.fc_max_retenue * 100); }
+  }
+  if (type === 'rfc') {
+    if (d.fc_arret != null) {
+      if (d.fc_60 != null) d.hrr60 = d.fc_arret - d.fc_60; else delete d.hrr60;
+      if (d.fc_120 != null) d.hrr120 = d.fc_arret - d.fc_120; else delete d.hrr120;
+      const motifs = String(d.motifs_invalidite || '').split(' ; ').filter(m => m && m !== 'FC à 120 s ≥ FC à l’arrêt');
+      if (d.fc_120 != null && d.fc_120 >= d.fc_arret) motifs.push('FC à 120 s ≥ FC à l’arrêt');
+      d.valide = !motifs.length; if (motifs.length) d.motifs_invalidite = motifs.join(' ; '); else delete d.motifs_invalidite;
+    }
+    if (d.fc_pic != null && d.fc_2min != null) d.rfc_2min = d.fc_pic - d.fc_2min; else delete d.rfc_2min;
+  }
+  return d;
+}
 let editSave = null;
 
 function fieldHTML([key, label, type, options], val) {
@@ -669,7 +758,7 @@ $('#editForm').addEventListener('submit', async (ev) => {
 
 function editProto(id) {
   const r = protoRows[id]; if (!r) return;
-  const d = r.data || {}, defs = EDIT_FIELDS[r.test_type] || [];
+  const d = expandForEdit(r.test_type, r.data), defs = editDefs(r.test_type, r.data);
   const html = '<div class="grid2">' +
       fieldHTML(['point_de_test', 'Point de test', 'select', ['T0', 'T1', 'T2', 'T3']], r.point_de_test) +
       fieldHTML(['date_test', 'Date', 'date'], r.date_test) + '</div>' +
@@ -687,11 +776,7 @@ function editProto(id) {
         data[key] = n;
       } else data[key] = raw;
     }
-    const tk = { pompes: 'pompes_reps', rowing: 'rowing_reps', rdl: 'rdl_reps' }[r.test_type];
-    if (tk && [1, 2, 3].every(i => data[tk + '_t' + i] != null)) data[tk] = data[tk + '_t1'] + data[tk + '_t2'] + data[tk + '_t3'];   // total = somme des tiers
-    if (r.test_type === 'rfc') {   // la baisse de FC suit les deux mesures
-      if (data.fc_pic != null && data.fc_2min != null) data.rfc_2min = data.fc_pic - data.fc_2min; else delete data.rfc_2min;
-    }
+    normalizeTestData(r.test_type, data, r.participant_id, fd.get('date_test') || r.date_test);
     const point = fd.get('point_de_test') || r.point_de_test, date = fd.get('date_test') || r.date_test;
     const { data: res, error } = await sb.from('protocol_test_results')
       .update({ data, point_de_test: point, date_test: date }).eq('id', r.id).select('id');
@@ -744,9 +829,9 @@ $('#dataView').addEventListener('click', (ev) => {
    seul formulaire. Les tests déjà enregistrés sont préremplis et complétés,
    les nouveaux sont créés.
    ===================================================================== */
-const SAISIE_ORDER = ['grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
-const SAISIE_LABELS = { grip: 'Force de préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing barre', rdl: 'RDL barre',
-  amrap_cardio: 'AMRAP Cardio', rfc: 'Récupération FC (RFC)' };
+const SAISIE_ORDER = ['questionnaire', 'grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
+const SAISIE_LABELS = { questionnaire: 'Questionnaire avant le test', grip: 'Force de préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing barre', rdl: 'RDL barre',
+  amrap_cardio: 'AMRAP Cardio', rfc: 'Récupération cardiaque (FC à l’arrêt, à 60 s, à 120 s)' };
 
 function existingFor(uid, point) {
   const out = {};
@@ -761,12 +846,12 @@ function renderSaisieTests() {
   if (dates.length) form.elements.s_date.value = dates[dates.length - 1];
   setTimeout(renderAmrapHint, 0);
   $('#saisieTests').innerHTML = SAISIE_ORDER.map(type => {
-    const r = ex[type], d = r ? r.data || {} : {};
-    const defs = EDIT_FIELDS[type];
+    const r = ex[type], d = r ? expandForEdit(type, r.data) : {};
+    const defs = editDefs(type, r && r.data);
     const val = (k) => d[k] != null ? d[k] : (!r && type === 'amrap_cardio' && k === 'duree_min' ? 20 : null);
     return '<fieldset><legend>' + SAISIE_LABELS[type] + '<small>' + (r ? 'déjà enregistré — complète ou corrige' : 'pas encore saisi') + '</small></legend>' +
       (type === 'amrap_cardio' ? '<div id="amrapHint"></div>' : '') +
-      '<div class="grid3">' + defs.filter(f => f[2] !== 'checkbox').map(f => fieldHTML([type + '__' + f[0], f[1], f[2], f[3]], val(f[0]))).join('') + '</div>' +
+      '<div class="' + (type === 'grip' ? 'grid2' : 'grid3') + '">' + defs.filter(f => f[2] !== 'checkbox').map(f => fieldHTML([type + '__' + f[0], f[1], f[2], f[3]], val(f[0]))).join('') + '</div>' +
       defs.filter(f => f[2] === 'checkbox').map(f => fieldHTML([type + '__' + f[0], f[1], f[2]], val(f[0]))).join('') + '</fieldset>';
   }).join('');
 }
@@ -815,9 +900,9 @@ async function saveSaisie(fd, form) {
   if (!point || !date) { toast('Point de test et date obligatoires.'); return false; }
   const ex = existingFor(uid, point), inserts = [], updates = [];
   for (const type of SAISIE_ORDER) {
-    const r = ex[type], data = Object.assign({}, r ? r.data : {});
+    const r = ex[type], data = expandForEdit(type, r ? r.data : {});
     let filled = false;
-    for (const [key, label, ftype] of EDIT_FIELDS[type]) {
+    for (const [key, label, ftype] of editDefs(type, r && r.data)) {
       const name = type + '__' + key;
       if (ftype === 'checkbox') { if (form.elements[name].checked) { data[key] = true; filled = true; } else if (key in data) data[key] = false; continue; }
       const raw = String(fd.get(name) || '').trim();
@@ -830,7 +915,7 @@ async function saveSaisie(fd, form) {
       if (!(type === 'amrap_cardio' && key === 'duree_min')) filled = true;   // la durée préremplie seule ne crée pas de test
     }
     if (!r && !filled) continue;
-    if (type === 'rfc') { if (data.fc_pic != null && data.fc_2min != null) data.rfc_2min = data.fc_pic - data.fc_2min; else delete data.rfc_2min; }
+    normalizeTestData(type, data, uid, date);
     if (type === 'rowing' && !r) data.rowing_modalite = 'barre';
     if (r) {   // test existant : mis à jour seulement s'il a changé (ou si la date change)
       if (stableJson(data) !== stableJson(r.data || {}) || r.date_test !== date) updates.push({ id: r.id, data });
@@ -877,12 +962,18 @@ const RECAP_INDICATORS = [
   { label: 'Wall-sit', unit: 's', type: 'wallsit', get: d => num(d.wallsit_secondes), better: 1 },
   { label: 'Rowing', unit: 'reps', type: 'rowing', get: d => num(d.rowing_reps), better: 1 },
   { label: 'RDL', unit: 'reps', type: 'rdl', get: d => num(d.rdl_reps), better: 1 },
+  { label: 'AMRAP 20 min — répétitions totales', unit: 'rép.', type: 'amrap_cardio', get: d => { const r = amrapReps(d); return r ? r.v : null; }, better: 1 },
   { label: 'AMRAP 20 min — tours complets', unit: 'tours', type: 'amrap_cardio', get: d => (d.duree_min || 10) === 20 ? num(d.amrap_tours_complets) : null, better: 1 },
   { label: 'AMRAP 10 min (ancien format) — tours', unit: 'tours', type: 'amrap_cardio', get: d => (d.duree_min || 10) === 10 ? num(d.amrap_tours_complets) : null, better: 1, optional: true },
   { label: 'AMRAP — effort ressenti', unit: '/10', type: 'amrap_cardio', get: d => num(d.rpe), better: 0, optional: true },
-  { label: 'AMRAP — FC moyenne', unit: 'bpm', type: 'amrap_cardio', get: d => num(d.fc_moy_amrap), better: 0 },
-  { label: 'AMRAP — FC pic', unit: 'bpm', type: 'amrap_cardio', get: d => num(d.fc_pic_amrap), better: 0 },
-  { label: 'RFC — baisse de FC en 2 min', unit: 'bpm', type: 'rfc', get: d => num(d.rfc_2min), better: 1 },
+  { label: 'AMRAP — FC moyenne', unit: 'bpm', type: 'amrap_cardio', get: d => d.fc_amrap_valide === false ? null : num(d.fc_moy_amrap), better: 0 },
+  { label: 'AMRAP — FC pic', unit: 'bpm', type: 'amrap_cardio', get: d => d.fc_amrap_valide === false ? null : num(d.fc_pic_amrap), better: 0 },
+  { label: 'AMRAP — intensité', unit: '% FC max', type: 'amrap_cardio', get: d => d.fc_amrap_valide === false ? null : num(d.intensite_pct), better: 0, optional: true },
+  { label: 'Récupération — HRR60', unit: 'bpm', type: 'rfc', get: d => d.valide === false ? null : num(d.hrr60), better: 1, optional: true },
+  { label: 'Récupération — HRR120', unit: 'bpm', type: 'rfc', get: d => d.valide === false ? null : num(d.hrr120), better: 1, optional: true },
+  { label: 'RFC — baisse en 2 min (ancien calcul : pic − FC à 2 min)', unit: 'bpm', type: 'rfc', get: d => num(d.rfc_2min), better: 1, optional: true },
+  { label: 'Sommeil la nuit précédente', unit: 'h', type: 'questionnaire', get: d => num(d.sommeil_h), better: 0, optional: true },
+  { label: 'Fatigue avant le test', unit: '/10', type: 'questionnaire', get: d => num(d.fatigue), better: 0, optional: true },
 ];
 
 function stats(vals) {
@@ -911,6 +1002,8 @@ function computeRecap(rows) {
   points.forEach(p => {
     const uids = Object.keys(byPoint[p]);
     demo[p] = { f: uids.filter(u => genreOf(u) === 'F').length, h: uids.filter(u => genreOf(u) === 'H').length,
+      malades: uids.filter(u => byPoint[p][u].questionnaire && byPoint[p][u].questionnaire.malade).length,
+      ecarts: uids.filter(u => Object.values(byPoint[p][u]).some(t => t.ecart_protocole)).length,
       age: stats(uids.map(u => ageAt((profiles[u] || {}).date_naissance, dateOf[p][u])).filter(a => a != null)) };
   });
   const noImpact = {}; points.forEach(p => { noImpact[p] = Object.values(byPoint[p]).filter(t => t.amrap_cardio && t.amrap_cardio.no_impact).length; });
@@ -960,7 +1053,9 @@ function recapTable(title, rec) {
         const st = l.per[p];
         return '<td>' + (st ? '<b>' + frNum(r1(st.mean)) + '</b><small>' + frNum(r1(st.min)) + '–' + frNum(r1(st.max)) + ' · n = ' + st.n + '</small>' : '—') + '</td>';
       }).join('') + '<td>' + evoHTML(l.ind, l.evo) + '</td></tr>').join('') +
-    '<tr><td>AMRAP en « no impact » <small>adhérents</small></td>' + rec.points.map(p => '<td>' + rec.noImpact[p] + '</td>').join('') + '<td></td></tr>';
+    '<tr><td>AMRAP en « no impact » <small>adhérents</small></td>' + rec.points.map(p => '<td>' + rec.noImpact[p] + '</td>').join('') + '<td></td></tr>' +
+    '<tr><td>Malades le jour du test <small>adhérents</small></td>' + rec.points.map(p => '<td>' + rec.demo[p].malades + '</td>').join('') + '<td></td></tr>' +
+    '<tr><td>Écart au protocole <small>adhérents concernés</small></td>' + rec.points.map(p => '<td>' + rec.demo[p].ecarts + '</td>').join('') + '<td></td></tr>';
   return '<section class="panel"><div class="recaphead"><h2>' + esc(title) + '</h2></div>' +
     '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Indicateur</th>' + th + '<th>Évolution</th></tr></thead><tbody>' +
     body + '</tbody></table></div></section>';
@@ -987,7 +1082,9 @@ function renderRecap() {
       '<p class="recapnote">' + esc(scope.charAt(0).toUpperCase() + scope.slice(1)) + '. Chaque case : <b>moyenne</b>, puis min–max et nombre ' +
       'd’adhérents. Évolution : écart moyen entre le premier et le dernier point de test, calculé uniquement sur les adhérents ' +
       'présents aux deux (vert = progrès, pour les indicateurs où plus haut est mieux ; la FC est neutre). Pompes : une ligne par ' +
-      'variante, pour ne comparer que des résultats comparables.</p></div>' +
+      'variante, pour ne comparer que des résultats comparables. Les mesures de FC invalides (artefacts, coupures, signal plat) ' +
+      'sont exclues. AMRAP : répétitions exactes, ou estimées pour l’ancien format (tours × 81 + stations terminées, valeur basse). ' +
+      'HRR60 / HRR120 (FC à l’arrêt − FC à 60 s / 120 s) ne sont pas comparables à l’ancien calcul de la RFC (pic − FC à 2 min).</p></div>' +
     (groups.map(g => recapTable(g.title, g.rec)).join('') || '<div class="panel empty">Aucun résultat de protocole pour cette sélection.</div>');
   const bp = $('#btnRecapPrint'); if (bp) bp.addEventListener('click', () => window.print());
   const bc = $('#btnRecapCsv'); if (bc) bc.addEventListener('click', () => {
@@ -1017,6 +1114,8 @@ function recapTableRows(groups) {
       lines.push(row);
     });
     lines.push([title, 'AMRAP en no impact', 'adhérents'].concat(...POINTS.map(p => [rec.noImpact[p] ?? '', '', '', '', '', '']), ['', '', '', '', '']));
+    lines.push([title, 'Malades le jour du test', 'adhérents'].concat(...POINTS.map(p => [rec.demo[p] ? rec.demo[p].malades : '', '', '', '', '', '']), ['', '', '', '', '']));
+    lines.push([title, 'Écart au protocole', 'adhérents'].concat(...POINTS.map(p => [rec.demo[p] ? rec.demo[p].ecarts : '', '', '', '', '', '']), ['', '', '', '', '']));
   });
   return lines;
 }
@@ -1050,10 +1149,20 @@ const REQUIRED = {   // [clé, libellé, fc = mesure du capteur]
   rowing: [['rowing_reps', 'répétitions'], ['rowing_charge_kg', 'charge']],
   rdl: [['rdl_reps', 'répétitions'], ['rdl_charge_kg', 'charge']],
   amrap_cardio: [['amrap_tours_complets', 'tours'], ['rpe', 'effort ressenti'], ['fc_moy_amrap', 'FC moyenne', true], ['fc_pic_amrap', 'FC pic', true]],
-  rfc: [['fc_pic', 'FC fin d’effort', true], ['fc_2min', 'FC à 2 min', true]],
+  rfc: [],
+  questionnaire: [['sommeil_h', 'sommeil'], ['fatigue', 'fatigue']],
 };
-const MISS_TYPES = ['grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
-const MISS_LABELS = { grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'RFC' };
+const MISS_TYPES = ['questionnaire', 'grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
+// nouveau format (depuis la refonte du protocole) : les nouvelles valeurs sont attendues
+const newFormat = (tests) => Object.values(tests).some(d => !d.saisi_par_coach && (d.essais_gauche_kg || d.circuit_version || d.sommeil_h != null));
+function requiredFor(t, d, nf) {
+  if (t === 'grip') return REQUIRED.grip.concat(d.essais_gauche_kg ? [['main_dominante', 'main dominante']] : []);
+  if (t === 'amrap_cardio') return REQUIRED.amrap_cardio.concat(d.circuit_version ? [['amrap_reps_incomplet', 'rép. du tour incomplet']] : []);
+  if (t === 'rfc') return d.fc_pic != null && d.fc_arret == null ? [['fc_pic', 'FC fin d’effort', true], ['fc_2min', 'FC à 2 min', true]]
+    : [['fc_arret', 'FC à l’arrêt', true], ['fc_60', 'FC à 60 s', true], ['fc_120', 'FC à 120 s', true]];
+  return REQUIRED[t] || [];
+}
+const MISS_LABELS = { questionnaire: 'Questionnaire', grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'Récupération' };
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 let missWithFc = lsGet('vs-miss-fc', true);         // inclure les FC non mesurées (pas de capteur)
@@ -1070,10 +1179,12 @@ function missingItems() {
   });
   return Object.values(by).filter(x => (!fCours || coursOf(x.uid) === fCours) && genreOk(x.uid)).map(x => {
     const miss = [];
+    const nf = newFormat(x.tests);
     MISS_TYPES.forEach(t => {
       const d = x.tests[t];
-      if (!d) { miss.push({ label: MISS_LABELS[t] + ' — test non saisi', test: true, fc: t === 'rfc' }); return; }
-      REQUIRED[t].forEach(([k, l, fc]) => { if (d[k] == null || d[k] === '') miss.push({ label: MISS_LABELS[t] + ' : ' + l, fc: !!fc }); });
+      if (t === 'questionnaire' && !d && !nf) return;   // le questionnaire n'existait pas encore (ancien format)
+      if (!d) { miss.push({ label: MISS_LABELS[t] + ' — ' + (t === 'questionnaire' ? 'non rempli' : 'test non saisi'), test: true, fc: t === 'rfc' }); return; }
+      requiredFor(t, d, nf).forEach(([k, l, fc]) => { if (d[k] == null || d[k] === '') miss.push({ label: MISS_LABELS[t] + ' : ' + l, fc: !!fc }); });
     });
     const shown = miss.filter(m => missWithFc || !m.fc);
     const sig = x.uid + '|' + x.point + '|' + shown.map(m => m.label).join(',');
@@ -1094,17 +1205,22 @@ let anomOk = lsGet('vs-anom-ok', {});   // anomalies validées par le coach (sur
 const ANOM_LIMITS = {   // [test, clé, libellé, min plausible, max plausible, unité]
   grip: [['force_main_gauche_kg', 'Préhension gauche', 5, 90, 'kg'], ['force_main_droite_kg', 'Préhension droite', 5, 90, 'kg']],
   pompes: [['pompes_reps', 'Pompes', 1, 75, 'reps']],
-  wallsit: [['wallsit_secondes', 'Wall-sit', 5, 180, 's']],
+  wallsit: [['wallsit_secondes', 'Wall-sit', 5, 300, 's']],
+  questionnaire: [['sommeil_h', 'Sommeil', 2, 14, 'h'], ['fatigue', 'Fatigue', 1, 10, '/10']],
   rowing: [['rowing_reps', 'Rowing', 1, 70, 'reps'], ['rowing_charge_kg', 'Rowing — charge', 8, 120, 'kg']],
   rdl: [['rdl_reps', 'RDL', 1, 70, 'reps'], ['rdl_charge_kg', 'RDL — charge', 8, 200, 'kg']],
-  amrap_cardio: [['amrap_tours_complets', 'AMRAP — tours', 1, 20, 'tours'], ['fc_moy_amrap', 'AMRAP — FC moyenne', 70, 215, 'bpm'],
+  amrap_cardio: [['amrap_tours_complets', 'AMRAP — tours', 1, 20, 'tours'], ['amrap_reps_totales', 'AMRAP — répétitions', 40, 1700, 'rép.'],
+    ['fc_moy_amrap', 'AMRAP — FC moyenne', 70, 215, 'bpm'], ['intensite_pct', 'AMRAP — intensité', 50, 105, '% FC max'],
     ['fc_pic_amrap', 'AMRAP — FC pic', 90, 225, 'bpm']],
-  rfc: [['fc_pic', 'RFC — FC fin d’effort', 90, 225, 'bpm'], ['fc_2min', 'RFC — FC à 2 min', 50, 200, 'bpm'], ['rfc_2min', 'RFC — baisse en 2 min', 1, 80, 'bpm']],
+  rfc: [['fc_pic', 'RFC — FC fin d’effort', 90, 225, 'bpm'], ['fc_2min', 'RFC — FC à 2 min', 50, 200, 'bpm'], ['rfc_2min', 'RFC — baisse en 2 min', 1, 80, 'bpm'],
+    ['fc_arret', 'Récup — FC à l’arrêt', 90, 225, 'bpm'], ['fc_60', 'Récup — FC à 60 s', 50, 210, 'bpm'], ['fc_120', 'Récup — FC à 120 s', 40, 200, 'bpm'],
+    ['hrr60', 'Récup — HRR60', 1, 80, 'bpm'], ['hrr120', 'Récup — HRR120', 1, 100, 'bpm']],
 };
 // indicateurs comparés au groupe et d'un point de test à l'autre
 const ANOM_GROUP = [['grip', 'force_main_gauche_kg', 'Préhension gauche'], ['grip', 'force_main_droite_kg', 'Préhension droite'],
   ['pompes', 'pompes_reps', 'Pompes'], ['wallsit', 'wallsit_secondes', 'Wall-sit'], ['rowing', 'rowing_reps', 'Rowing'],
-  ['rdl', 'rdl_reps', 'RDL'], ['amrap_cardio', 'amrap_tours_complets', 'AMRAP — tours'], ['rfc', 'rfc_2min', 'RFC — baisse']];
+  ['rdl', 'rdl_reps', 'RDL'], ['amrap_cardio', 'amrap_tours_complets', 'AMRAP — tours'], ['amrap_cardio', 'amrap_reps_totales', 'AMRAP — répétitions'],
+  ['rfc', 'rfc_2min', 'RFC — baisse'], ['rfc', 'hrr60', 'HRR60'], ['rfc', 'hrr120', 'HRR120']];
 // conditions qui doivent rester identiques au T0 pour comparer
 const ANOM_COND = [['pompes', 'pompes_variante', 'variante de pompes'], ['rowing', 'rowing_charge_kg', 'charge du rowing'],
   ['rdl', 'rdl_charge_kg', 'charge du RDL'], ['amrap_cardio', 'no_impact', 'option no impact'], ['amrap_cardio', 'duree_min', 'durée de l’AMRAP']];
@@ -1141,7 +1257,12 @@ function anomalies() {
     if (r.test_type === 'rfc') {
       const a = num(d.fc_pic), b = num(d.fc_2min);
       if (a != null && b != null && b >= a) add(r, 'RFC', a + ' → ' + b + ' bpm', 'la FC n’a pas baissé après 2 min : mesure ou saisie à vérifier', 'err');
+      if (d.valide === false) add(r, 'Récupération', 'arrêt ' + fmtV(d.fc_arret) + ' → 60 s ' + fmtV(d.fc_60) + ' → 120 s ' + fmtV(d.fc_120),
+        'mesure invalide : ' + (d.motifs_invalidite || 'motif non précisé'), 'err');
     }
+    if (r.test_type === 'amrap_cardio' && d.fc_amrap_valide === false)
+      add(r, 'AMRAP — FC', 'moy ' + fmtV(d.fc_moy_amrap) + ' / pic ' + fmtV(d.fc_pic_amrap), 'FC invalide : ' + (d.fc_amrap_motifs || 'motif non précisé'), 'verif');
+    if (r.test_type === 'questionnaire' && d.malade) add(r, 'Questionnaire', 'malade le jour du test', 'résultats à interpréter avec prudence', 'verif');
     if (r.date_test > today && !futur[r.participant_id + r.point_de_test]) { futur[r.participant_id + r.point_de_test] = 1; add(r, 'Date du test', frDay(r.date_test + 'T12:00:00'), 'date dans le futur', 'err'); }
   });
   // 2. valeurs très éloignées du reste du groupe (même point de test, même variante pour les pompes)
@@ -1186,6 +1307,9 @@ function anomalies() {
     if (age != null && (age < 14 || age > 95)) add(null, 'Date de naissance', frDay(p.date_naissance + 'T12:00:00') + ' (' + age + ' ans)', 'âge inhabituel : date de naissance à vérifier', 'verif', p.id);
   });
   Array.from(entries.values()).filter(e => ok(e.uid)).forEach(e => e.hr.forEach(h => {
+    if (h.qualite && h.qualite.pct_valide != null && h.qualite.pct_valide < 80)
+      add(null, 'Séance capteur', h.qualite.pct_valide + ' % de données valides', 'signal de mauvaise qualité (' + (h.qualite.artefacts || 0) + ' artefacts, ' +
+        (h.qualite.coupures_5s || 0) + ' coupures > 5 s, ' + (h.qualite.plat_s || 0) + ' s de signal plat)', 'verif', e.uid);
     if ((h.hr_peak != null && h.hr_peak > 225) || (h.hr_avg != null && h.duration_s > 300 && h.hr_avg < 45))
       add(null, 'Séance capteur', 'moy ' + (h.hr_avg ?? '—') + ' / pic ' + (h.hr_peak ?? '—') + ' bpm', 'valeurs de FC aberrantes : capteur mal placé ou mal humidifié ?', 'verif', e.uid);
   }));
@@ -1380,16 +1504,29 @@ $('#dataView').addEventListener('click', async (ev) => {
 /* =====================================================================
    Export CSV de la sélection (cours + date) — valeurs brutes
    ===================================================================== */
+const essai = (m, i) => (d) => (d['essais_' + m + '_kg'] || [])[i];
 const EXPORT_COLUMNS = [
+  ['questionnaire_sommeil_h', 'questionnaire', 'sommeil_h'], ['questionnaire_fatigue', 'questionnaire', 'fatigue'],
+  ['questionnaire_malade', 'questionnaire', 'malade'], ['heure_seance', 'questionnaire', 'heure_seance'],
   ['prehension_gauche_kg', 'grip', 'force_main_gauche_kg'], ['prehension_droite_kg', 'grip', 'force_main_droite_kg'],
+  ['prehension_g_essai1', 'grip', essai('gauche', 0)], ['prehension_g_essai2', 'grip', essai('gauche', 1)], ['prehension_g_essai3', 'grip', essai('gauche', 2)],
+  ['prehension_d_essai1', 'grip', essai('droite', 0)], ['prehension_d_essai2', 'grip', essai('droite', 1)], ['prehension_d_essai3', 'grip', essai('droite', 2)],
+  ['main_dominante', 'grip', 'main_dominante'],
   ['pompes_reps', 'pompes', 'pompes_reps'], ['pompes_variante', 'pompes', 'pompes_variante'],
-  ['wallsit_s', 'wallsit', 'wallsit_secondes'],
+  ['wallsit_s', 'wallsit', 'wallsit_secondes'], ['wallsit_plafond_atteint', 'wallsit', 'wallsit_plafond_atteint'],
   ['rowing_reps', 'rowing', 'rowing_reps'], ['rowing_modalite', 'rowing', 'rowing_modalite'], ['rowing_charge_kg', 'rowing', 'rowing_charge_kg'],
   ['rdl_reps', 'rdl', 'rdl_reps'], ['rdl_charge_kg', 'rdl', 'rdl_charge_kg'],
-  ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'], ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],
+  ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'], ['amrap_reps_tour_incomplet', 'amrap_cardio', 'amrap_reps_incomplet'],
+  ['amrap_reps_totales', 'amrap_cardio', (d) => { const r = amrapReps(d); return r && !r.est ? r.v : null; }],
+  ['amrap_reps_totales_estimees_ancien_format', 'amrap_cardio', (d) => { const r = amrapReps(d); return r && r.est ? r.v : null; }],
+  ['amrap_circuit_version', 'amrap_cardio', 'circuit_version'], ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],
   ['amrap_duree_min', 'amrap_cardio', 'duree_min'], ['amrap_no_impact', 'amrap_cardio', 'no_impact'], ['amrap_effort_ressenti', 'amrap_cardio', 'rpe'],
   ['amrap_fc_moy', 'amrap_cardio', 'fc_moy_amrap'], ['amrap_fc_pic', 'amrap_cardio', 'fc_pic_amrap'], ['amrap_fc_source', 'amrap_cardio', 'fc_amrap_source'],
-  ['rfc_fc_fin_effort', 'rfc', 'fc_pic'], ['rfc_fc_2min', 'rfc', 'fc_2min'], ['rfc_baisse_bpm', 'rfc', 'rfc_2min'],
+  ['amrap_fc_valide', 'amrap_cardio', 'fc_amrap_valide'], ['amrap_fc_motifs_invalidite', 'amrap_cardio', 'fc_amrap_motifs'],
+  ['amrap_fc_max_retenue', 'amrap_cardio', 'fc_max_retenue'], ['amrap_intensite_pct_fc_max', 'amrap_cardio', 'intensite_pct'],
+  ['recup_fc_arret', 'rfc', 'fc_arret'], ['recup_fc_60s', 'rfc', 'fc_60'], ['recup_fc_120s', 'rfc', 'fc_120'],
+  ['hrr60', 'rfc', 'hrr60'], ['hrr120', 'rfc', 'hrr120'], ['recup_valide', 'rfc', 'valide'], ['recup_motifs_invalidite', 'rfc', 'motifs_invalidite'],
+  ['rfc_ancien_fc_fin_effort', 'rfc', 'fc_pic'], ['rfc_ancien_fc_2min', 'rfc', 'fc_2min'], ['rfc_ancien_baisse_bpm', 'rfc', 'rfc_2min'],
 ];
 function csvCell(x) {
   if (x == null) return '';
@@ -1407,9 +1544,10 @@ function atelierDepart(tests) {
   return k ? ATELIER_LABELS[k] : '';
 }
 function resultsTable(list) {
-  const head = ['date', 'cours', 'nom', 'prenom', 'email', 'genre', 'age', 'fc_max_tanaka', 'seances_capteur', 'duree_capteur_min', 'fc_moy', 'fc_pic', 'rmssd',
+  const head = ['date', 'cours', 'nom', 'prenom', 'email', 'genre', 'age', 'fc_max_tanaka', 'fc_max_retenue', 'fc_max_source', 'seances_capteur',
+    'duree_capteur_min', 'fc_moy', 'fc_pic', 'donnees_valides_pct',
     'temps_repos_s', 'temps_z1_s', 'temps_z2_s', 'temps_z3_s', 'temps_z4_s', 'temps_z5_s', 'point_de_test', 'atelier_depart']
-    .concat(EXPORT_COLUMNS.map(c => c[0]), ['autres_mesures']);
+    .concat(EXPORT_COLUMNS.map(c => c[0]), ['ecart_protocole', 'autres_mesures']);
   const lines = [head];
   list.slice().sort((a, b) => b.date.localeCompare(a.date) || coursOf(a.uid).localeCompare(coursOf(b.uid)) ||
     nameOf(a.uid).localeCompare(nameOf(b.uid), 'fr')).forEach(e => {
@@ -1420,8 +1558,11 @@ function resultsTable(list) {
     (points.length ? points : ['']).forEach(pt => {
       const tests = pt ? e.proto[pt] : {};
       const age = ageAt(p.date_naissance, e.date);
-      lines.push([e.date, coursOf(e.uid), p.nom, p.prenom, p.email, p.date_naissance ? GENRE_LABEL[p.sexe] : '', age, tanaka(age), h.n, h.minutes, h.avg, h.peak, h.rmssd].concat((h.zones || []).length ? h.zones.map(Math.round) : ['', '', '', '', '', ''], [pt, atelierDepart(tests)])
-        .concat(EXPORT_COLUMNS.map(([, type, key]) => (tests[type] || {})[key]), [autres]));
+      const fm = fcMaxRetenue(e.uid, e.date) || {};
+      const ecarts = Object.keys(PROTO_LABELS).filter(t => tests[t] && tests[t].ecart_protocole).map(t => PROTO_LABELS[t] + ' : ' + tests[t].ecart_protocole).join(' | ');
+      lines.push([e.date, coursOf(e.uid), p.nom, p.prenom, p.email, p.date_naissance ? GENRE_LABEL[p.sexe] : '', age, tanaka(age), fm.v, fm.source,
+        h.n, h.minutes, h.avg, h.peak, h.pctValide].concat((h.zones || []).length ? h.zones.map(Math.round) : ['', '', '', '', '', ''], [pt, atelierDepart(tests)])
+        .concat(EXPORT_COLUMNS.map(([, type, key]) => typeof key === 'function' ? key(tests[type] || {}) : (tests[type] || {})[key]), [ecarts, autres]));
     });
   });
   return lines;
@@ -1469,7 +1610,9 @@ const HEAD_WORDS = { prehension: 'préhension', fc: 'FC', moy: 'moy.', rmssd: 'R
   email: 'e-mail', duree: 'durée', derniere: 'dernière', apparies: 'appariés', ecart: 'écart', mediane: 'médiane', evolution: 'évolution',
   confirme: 'confirmé', seances: 'séances', tanaka: 'Tanaka', depart: 'départ', amrap: 'AMRAP', rfc: 'RFC', rdl: 'RDL', z1: 'Z1', z2: 'Z2',
   z3: 'Z3', z4: 'Z4', z5: 'Z5', s: '(s)', kg: '(kg)', bpm: '(bpm)', pct: '(%)', n: 'n', t0: 'T0', t1: 'T1', t2: 'T2', t3: 'T3',
-  unite: 'unité', categorie: 'catégorie', a: 'à', completer: 'compléter', modalite: 'modalité', reussi: 'réussi', ressenti: 'ressenti',
+  unite: 'unité', categorie: 'catégorie', donnees: 'données', valides: 'valides', arret: 'arrêt', intensite: 'intensité', recup: 'récup.',
+  hrr60: 'HRR60', hrr120: 'HRR120', estimees: 'estimées', invalidite: 'invalidité', seance: 'séance', '60s': '60 s', '120s': '120 s', essai1: 'essai 1',
+  essai2: 'essai 2', essai3: 'essai 3', g: 'gauche', d: 'droite', dominante: 'dominante', plafond: 'plafond', atteint: 'atteint', retenue: 'retenue', a: 'à', completer: 'compléter', modalite: 'modalité', reussi: 'réussi', ressenti: 'ressenti',
   possible: 'possible', impact: 'impact', no: 'no', fin: 'fin', baisse: 'baisse', type: 'type', passes: 'passés',
   doublon: 'doublon', complet: 'complet', profil: 'profil', inscrit: 'inscrit', le: 'le', naissance: 'naissance', connexion: 'connexion' };
 const prettyHead = (h) => { const t = String(h).split('_').map(w => HEAD_WORDS[w.toLowerCase()] || w).join(' '); return t.charAt(0).toUpperCase() + t.slice(1); };
@@ -1521,13 +1664,22 @@ $('#btnExport').addEventListener('click', () => {
 const liveCards = new Map();   // uid -> { el, lastAt, hr, fcMax, prenom }
 let reloadTimer = null;
 
+let coachChannel = null;
+const statusMap = {};   // uid -> dernier statut envoyé par le téléphone pendant le protocole
 function subscribeLive() {
-  const ch = sb.channel('live-coach');
+  const ch = coachChannel = sb.channel('live-coach');
+  ch.on('broadcast', { event: 'status' }, ({ payload }) => {
+    if (!payload || !payload.user_id) return;
+    statusMap[payload.user_id] = Object.assign({}, payload, { at: Date.now() });
+    if (!profiles[payload.user_id]) scheduleReload();
+    if (payload.hr) onLiveHr(payload);   // la FC en direct arrive avec le statut pendant le protocole
+  });
   ch.on('broadcast', { event: 'hr' }, ({ payload }) => onLiveHr(payload));
   ch.on('broadcast', { event: 'stop' }, ({ payload }) => { removeLive(payload && payload.user_id); scheduleReload(); });
   ch.on('broadcast', { event: 'stat' }, () => scheduleReload());
   ch.subscribe();
   setInterval(pruneLive, 4000);
+  setInterval(() => { if (view === 'seance') renderSeance(); renderLive(); }, 1000);
 }
 function scheduleReload() {   // une donnée vient d'être enregistrée : rechargement groupé
   clearTimeout(reloadTimer);
@@ -1541,10 +1693,10 @@ function onLiveHr(p) {
   if (!c) {
     const el = document.createElement('article');
     el.className = 'livecard';
-    el.innerHTML = '<div class="nm"></div><div class="cr"></div><div><span class="bpm">–</span> <span class="u">bpm</span></div><div class="u zp"></div><div class="u cap"></div>';
+    el.innerHTML = '<div class="nm"></div><div class="cr"></div><div><span class="bpm">–</span> <span class="u">bpm</span></div><div class="u zp"></div><div class="u cap"></div><div class="u ql"></div>';
     c = { el }; liveCards.set(p.user_id, c);
   }
-  c.lastAt = Date.now(); c.hr = p.hr; c.fcMax = p.fcMax || 190; c.prenom = p.prenom; c.capteur = p.capteur || '';
+  c.lastAt = Date.now(); c.hr = p.hr; c.fcMax = p.fcMax || 190; c.prenom = p.prenom; c.capteur = p.capteur || ''; c.q = p.q || null;
   renderLive();
 }
 function removeLive(uid) {
@@ -1556,6 +1708,95 @@ function pruneLive() {
   liveCards.forEach((c, uid) => { if (now - c.lastAt > 20000) { c.el.remove(); liveCards.delete(uid); } });
   renderLive();
 }
+const Q_LABELS = { ok: 'signal correct', doubt: 'signal douteux', off: 'déconnecté' };
+function liveQuality(uid, c) {
+  const st = statusMap[uid];
+  if (st && Date.now() - st.at < 8000 && st.q) return st.q;
+  if (c && Date.now() - c.lastAt < 6000) return c.q || 'ok';
+  return 'off';
+}
+
+/* =====================================================================
+   Lancer l'AMRAP — vérification des capteurs, puis départ et STOP pour tout le groupe
+   Les téléphones en protocole envoient leur statut toutes les 2 s ; le départ n'est possible
+   que si tous les capteurs sont au vert, sauf départ forcé. Le STOP déclenche partout la
+   récupération (FC à l'arrêt, 60 s, 120 s).
+   ===================================================================== */
+const AMRAP_S = 20 * 60;
+let groupRun = null;   // { start, cours, stopAt }
+function seanceParticipants() {
+  return Object.values(statusMap).filter(st => Date.now() - st.at < 12000 && (!fCours || st.cours === fCours) && genreOk(st.user_id))
+    .sort((a, b) => nameOf(a.user_id).localeCompare(nameOf(b.user_id), 'fr'));
+}
+function sendCoach(type) {
+  try { coachChannel.send({ type: 'broadcast', event: 'coach', payload: { type, cours: fCours || null, t: Date.now() } }); return true; }
+  catch (e) { toast('Envoi impossible : ' + e.message); return false; }
+}
+function groupStop() {
+  if (!groupRun || groupRun.stopAt) return;
+  sendCoach('amrap_stop'); groupRun.stopAt = Date.now();
+  toast('STOP envoyé : récupération de 2 minutes sur tous les téléphones.');
+  render();
+}
+const ETAPES = { questionnaire: 'questionnaire', info: 'échauffement / calme', grip: 'préhension', pompes: 'pompes', wallsit: 'wall-sit', rowing: 'rowing',
+  rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'récupération' };
+function renderSeance() {
+  const list = seanceParticipants(), nOk = list.filter(st => st.q === 'ok').length, allOk = list.length && nOk === list.length;
+  const scope = fCours || 'TOUS les cours';
+  if (groupRun && !groupRun.stopAt && Date.now() - groupRun.start >= AMRAP_S * 1000) groupStop();   // fin des 20 minutes
+  let html = '<div class="panel"><div class="recaphead"><h2>Lancer l’AMRAP — ' + esc(scope) + '</h2></div>';
+  if (!groupRun) {
+    html += '<p class="recapnote">1. Chaque adhérent ouvre son protocole et connecte son capteur. 2. Vérifie ci-dessous que tous les capteurs sont ' +
+      '<b style="color:#2F7D3D">au vert</b>. 3. Lance le chrono : il démarre au même moment sur tous les téléphones' + (fCours ? ' du cours ' + esc(fCours) : '') +
+      '. À la fin des 20 min (ou au STOP), la récupération de 2 min démarre automatiquement partout.' +
+      (fCours ? '' : ' <b>Choisis un cours en haut pour ne lancer que ce groupe.</b>') + '</p>' +
+      '<p style="text-align:center;font-weight:700">' + list.length + ' téléphone' + (list.length > 1 ? 's' : '') + ' connecté' + (list.length > 1 ? 's' : '') +
+      ' · ' + nOk + ' au vert</p><div class="seance-acts">' +
+      '<button type="button" class="btn-primary sbtn" data-act="start"' + (allOk ? '' : ' disabled') + '>Démarrer le chrono (20 min)</button>' +
+      '<button type="button" class="btn-soft sbtn" data-act="force"' + (list.length ? '' : ' disabled') + '>Forcer le démarrage</button></div>' +
+      (!allOk && list.length ? '<p class="recapnote" style="text-align:center">Démarrage bloqué : ' + (list.length - nOk) + ' capteur' + (list.length - nOk > 1 ? 's' : '') +
+        ' pas au vert. « Forcer le démarrage » lance quand même (leurs mesures pourront être invalides).</p>' : '');
+  } else if (!groupRun.stopAt) {
+    const left = Math.max(0, AMRAP_S - Math.floor((Date.now() - groupRun.start) / 1000));
+    html += '<div class="bigclock">' + mmss(left) + '</div><p class="recapnote" style="text-align:center">AMRAP en cours — ' + esc(groupRun.cours || 'tous les cours') +
+      '. Le STOP part automatiquement à 00:00.</p><div class="seance-acts"><button type="button" class="btn-stop sbtn" data-act="stop">STOP</button></div>';
+  } else {
+    const left = Math.max(0, 120 - Math.floor((Date.now() - groupRun.stopAt) / 1000));
+    html += '<div class="bigclock">' + (left ? mmss(left) : 'Terminé') + '</div><p class="recapnote" style="text-align:center">' +
+      (left ? 'Récupération : tout le monde <b>assis, immobile, sans parler</b>.' : 'Récupération terminée : les adhérents notent leurs tours et répétitions.') +
+      '</p><div class="seance-acts"><button type="button" class="btn-soft sbtn" data-act="reset">Nouveau groupe</button></div>';
+  }
+  html += '</div>';
+  html += '<section class="panel"><div class="recaphead"><h2>Vérification des capteurs</h2><span class="muted">mise à jour en continu</span></div>' +
+    (list.length ? '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Adhérent</th><th>Étape</th><th>FC</th><th>Capteur</th><th>Signal</th></tr></thead><tbody>' +
+      list.map(st => '<tr><td><b>' + esc(profiles[st.user_id] ? nameOf(st.user_id) : [st.nom, st.prenom].filter(Boolean).join(' ')) + '</b><small>' + esc(st.cours || 'sans cours') + '</small></td>' +
+        '<td>' + esc(ETAPES[st.etape] || st.etape || '—') + (st.amrap ? ' <small>chrono en cours</small>' : '') + (st.recup ? ' <small>récupération</small>' : '') + '</td>' +
+        '<td>' + (st.hr || '—') + '</td><td>' + esc(st.capteur || '—') + '</td>' +
+        '<td><span class="qdot ' + st.q + '"></span><span class="qlabel ' + st.q + '">' + Q_LABELS[st.q] + '</span></td></tr>').join('') +
+      '</tbody></table></div>'
+      : '<p class="empty">Aucun téléphone en protocole pour l’instant' + (fCours ? ' dans le cours ' + esc(fCours) : '') + '. Les adhérents doivent ouvrir « Protocole test » ' +
+        'et toucher « Commencer le protocole ».</p>') + '</section>';
+  const keepFocus = document.activeElement && document.activeElement.classList.contains('sbtn') ? document.activeElement.dataset.act : null;
+  $('#dataView').innerHTML = html;
+  if (keepFocus) { const b = $('#dataView .sbtn[data-act="' + keepFocus + '"]'); if (b) b.focus(); }
+  $('#summary').textContent = 'Séance de test — ' + list.length + ' téléphone' + (list.length > 1 ? 's' : '') + ' en protocole' + (fCours ? ' (' + fCours + ')' : '') + '.';
+}
+$('#dataView').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button.sbtn'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'start' || act === 'force') {
+    const list = seanceParticipants(), bad = list.filter(st => st.q !== 'ok');
+    if (act === 'force' && !confirm('Forcer le démarrage ?\n\n' + (bad.length ? bad.length + ' capteur(s) pas au vert : ' +
+      bad.map(st => nameOf(st.user_id) + ' (' + Q_LABELS[st.q] + ')').join(', ') + '.\nLeurs mesures de FC pourront être invalides.'
+      : 'Tous les capteurs sont au vert.'))) return;
+    if (!fCours && !confirm('Aucun cours choisi : le départ sera donné à TOUS les téléphones en protocole. Continuer ?')) return;
+    if (sendCoach('amrap_start')) { groupRun = { start: Date.now(), cours: fCours || null, stopAt: null, force: act === 'force' }; toast('Départ donné : chrono de 20 min lancé.'); }
+  } else if (act === 'stop') {
+    if (confirm('Envoyer le STOP maintenant ? La récupération de 2 min démarre sur tous les téléphones.')) groupStop();
+  } else if (act === 'reset') groupRun = null;
+  render();
+});
+
 function renderLive() {
   const grid = $('#liveGrid');
   let shown = 0;
@@ -1571,6 +1812,8 @@ function renderLive() {
     c.el.querySelector('.bpm').textContent = c.hr;
     c.el.querySelector('.zp').textContent = ZONES[z].label + ' · ' + Math.round(c.hr / c.fcMax * 100) + ' % FCmax';
     c.el.querySelector('.cap').textContent = c.capteur ? 'Capteur : ' + c.capteur : '';
+    const q = liveQuality(uid, c);
+    c.el.querySelector('.ql').innerHTML = '<span class="qdot ' + q + '"></span><span class="qlabel ' + q + '">' + Q_LABELS[q] + '</span>';
   });
   $('#livePanel').hidden = shown === 0;
   $('#liveCount').textContent = shown ? '· ' + shown + ' adhérent' + (shown > 1 ? 's' : '') : '';
