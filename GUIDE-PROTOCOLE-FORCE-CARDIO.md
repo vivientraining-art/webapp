@@ -20,6 +20,7 @@ n'est pas déjà fait :
 9. `supabase-migration-11-comptes-inscrits.sql` — vue « Inscrits » complète.
 10. `supabase-migration-12-saisie-suppression-coach.sql` — saisie de résultats et suppression de doublons par le coach.
 11. `supabase-migration-13-questionnaire-qualite.sql` — questionnaire avant test et qualité du signal des séances.
+12. `supabase-migration-14-protection-role-coach.sql` — sécurité : un adhérent ne peut pas se donner le rôle coach.
 
 ## Déroulé d'une passation (côté adhérent)
 
