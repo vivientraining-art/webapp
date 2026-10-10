@@ -91,6 +91,12 @@ capteur, ne changent pas, et l'heure de la séance reste celle du départ. Une
 fois le protocole terminé, c'est le coach qui corrige (✎ dans « Modifier /
 supprimer »).
 
+**Sans réseau** : si le réseau manque au moment d'enregistrer, le résultat est
+gardé dans le téléphone (bandeau « ⏳ résultats en attente d'envoi ») et le test
+continue ; tout part automatiquement dès que le réseau revient (garder l'app
+ouverte, ou la rouvrir plus tard avec du réseau). Il faut du réseau pour
+ouvrir la page au départ.
+
 ### Comparer T0 et T1 : mêmes conditions
 
 Au T1 (et suivants), l'app **reprend automatiquement** les conditions du T0 :
@@ -161,6 +167,21 @@ le filtre de cours.
   autre cours apparaît sous le sien), une ligne par adhérent (séances
   capteur avec % de données valides et temps par zone, résultats du protocole,
   questionnaire, ⚠ en cas d'écart au protocole), FC max retenue et sa source.
+- **Progrès** (vrai progrès) : pour chaque test, une variation ne compte comme
+  **progrès net** ▲ ou **baisse nette** ▼ que si elle dépasse la variabilité
+  normale du test d'un jour à l'autre ; sinon **stable** ■. Seuils prudents :
+  préhension ±10 %, pompes / rowing / RDL ±15 % (au moins 2 rép.), wall-sit
+  ±20 % (au moins 10 s), AMRAP ±8 % (au moins 1 tour / 15 rép.), HRR60 ±8 bpm
+  (à affiner avec un test-retest). Seules les mesures prises dans les mêmes
+  conditions sont comparées (variante, charge, No impact, pas de plafond au
+  départ, pas d'écart au protocole), sinon « ≠ ». Par groupe : % de progrès
+  net / stable / baisse ; par adhérent : un tableau. Points comparés : du
+  premier au dernier test, ou au choix. Feuille « Progrès » dans les exports.
+- **Fiche individuelle** (bouton « Fiche » à côté du nom, dans Détail et
+  Progrès) : résultats par point de test, évolution, profil radar (position
+  par rapport aux adhérents à leur premier test, même sexe), courbes de FC de
+  l'AMRAP, conditions et questionnaire. « Imprimer / PDF » pour la remettre à
+  l'adhérent.
 - **Courbes FC** : la FC de l'AMRAP (20 min) puis des 2 min de récupération,
   une courbe par adhérent, le STOP au milieu. Choix du point de test, des
   groupes (cases à cocher, en plus des filtres cours / genre / date) et
@@ -181,6 +202,9 @@ le filtre de cours.
   valeurs anormales ou mesures invalides, résultats incomplets, comptes à
   vérifier, inscrits sans résultat. « Corriger » / « Compléter » ouvrent la
   saisie ; « C'est correct » / « Masquer » retirent une alerte (sur cet appareil).
+- **Comptes inactifs** : un compte sans connexion depuis plus de 3 ans apparaît
+  dans « À vérifier » avec « Supprimer le compte » (engagement de la politique
+  de confidentialité).
 - **+ Saisir des résultats** : tout le protocole d'un point de test sur un seul
   formulaire, pour n'importe quel adhérent (venu sans téléphone, valeur
   oubliée) ; meilleur essai, répétitions totales, HRR et validité calculés.
