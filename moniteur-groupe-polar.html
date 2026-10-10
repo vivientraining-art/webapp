@@ -89,6 +89,24 @@
   .qlabel.ok{color:#2F7D3D}.qlabel.doubt{color:#A0630F;font-weight:700}.qlabel.off{color:#B23A22;font-weight:700}
   .bigclock{font-family:'Libre Baskerville',Georgia,serif;font-size:3rem;font-variant-numeric:tabular-nums;text-align:center;color:var(--forest);margin:.4rem 0}
   .seance-acts{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin:.6rem 0}
+  .pg{white-space:nowrap;font-weight:600}.pg.up{color:#2F7D3D}.pg.down{color:#B23A22}.pg.flat{color:#6E7B73}.pg.nc,.pg.none{color:#B9C1BB}
+  .pgup{color:#2F7D3D;font-weight:700}.pgdown{color:#B23A22;font-weight:700}
+  .pgtbl td,.pgtbl th{text-align:center}.pgtbl td:first-child,.pgtbl th:first-child{text-align:left}
+  .pgseuils{font-size:.85rem;margin-top:.4rem}.pgseuils ul{margin:.4rem 0 .2rem 1.2rem;line-height:1.6}
+  .fichebtn{min-height:0;padding:.15rem .5rem;margin-left:.4rem;font-size:.75rem;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:6px;vertical-align:1px}
+  #fiche{position:fixed;inset:0;z-index:70;background:rgba(31,58,45,.55);overflow-y:auto;padding:1rem}
+  .fichebar{max-width:860px;margin:0 auto .6rem;display:flex;gap:.5rem;justify-content:flex-end}
+  .fichepage{max-width:860px;margin:0 auto;background:#fff;border-radius:14px;padding:1.4rem 1.5rem}
+  .fichehead{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;border-bottom:2px solid var(--forest);padding-bottom:.6rem;margin-bottom:1rem}
+  .fichehead h2{font-family:'Libre Baskerville',Georgia,serif;font-size:1.4rem;color:var(--forest)}
+  .fichepage h3{font-size:1rem;margin:1rem 0 .4rem;color:var(--forest)}
+  .fichegrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:1.2rem;align-items:start}
+  @media (max-width:720px){.fichegrid{grid-template-columns:1fr}}
+  .radar{width:100%;max-width:400px;display:block;margin:0 auto}
+  .fichehead p{color:var(--muted);font-size:.9rem;margin-top:.2rem}
+  .radar .rg{fill:none;stroke:#E2DACB;stroke-width:1}.radar .rl{font-size:11px;fill:#22302A;text-anchor:middle}
+  .radar .rp{fill-opacity:.18;stroke-width:2}
+  .radleg{text-align:center;font-size:.85rem;font-weight:600;margin:.2rem 0}
   .crvctl{display:flex;flex-wrap:wrap;gap:.5rem 1.1rem;align-items:center;margin:.3rem 0 .6rem;font-size:.9rem}
   .crvctl select{margin-left:.3rem}
   .clg{display:inline-flex;align-items:center;gap:.35rem;cursor:pointer}
@@ -170,6 +188,9 @@
     @page{margin:12mm}
     body{background:#fff}
     header,#livePanel,#filtersPanel,.noprint,#toast,#editDlg{display:none!important}
+    body.fiche-open > :not(#fiche){display:none!important}
+    body.fiche-open #fiche{position:static;background:none;padding:0;overflow:visible}
+    body.fiche-open .fichepage{padding:0;max-width:none}
     .wrap{max-width:none;padding:0}
     .panel{box-shadow:none;break-inside:avoid;border-color:#ccc}
     .rtbl{min-width:0;font-size:9.5pt}
@@ -225,6 +246,7 @@
         <button type="button" data-v="inscrits">Inscrits</button>
         <button type="button" data-v="seance">Lancer l’AMRAP</button>
         <button type="button" data-v="courbes">Courbes FC</button>
+        <button type="button" data-v="progres">Progrès</button>
         <button type="button" data-v="manquants">À vérifier<span class="badge" id="missBadge"></span></button>
       </div>
       <div class="seg" id="fCours">
@@ -260,6 +282,7 @@
   <div id="dataView"></div>
 </main>
 
+<div id="fiche" hidden></div>
 <dialog id="editDlg"><form method="dialog" id="editForm">
   <h3 id="editTitle"></h3>
   <p class="sub" id="editSub"></p>
@@ -272,7 +295,9 @@
 
 <div id="toast" role="status"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- version figée (une mise à jour de la bibliothèque ne peut pas casser l'app du jour au lendemain) ; secours unpkg -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
+<script>window.supabase || document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"><\/script>');</script>
 <script>
 'use strict';
 
@@ -609,7 +634,7 @@ function rowHTML(e) {
   const info = [p.date_naissance ? GENRE_LABEL[p.sexe] : null, age != null ? age + ' ans' : null,
     fm ? 'FC max ' + fm.v + ' (' + fm.source + ')' : null].filter(Boolean).join(' · ');
   const pts = Object.keys(e.proto).sort();
-  return '<div class="arow"><div class="nm">' + esc(nameOf(e.uid)) + editBtn('profile', e.uid, 'Modifier le profil') +
+  return '<div class="arow"><div class="nm">' + esc(nameOf(e.uid)) + ficheBtn(e.uid) + editBtn('profile', e.uid, 'Modifier le profil') +
     editBtn('add', e.uid, 'Saisir ou compléter des résultats', { point: pts[0] || '', date: e.date }) +
     (info ? ' <span class="muted" style="font-weight:400;font-size:.85rem">' + esc(info) + '</span>' : '') + '</div>' +
     lines.map(l => '<div class="ln">' + l + '</div>').join('') + '</div>';
@@ -622,6 +647,7 @@ function render() {
   if (view === 'seance') { renderSeance(); renderLive(); return; }
   if (view === 'manquants') { renderManquants(); renderLive(); return; }
   if (view === 'courbes') { renderCourbes(); renderLive(); return; }
+  if (view === 'progres') { renderProgres(); renderLive(); return; }
   const list = selected();
   const nbAdh = new Set(list.map(e => e.uid)).size;
   const nbDays = new Set(list.map(e => e.date)).size;
@@ -1165,7 +1191,9 @@ function inscritsList() {
       const seances = Array.from(entries.values()).filter(e => e.uid === p.id).reduce((n, e) => n + e.hr.length, 0);
       const complet = !!(p.prenom && p.nom && COURS.includes(p.cours) && p.date_naissance);
       const u = authUsers && authUsers[p.id];
-      return { p, pts, seances, complet, u, nonConfirme: !!(u && !u.email_confirmed_at), doublon: !!(p.nom && p.prenom && seen[nameKey(p)] > 1), age: ageAt(p.date_naissance, dayKey(Date.now())) };
+      // politique de confidentialité : suppression après 3 ans sans connexion
+      const inactif = !!(u && Date.now() - Date.parse(u.last_sign_in_at || u.created_at) > 3 * 365.25 * 864e5);
+      return { p, pts, seances, complet, u, inactif, nonConfirme: !!(u && !u.email_confirmed_at), doublon: !!(p.nom && p.prenom && seen[nameKey(p)] > 1), age: ageAt(p.date_naissance, dayKey(Date.now())) };
     })
     .sort((a, b) => coursOf(a.p.id).localeCompare(coursOf(b.p.id)) || nameOf(a.p.id).localeCompare(nameOf(b.p.id), 'fr'));
 }
@@ -1223,7 +1251,8 @@ function missingItems() {
     .sort((a, b) => a.point.localeCompare(b.point) || coursOf(a.uid).localeCompare(coursOf(b.uid)) || nameOf(a.uid).localeCompare(nameOf(b.uid), 'fr'));
 }
 function accountIssues() {
-  return inscritsList().map(x => ({ x, why: [x.doublon && 'doublon possible', !x.complet && 'profil incomplet', x.nonConfirme && 'e-mail non confirmé'].filter(Boolean) }))
+  return inscritsList().map(x => ({ x, why: [x.doublon && 'doublon possible', !x.complet && 'profil incomplet', x.nonConfirme && 'e-mail non confirmé',
+    x.inactif && 'aucune connexion depuis plus de 3 ans : à supprimer (politique de confidentialité)'].filter(Boolean) }))
     .filter(a => a.why.length);
 }
 /* =====================================================================
@@ -1410,7 +1439,8 @@ function renderManquants() {
     acc.map(a => row(nameOf(a.x.p.id), esc(coursOf(a.x.p.id)) + ' · ' + esc(a.x.p.email || ''),
       a.why.map(w => '<span class="chip test">' + w + '</span>').join(''),
       (a.x.p._noProfile ? '' : '<button type="button" class="btn-soft missbtn" data-act="profile" data-uid="' + esc(a.x.p.id) + '">Corriger le profil</button>') +
-      (a.why.includes('doublon possible') ? '<button type="button" class="btn-soft missbtn" data-act="inscrits">Voir les inscrits</button>' : ''))).join('') + '</section>';
+      (a.why.includes('doublon possible') ? '<button type="button" class="btn-soft missbtn" data-act="inscrits">Voir les inscrits</button>' : '') +
+      (a.x.inactif ? '<button type="button" class="btn-soft delacct" data-uid="' + esc(a.x.p.id) + '">Supprimer le compte</button>' : ''))).join('') + '</section>';
   // 3. inscrits sans aucun résultat
   if (absents.length) html += '<section class="panel"><div class="recaphead"><h2>Pas encore de résultat</h2><span class="muted">' + absents.length +
     ' inscrit' + (absents.length > 1 ? 's' : '') + ' — absent' + (absents.length > 1 ? 's' : '') + ' ou venu' + (absents.length > 1 ? 's' : '') + ' sans téléphone ?</span></div>' +
@@ -1678,6 +1708,7 @@ async function exportXlsx() {
   X.utils.book_append_sheet(wb, toSheet(X, recapTableRows(rec)), 'Récap groupes');
   X.utils.book_append_sheet(wb, toSheet(X, inscritsTable(ins)), 'Inscrits');
   X.utils.book_append_sheet(wb, toSheet(X, miss), 'À vérifier');
+  X.utils.book_append_sheet(wb, toSheet(X, progresTable(false)), 'Progrès');
   const info = [['Export', new Date().toLocaleString('fr-FR')], ['Cours', fCours || 'tous'], ['Genre', fGenre ? (fGenre === 'F' ? 'femmes' : 'hommes') : 'femmes et hommes'],
     ['Date', fDate ? dayLabel(fDate) : 'toutes les dates'], ['Lignes de résultats', res.length - 1], ['Inscrits', ins.length], ['Éléments à vérifier', miss.length - 1],
     [], ['Onglets', 'Résultats : une ligne par adhérent, date et point de test (valeurs brutes).'],
@@ -1700,6 +1731,7 @@ async function exportAnon() {
   const wb = X.utils.book_new();
   X.utils.book_append_sheet(wb, toSheet(X, res), 'Résultats');
   X.utils.book_append_sheet(wb, toSheet(X, recapTableRows(recapGroups()).map((r, i) => i ? r.map(v => GROUP_IDS[v] || v) : r.map(h => h === 'cours' ? 'id_groupe' : h))), 'Récap groupes');
+  X.utils.book_append_sheet(wb, toSheet(X, progresTable(true)), 'Progrès');
   const info = [['Export anonymisé', new Date().toLocaleString('fr-FR')], ['Groupe', fCours ? GROUP_IDS[fCours] || 'G0' : 'tous'],
     ['Date', fDate ? dayLabel(fDate) : 'toutes les dates'], ['Lignes de résultats', res.length - 1],
     ['Participants', new Set(res.slice(1).map(r => r[2])).size], [],
@@ -1956,6 +1988,245 @@ $('#dataView').addEventListener('click', (ev) => {
   } else if (act === 'reset') { groupRun = null; saveRun(); }
   render();
 });
+
+/* =====================================================================
+   Vrai progrès — une variation ne compte comme progrès (ou comme baisse) que si elle dépasse
+   la variabilité normale d'un jour à l'autre du test. Seuils prudents, ordres de grandeur des
+   études de reproductibilité de ces tests, à affiner avec un test-retest sur tes groupes :
+   seuil = le plus grand entre « pct » % de la valeur de départ et « min » (unité du test).
+   Seules les mesures prises dans les mêmes conditions sont comparées.
+   ===================================================================== */
+const meanHands = (d) => { const g = num(d.force_main_gauche_kg), r = num(d.force_main_droite_kg); return g != null && r != null ? (g + r) / 2 : null; };
+const wallsitCensure = (d) => d.wallsit_plafond_atteint === true || (d.wallsit_plafond_atteint === undefined && num(d.wallsit_secondes) >= 180);
+const PROGRES = [
+  { key: 'grip', label: 'Préhension (moyenne des 2 mains)', short: 'Préhension', type: 'grip', unit: 'kg', pct: 10, min: 2, get: meanHands },
+  { key: 'pompes', label: 'Pompes', short: 'Pompes', type: 'pompes', unit: 'reps', pct: 15, min: 2, get: d => num(d.pompes_reps),
+    diff: (a, b) => pompesVar(a) !== pompesVar(b) ? 'variante différente (' + pompesVar(a) + ' → ' + pompesVar(b) + ')' : '' },
+  { key: 'wallsit', label: 'Wall-sit', short: 'Wall-sit', type: 'wallsit', unit: 's', pct: 20, min: 10, get: d => num(d.wallsit_secondes),
+    diff: (a) => wallsitCensure(a) ? 'plafond atteint au départ (vraie valeur inconnue)' : '' },
+  { key: 'rowing', label: 'Rowing', short: 'Rowing', type: 'rowing', unit: 'reps', pct: 15, min: 2, get: d => num(d.rowing_reps),
+    diff: (a, b) => num(a.rowing_charge_kg) !== num(b.rowing_charge_kg) ? 'charge différente (' + v(a.rowing_charge_kg) + ' → ' + v(b.rowing_charge_kg) + ' kg)' : '' },
+  { key: 'rdl', label: 'RDL', short: 'RDL', type: 'rdl', unit: 'reps', pct: 15, min: 2, get: d => num(d.rdl_reps),
+    diff: (a, b) => num(a.rdl_charge_kg) !== num(b.rdl_charge_kg) ? 'charge différente (' + v(a.rdl_charge_kg) + ' → ' + v(b.rdl_charge_kg) + ' kg)' : '' },
+  { key: 'amrap_tours', label: 'AMRAP 20 min — tours complets', short: 'AMRAP tours', type: 'amrap_cardio', unit: 'tours', pct: 8, min: 1,
+    get: d => (d.duree_min || 10) === 20 ? num(d.amrap_tours_complets) : null,
+    diff: (a, b) => !!a.no_impact !== !!b.no_impact ? 'option No impact différente' : '' },
+  { key: 'amrap_reps', label: 'AMRAP 20 min — répétitions (comptage exact)', short: 'AMRAP rép.', type: 'amrap_cardio', unit: 'rép.', pct: 8, min: 15,
+    get: d => (d.duree_min || 10) === 20 && d.amrap_reps_totales != null ? num(d.amrap_reps_totales) : null,
+    diff: (a, b) => !!a.no_impact !== !!b.no_impact ? 'option No impact différente' : '' },
+  { key: 'hrr60', label: 'Récupération — HRR60', short: 'HRR60', type: 'rfc', unit: 'bpm', pct: 0, min: 8, get: d => d.valide === false ? null : num(d.hrr60) },
+];
+const PG_LABEL = { up: 'progrès net', flat: 'stable', down: 'baisse nette', nc: 'non comparable' };
+let pgFrom = '', pgTo = '';
+function protoByUid() {   // uid -> point -> test -> données (toutes dates), et la date de chaque point
+  const out = {}, dates = {};
+  Object.values(protoRows).forEach(r => {
+    ((out[r.participant_id] = out[r.participant_id] || {})[r.point_de_test] = out[r.participant_id][r.point_de_test] || {})[r.test_type] = r.data || {};
+    (dates[r.participant_id] = dates[r.participant_id] || {})[r.point_de_test] = r.date_test;
+  });
+  return { out, dates };
+}
+/* Comparaison d'un indicateur pour un adhérent : du point « from » au point « to » (ou du premier au dernier). */
+function progresOne(ind, byPt, from, to) {
+  const pts = POINTS.filter(p => byPt[p] && byPt[p][ind.type] && ind.get(byPt[p][ind.type]) != null);
+  const p0 = from || pts[0], p1 = to || pts[pts.length - 1];
+  if (!p0 || !p1 || p0 >= p1 || !pts.includes(p0) || !pts.includes(p1)) return null;
+  const a = byPt[p0][ind.type], b = byPt[p1][ind.type], v0 = ind.get(a), v1 = ind.get(b);
+  const raison = (ind.diff && ind.diff(a, b)) || (b.ecart_protocole ? 'écart au protocole : ' + b.ecart_protocole : '');
+  const seuil = Math.max(ind.min, Math.abs(v0) * ind.pct / 100), d = v1 - v0;
+  return { p0, p1, v0, v1, d, pct: v0 ? d / Math.abs(v0) * 100 : null, seuil, raison,
+    st: raison ? 'nc' : d >= seuil ? 'up' : d <= -seuil ? 'down' : 'flat' };
+}
+function progresUids() {   // filtres cours et genre (pas la date : T0 et T1 sont à des dates différentes)
+  const { out } = protoByUid();
+  return Object.keys(out).filter(uid => profiles[uid] && profiles[uid].role !== 'coach' && (!fCours || coursOf(uid) === fCours) && genreOk(uid))
+    .sort((a, b) => coursOf(a).localeCompare(coursOf(b)) || nameOf(a).localeCompare(nameOf(b), 'fr'));
+}
+function progresAll() {
+  const { out } = protoByUid();
+  return progresUids().map(uid => ({ uid, res: Object.fromEntries(PROGRES.map(ind => [ind.key, progresOne(ind, out[uid], pgFrom, pgTo)])) }));
+}
+const r0 = (x) => Math.round(x * 10) / 10;
+function pgCell(r, ind) {
+  if (!r) return '<span class="pg none">—</span>';
+  const tip = r.p0 + ' ' + frNum(r0(r.v0)) + ' → ' + r.p1 + ' ' + frNum(r0(r.v1)) + ' ' + ind.unit + (r.raison ? ' · ' + r.raison : ' · seuil ±' + frNum(r0(r.seuil)));
+  if (r.st === 'nc') return '<span class="pg nc" title="' + esc(tip) + '">≠</span>';
+  const sign = r.d > 0 ? '+' : r.d < 0 ? '−' : '±';
+  const txt = r.pct != null && ind.pct ? sign + frNum(Math.abs(Math.round(r.pct))) + ' %' : sign + frNum(Math.abs(r0(r.d))) + ' ' + ind.unit;
+  return '<span class="pg ' + r.st + '" title="' + esc(tip) + '">' + (r.st === 'up' ? '▲ ' : r.st === 'down' ? '▼ ' : '■ ') + txt + '</span>';
+}
+function progresSummary(rows) {   // par indicateur : effectifs par statut
+  return PROGRES.map(ind => {
+    const c = { up: 0, flat: 0, down: 0, nc: 0 };
+    rows.forEach(x => { const r = x.res[ind.key]; if (r) c[r.st]++; });
+    return { ind, c, n: c.up + c.flat + c.down };
+  });
+}
+const ficheBtn = (uid) => '<button type="button" class="fichebtn noprint" data-uid="' + esc(uid) + '" title="Fiche individuelle">Fiche</button>';
+function renderProgres() {
+  const rows = progresAll().filter(x => Object.values(x.res).some(Boolean));
+  const groups = (fCours ? [fCours] : COURS.concat(SANS_COURS)).filter(g => rows.some(x => coursOf(x.uid) === g));
+  if (!fCours && groups.length > 1) groups.unshift('');
+  const pct = (k, n) => n ? Math.round(k / n * 100) + ' %' : '—';
+  const sel = (id, val, first) => '<select id="' + id + '"><option value="">' + first + '</option>' + POINTS.map(p => '<option' + (p === val ? ' selected' : '') + '>' + p + '</option>').join('') + '</select>';
+  let html = '<section class="panel"><div class="recaphead"><h2>Vrai progrès</h2></div>' +
+    '<p class="recapnote">Une variation ne compte comme <b>progrès net</b> (ou <b>baisse nette</b>) que si elle dépasse la variabilité normale du test ' +
+    'd’un jour à l’autre ; sinon le résultat est <b>stable</b>. Seules les mesures prises dans les mêmes conditions sont comparées ' +
+    '(même variante, même charge, même option No impact, pas de plafond au départ, pas d’écart au protocole) : sinon « ≠ non comparable ». ' +
+    'Survole une case pour voir les valeurs.</p>' +
+    '<div class="crvctl"><label>De ' + sel('pgFrom', pgFrom, 'premier test') + '</label><label>à ' + sel('pgTo', pgTo, 'dernier test') + '</label></div>' +
+    '<details class="pgseuils"><summary>Seuils utilisés</summary><ul>' + PROGRES.map(i => '<li>' + esc(i.label) + ' : ' +
+      (i.pct ? '±' + i.pct + ' % (au moins ' + i.min + ' ' + i.unit + ')' : '±' + i.min + ' ' + i.unit) + '</li>').join('') +
+    '</ul><p class="recapnote">Ordres de grandeur prudents tirés des études de reproductibilité de ces tests. Ils pourront être affinés avec un test-retest ' +
+    '(même test refait à quelques jours d’intervalle) sur tes groupes.</p></details></section>';
+  if (!rows.length) { $('#dataView').innerHTML = html + '<div class="panel empty">Pas encore d’adhérent testé à deux points de test différents pour cette sélection.</div>';
+    $('#summary').textContent = 'Aucune comparaison possible.'; return; }
+  html += groups.map(g => {
+    const sub = rows.filter(x => !g || coursOf(x.uid) === g), sm = progresSummary(sub);
+    return '<section class="panel"><div class="recaphead"><h2>' + esc(g || 'Tous les groupes') + '</h2><span class="muted">' + sub.length + ' adhérent' + (sub.length > 1 ? 's' : '') + '</span></div>' +
+      '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Test</th><th>Comparés</th><th>Progrès net</th><th>Stable</th><th>Baisse nette</th><th>Non comparables</th></tr></thead><tbody>' +
+      sm.filter(x => x.n || x.c.nc).map(x => '<tr><td>' + esc(x.ind.label) + '</td><td>' + x.n + '</td><td class="pgup">' + pct(x.c.up, x.n) + ' <small>' + x.c.up + '</small></td>' +
+        '<td>' + pct(x.c.flat, x.n) + ' <small>' + x.c.flat + '</small></td><td class="pgdown">' + pct(x.c.down, x.n) + ' <small>' + x.c.down + '</small></td><td>' + (x.c.nc || '—') + '</td></tr>').join('') +
+      '</tbody></table></div></section>';
+  }).join('');
+  const inds = PROGRES.filter(i => rows.some(x => x.res[i.key]));
+  html += '<section class="panel"><div class="recaphead"><h2>Par adhérent</h2><span class="muted">▲ progrès net · ■ stable · ▼ baisse nette · ≠ non comparable</span></div>' +
+    '<div class="rtbl-wrap"><table class="rtbl pgtbl"><thead><tr><th>Adhérent</th>' + inds.map(i => '<th>' + esc(i.short) + '</th>').join('') + '</tr></thead><tbody>' +
+    rows.map(x => '<tr><td><b>' + esc(nameOf(x.uid)) + '</b> ' + ficheBtn(x.uid) + '<small>' + esc(coursOf(x.uid)) + '</small></td>' +
+      inds.map(i => '<td>' + pgCell(x.res[i.key], i) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></section>';
+  $('#dataView').innerHTML = html;
+  $('#summary').textContent = rows.length + ' adhérent' + (rows.length > 1 ? 's' : '') + ' comparé' + (rows.length > 1 ? 's' : '') + '.';
+  $('#pgFrom').addEventListener('change', (e) => { pgFrom = e.target.value; renderProgres(); });
+  $('#pgTo').addEventListener('change', (e) => { pgTo = e.target.value; renderProgres(); });
+}
+/* Feuille « Progrès » des exports (nominatif ou anonymisé). */
+function progresTable(anon) {
+  const head = (anon ? ['id_groupe', 'id_participant'] : ['cours', 'nom', 'prenom', 'id_participant'])
+    .concat(['indicateur', 'de', 'a', 'valeur_depart', 'valeur_arrivee', 'unite', 'variation', 'variation_pct', 'seuil', 'statut', 'raison']);
+  const lines = [head];
+  progresAll().forEach(x => PROGRES.forEach(ind => {
+    const r = x.res[ind.key]; if (!r) return;
+    const p = profiles[x.uid] || {};
+    lines.push((anon ? [groupId(x.uid), participantId(x.uid)] : [coursOf(x.uid), p.nom, p.prenom, participantId(x.uid)])
+      .concat([ind.label, r.p0, r.p1, r0(r.v0), r0(r.v1), ind.unit, r0(r.d), r.pct != null ? Math.round(r.pct) : null, r0(r.seuil), PG_LABEL[r.st], r.raison || '']));
+  }));
+  return lines;
+}
+
+/* =====================================================================
+   Fiche individuelle — résultats par point de test, évolution (vrai progrès), profil radar
+   et courbes de FC de l'AMRAP. Imprimable (PDF) pour la remettre à l'adhérent.
+   Radar : position par rapport aux adhérents à leur premier test (même sexe s'ils sont au moins 5),
+   en rang centile (50 = au milieu du groupe de référence). Pompes : même variante seulement.
+   ===================================================================== */
+const RADAR = [
+  { label: 'Préhension', type: 'grip', get: meanHands },
+  { label: 'Pompes', type: 'pompes', get: d => num(d.pompes_reps), same: d => pompesVar(d) },
+  { label: 'Wall-sit', type: 'wallsit', get: d => num(d.wallsit_secondes) },
+  { label: 'Rowing', type: 'rowing', get: d => num(d.rowing_reps) != null && num(d.rowing_charge_kg) != null ? num(d.rowing_reps) * num(d.rowing_charge_kg) : null },
+  { label: 'RDL', type: 'rdl', get: d => num(d.rdl_reps) != null && num(d.rdl_charge_kg) != null ? num(d.rdl_reps) * num(d.rdl_charge_kg) : null },
+  { label: 'Cardio (AMRAP)', type: 'amrap_cardio', get: d => (d.duree_min || 10) === 20 ? num(d.amrap_tours_complets) : null },
+  { label: 'Récupération', type: 'rfc', get: d => d.valide === false ? null : num(d.hrr60) },
+];
+const PT_COLORS = { T0: '#8A9BB0', T1: '#C26B4A', T2: '#2F6FB0', T3: '#3E8E5A' };
+function radarRefs(byUid, sexe) {   // valeurs de référence : premier test de chaque adhérent
+  return RADAR.map(ax => {
+    const all = [];
+    Object.keys(byUid).forEach(uid => {
+      const p = profiles[uid]; if (!p || p.role === 'coach') return;
+      const pt = POINTS.find(x => byUid[uid][x] && byUid[uid][x][ax.type] && ax.get(byUid[uid][x][ax.type]) != null);
+      if (pt) { const d = byUid[uid][pt][ax.type]; all.push({ v: ax.get(d), sexe: p.sexe, same: ax.same ? ax.same(d) : '' }); }
+    });
+    return all;
+  });
+}
+function centile(ref, v) {
+  if (ref.length < 3 || v == null) return null;
+  const below = ref.filter(x => x < v).length, eq = ref.filter(x => x === v).length;
+  return Math.round((below + eq / 2) / ref.length * 100);
+}
+function radarSvg(uid, byUid) {
+  const p = profiles[uid] || {}, refs = radarRefs(byUid), mine = byUid[uid] || {};
+  const pts = POINTS.filter(x => mine[x]);
+  const W = 400, cx = 200, cy = 160, R = 110, n = RADAR.length;
+  const ang = (i) => -Math.PI / 2 + i * 2 * Math.PI / n, P = (i, c) => [cx + Math.cos(ang(i)) * R * c / 100, cy + Math.sin(ang(i)) * R * c / 100];
+  let g = '';
+  [25, 50, 75, 100].forEach(c => { g += '<polygon points="' + RADAR.map((_, i) => P(i, c).map(z => z.toFixed(1)).join(',')).join(' ') + '" class="rg"/>'; });
+  RADAR.forEach((ax, i) => { const [x, y] = P(i, 100), [lx, ly] = P(i, 122);
+    g += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" class="rg"/>' +
+      '<text x="' + lx.toFixed(1) + '" y="' + (ly + 4).toFixed(1) + '" class="rl">' + esc(ax.label) + '</text>'; });
+  let any = false;
+  const legend = [];
+  pts.forEach(pt => {
+    const vals = RADAR.map((ax, i) => {
+      const d = mine[pt][ax.type]; if (!d) return null;
+      const v = ax.get(d); if (v == null) return null;
+      let ref = refs[i].filter(x => !ax.same || x.same === ax.same(d));
+      const sameSex = ref.filter(x => x.sexe === p.sexe);
+      if (sameSex.length >= 5) ref = sameSex;
+      return centile(ref.map(x => x.v), v);
+    });
+    const ok = vals.map((c, i) => c == null ? null : P(i, Math.max(4, c))).filter(Boolean);
+    if (ok.length < 3) return;
+    any = true; legend.push(pt);
+    g += '<polygon points="' + ok.map(z => z.map(q => q.toFixed(1)).join(',')).join(' ') + '" class="rp" style="stroke:' + PT_COLORS[pt] + ';fill:' + PT_COLORS[pt] + '"/>';
+  });
+  if (!any) return '<p class="empty">Pas assez de résultats (ou d’adhérents de référence) pour le profil.</p>';
+  return '<svg viewBox="0 0 ' + W + ' 330" class="radar">' + g + '</svg><p class="radleg">' + legend.map(pt => '<span style="color:' + PT_COLORS[pt] + '">■</span> ' + pt).join(' &nbsp; ') +
+    '</p><p class="recapnote">Chaque axe situe l’adhérent par rapport aux autres adhérents à leur premier test' + ' (même sexe s’ils sont au moins 5) : au bord = parmi les meilleurs, ' +
+    'au milieu du rayon = dans la moyenne. Rowing et RDL : répétitions × charge. Pompes : comparées à la même variante.</p>';
+}
+function ficheCurves(mine) {
+  const W = 620, H = 200, L = 36, Rr = 10, T = 10, B = 24, series = [];
+  POINTS.forEach(pt => {
+    const t = mine[pt]; if (!t) return;
+    const a = t.amrap_cardio, r = t.rfc; if (!(a && a.courbe_fc) && !(r && r.courbe_fc)) return;
+    const ac = a && a.courbe_fc;
+    const stop = r && r.debut_recup ? Date.parse(r.debut_recup) : r && r.courbe_fc ? Date.parse(r.courbe_fc.debut) : Date.parse(ac.debut) + ac.fc.length * ac.pas * 1000;
+    series.push({ pt, pts: curvePoints(a, stop).concat(curvePoints(r, stop)).filter(Boolean) });
+  });
+  if (!series.length) return '';
+  const ys = series.flatMap(s => s.pts.map(q => q[1])), y0 = Math.floor((Math.min(...ys) - 5) / 10) * 10, y1 = Math.ceil((Math.max(...ys) + 5) / 10) * 10;
+  const PW = W - L - Rr, XA = 0.75 * PW;
+  const X = (m) => { m = Math.max(-20, Math.min(2, m)); return m < 0 ? L + (m + 20) / 20 * XA : L + XA + m / 2 * (PW - XA); }, Y = (v) => T + (y1 - v) / (y1 - y0) * (H - T - B);
+  let g = '';
+  for (let v = y0; v <= y1; v += 20) g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" class="cg"/><text x="' + (L - 4) + '" y="' + (Y(v) + 4) + '" class="cy">' + v + '</text>';
+  [-20, -15, -10, -5, 0, 1, 2].forEach(m => { g += '<text x="' + X(m) + '" y="' + (H - 6) + '" class="cx">' + (m < 0 ? m + ' min' : m ? '+' + m + ' min' : 'STOP') + '</text>'; });
+  g += '<line y1="' + T + '" y2="' + (H - B) + '" x1="' + X(0) + '" x2="' + X(0) + '" class="cstop"/>';
+  series.forEach(s => { let d = ''; s.pts.forEach((q, i) => { d += (i ? 'L' : 'M') + X(q[0]).toFixed(1) + ' ' + Y(q[1]).toFixed(1); });
+    g += '<path d="' + d + '" fill="none" stroke="' + PT_COLORS[s.pt] + '" stroke-width="2"/>'; });
+  return '<h3>FC pendant l’AMRAP et la récupération</h3><svg viewBox="0 0 ' + W + ' ' + H + '" class="crvsvg">' + g + '</svg><p class="radleg">' +
+    series.map(s => '<span style="color:' + PT_COLORS[s.pt] + '">■</span> ' + s.pt).join(' &nbsp; ') + '</p>';
+}
+function openFiche(uid) {
+  const { out, dates } = protoByUid(), mine = out[uid] || {}, p = profiles[uid] || {};
+  const pts = POINTS.filter(x => mine[x]);
+  const today = dayKey(Date.now()), age = ageAt(p.date_naissance, today);
+  const cell = (pt, ind) => { const d = mine[pt] && mine[pt][ind.type]; const x = d ? ind.get(d) : null; return x == null ? '—' : frNum(r0(x)) + ' ' + ind.unit; };
+  const detail = (pt) => { const t = mine[pt] || {}, bits = [];
+    if (t.pompes) bits.push('pompes : ' + pompesVar(t.pompes)); if (t.rowing && t.rowing.rowing_charge_kg != null) bits.push('rowing ' + frNum(t.rowing.rowing_charge_kg) + ' kg');
+    if (t.rdl && t.rdl.rdl_charge_kg != null) bits.push('RDL ' + frNum(t.rdl.rdl_charge_kg) + ' kg'); if (t.amrap_cardio && t.amrap_cardio.no_impact) bits.push('AMRAP no impact');
+    if (t.questionnaire) bits.push('sommeil ' + frNum(t.questionnaire.sommeil_h) + ' h · fatigue ' + t.questionnaire.fatigue + '/10' + (t.questionnaire.malade ? ' · malade' : ''));
+    return bits.join(' · '); };
+  const rowsHtml = PROGRES.filter(ind => pts.some(pt => mine[pt][ind.type] && ind.get(mine[pt][ind.type]) != null)).map(ind =>
+    '<tr><td>' + esc(ind.label) + '</td>' + pts.map(pt => '<td>' + cell(pt, ind) + '</td>').join('') + '<td>' + pgCell(progresOne(ind, mine, '', ''), ind) + '</td></tr>').join('');
+  const el = $('#fiche');
+  el.innerHTML = '<div class="fichebar noprint"><button type="button" class="btn-primary" id="ficheprint">Imprimer / PDF</button><button type="button" class="btn-soft" id="ficheclose">Fermer</button></div>' +
+    '<article class="fichepage"><div class="fichehead"><div><h2>' + esc(nameOf(uid)) + '</h2><p>' + esc([coursOf(uid), p.date_naissance ? GENRE_LABEL[p.sexe] : null, age != null ? age + ' ans' : null].filter(Boolean).join(' · ')) +
+    '</p></div><p class="muted">Bilan des tests — ' + esc(new Date().toLocaleDateString('fr-FR')) + '</p></div>' +
+    (pts.length ? '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Test</th>' + pts.map(pt => '<th>' + pt + '<small>' + esc(dates[uid] && dates[uid][pt] ? frDay(dates[uid][pt]) : '') + '</small></th>').join('') +
+      '<th>Évolution</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
+      '<p class="recapnote">' + pts.map(pt => '<b>' + pt + '</b> : ' + esc(detail(pt) || '—')).join('<br>') + '</p>' +
+      '<p class="recapnote">Évolution : ▲ progrès net · ■ stable (variation dans la marge normale du test) · ▼ baisse nette · ≠ conditions différentes, pas comparable.</p>' +
+      '<div class="fichegrid"><div><h3>Profil</h3>' + radarSvg(uid, out) + '</div><div>' + ficheCurves(mine) + '</div></div>'
+      : '<p class="empty">Aucun résultat de test pour l’instant.</p>') + '</article>';
+  el.hidden = false; document.body.classList.add('fiche-open'); el.scrollTop = 0;
+  $('#ficheclose').addEventListener('click', closeFiche);
+  $('#ficheprint').addEventListener('click', () => window.print());
+}
+function closeFiche() { $('#fiche').hidden = true; document.body.classList.remove('fiche-open'); }
+document.addEventListener('click', (ev) => { const b = ev.target.closest('button.fichebtn'); if (b) { ev.stopPropagation(); openFiche(b.dataset.uid); } }, true);
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('#fiche').hidden) closeFiche(); });
 
 /* =====================================================================
    Courbes FC — AMRAP (20 min) puis récupération (2 min), une courbe par adhérent.

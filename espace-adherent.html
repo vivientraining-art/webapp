@@ -199,6 +199,7 @@
   @media (max-width:520px){.circuit{columns:1;line-height:1.65}}
   .stepcard{background:var(--linen);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.3rem;box-shadow:var(--sh-1)}
   .stepmeta{color:var(--muted);font-size:.82rem;margin-bottom:.3rem}
+  .pendbadge{flex-basis:100%;background:#FFF4DC;border:1px solid #E8CF8F;color:#7A5A12;border-radius:8px;padding:.4rem .6rem;font-size:.82rem;font-weight:600}
   .protonav{margin:-.6rem 0 .3rem}
   .btn-link{background:none;border:none;box-shadow:none;color:var(--pine);font-weight:600;padding:.4rem 0;text-decoration:underline;text-underline-offset:3px}
   .editbanner{background:#EEF4F0;border:1px solid #BFD0C5;border-left:4px solid var(--pine);border-radius:10px;padding:.7rem .9rem;
@@ -440,6 +441,7 @@
           <div class="spacer"></div>
           <button class="btn-soft" id="protoReconnect">Connecter le capteur</button>
           <button class="btn-danger" id="protoStop">Arrêter le test</button>
+          <span class="pendbadge" id="pendBadge" hidden></span>
         </div>
         <div class="steps" id="protoSteps"></div>
         <div class="stepcard" id="protoCard"></div>
@@ -556,7 +558,9 @@
 <div id="sessionBadge"><span class="dot"></span>Séance en cours</div>
 <div id="toast" role="status"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- version figée (une mise à jour de la bibliothèque ne peut pas casser l'app du jour au lendemain) ; secours unpkg -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
+<script>window.supabase || document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"><\/script>');</script>
 <script>
 'use strict';
 
@@ -655,6 +659,63 @@ setInterval(() => {
     } catch (e) {}
   }
 }, 1000);
+/* ---- Enregistrement sans réseau : un résultat qui ne peut pas partir (réseau absent ou coupé)
+   est gardé dans le téléphone et renvoyé automatiquement (retour du réseau, toutes les 20 s,
+   à la connexion). Une même clé (point de test + test) n'est gardée qu'une fois : la dernière valeur. */
+const pendingKey = () => me ? 'vs-pending-' + me.id : null;
+function pendingList() { try { return JSON.parse(localStorage.getItem(pendingKey()) || '[]'); } catch (e) { return []; } }
+function pendingSave(list) {
+  try { if (list.length) localStorage.setItem(pendingKey(), JSON.stringify(list)); else localStorage.removeItem(pendingKey()); } catch (e) {}
+  updatePendingBadge();
+}
+function updatePendingBadge() {
+  const b = $('#pendBadge'); if (!b) return;
+  const n = me ? pendingList().length : 0;
+  b.hidden = !n;
+  b.textContent = '⏳ ' + n + ' résultat' + (n > 1 ? 's' : '') + ' en attente d’envoi (réseau)';
+}
+const isNetworkError = (e) => navigator.onLine === false ||
+  /failed to fetch|fetch failed|networkerror|network request|load failed|timed? ?out|connexion|offline/i.test(String((e && (e.message || e.details)) || e || ''));
+function sendRow(it) {
+  const q = sb.from(it.table);
+  return it.conflict ? q.upsert(it.row, { onConflict: it.conflict }) : q.insert(it.row);
+}
+async function saveOrQueue(table, row, conflict, key) {
+  const it = { table, row, conflict: conflict || null, key };
+  let error = null;
+  if (navigator.onLine === false) error = { message: 'offline' };
+  else { try { ({ error } = await sendRow(it)); } catch (e) { error = e; } }
+  const others = pendingList().filter(x => x.key !== key);
+  if (!error) { pendingSave(others); return { ok: true }; }   // envoyé : une ancienne valeur en attente ne doit pas l'écraser
+  if (!isNetworkError(error)) return { ok: false, error };
+  pendingSave(others.concat(it));
+  return { ok: true, queued: true };
+}
+let flushing = false;
+async function flushPending() {
+  if (flushing || !sb || !me || navigator.onLine === false) return;
+  const list = pendingList(); if (!list.length) return;
+  flushing = true;
+  const rest = [];
+  for (const it of list) {
+    let error = null;
+    try { ({ error } = await sendRow(it)); } catch (e) { error = e; }
+    if (error && it.table === 'hr_sessions' && /qualite/.test(error.message || '')) {   // migration 13 absente
+      delete it.row.qualite; try { ({ error } = await sendRow(it)); } catch (e) { error = e; }
+    }
+    if (!error) continue;
+    it.essais = (it.essais || 0) + (isNetworkError(error) ? 0 : 1);
+    if (it.essais >= 5) toast('Un résultat n’a pas pu être envoyé : ' + (error.message || error) + '. Préviens ton coach.');
+    else rest.push(it);
+  }
+  flushing = false;
+  pendingSave(rest);
+  if (rest.length < list.length && !rest.length) toast('Résultats en attente envoyés ✔');
+}
+window.addEventListener('online', flushPending);
+setInterval(flushPending, 20000);
+const QUEUED_MSG = 'Pas de réseau : gardé dans le téléphone, envoi automatique dès que le réseau revient ✔';
+
 function castStat(type, data) {
   if (!sb || !me) return;
   try {
@@ -855,6 +916,7 @@ async function onSignedIn(user) {
   }
   syncFcMax();
   loadObservedPeak();
+  updatePendingBadge(); flushPending();
   renderWho();
   fillProfileForm();
   ensureChannel();
@@ -1396,11 +1458,12 @@ async function stopHrSession(silentIfEmpty) {
     zone_seconds: zoneObj,
     qualite,
   };
-  let { error } = await sb.from('hr_sessions').insert(row);
-  if (error && /qualite/.test(error.message)) {   // colonne absente (migration 13 pas encore exécutée)
-    delete row.qualite; ({ error } = await sb.from('hr_sessions').insert(row));
+  const hk = 'hr:' + row.started_at;
+  let res = await saveOrQueue('hr_sessions', row, null, hk);
+  if (!res.ok && /qualite/.test(res.error.message || '')) {   // colonne absente (migration 13 pas encore exécutée)
+    delete row.qualite; res = await saveOrQueue('hr_sessions', row, null, hk);
   }
-  if (error) { toast('Erreur d’enregistrement : ' + error.message); return null; }
+  if (!res.ok) { toast('Erreur d’enregistrement : ' + res.error.message); return null; }
   if (row.hr_peak && row.hr_peak <= 220 && (!observedPeak || row.hr_peak > observedPeak.v) && qualite.pct_valide >= 80) {
     observedPeak = { v: row.hr_peak, date: row.started_at }; syncFcMax();
   }
@@ -1889,10 +1952,10 @@ function recupData() {
 }
 async function saveRfc() {
   const data = recupData(); if (!data) return true;
-  const { error } = await sb.from('protocol_test_results')
-    .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'rfc', data },
-      { onConflict: 'participant_id,point_de_test,test_type' });
-  if (error) { toast('Erreur : ' + error.message); return false; }
+  const res = await saveOrQueue('protocol_test_results', { participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'rfc', data },
+    'participant_id,point_de_test,test_type', 'ptr:' + pointDeTest + ':rfc');
+  if (!res.ok) { toast('Erreur : ' + res.error.message); return false; }
+  if (res.queued) toast(QUEUED_MSG);
   protoExisting.rfc = data;
   markProtoDone('rfc');
   return true;
@@ -1938,9 +2001,14 @@ function firstIncompleteStepIndex(existing) {
 }
 
 async function beginProtocol() {
-  const { data, error } = await sb.from('protocol_test_results')
+  let { data, error } = await sb.from('protocol_test_results')
     .select('test_type,data,date_test').eq('participant_id', me.id).eq('point_de_test', pointDeTest);
-  if (error) { toast('Erreur : ' + error.message); return; }
+  if (error && !isNetworkError(error)) { toast('Erreur : ' + error.message); return; }
+  if (error) { data = []; toast('Pas de réseau : le test continue, les résultats partiront dès que le réseau revient.'); }
+  // résultats encore dans le téléphone : ils comptent comme déjà enregistrés
+  pendingList().filter(it => it.table === 'protocol_test_results' && it.row.point_de_test === pointDeTest).forEach(it => {
+    data = (data || []).filter(r => r.test_type !== it.row.test_type).concat({ test_type: it.row.test_type, data: it.row.data, date_test: it.row.date_test });
+  });
   const saved = readProtocolFlag();
   const inProgress = saved && saved.p === pointDeTest;
   protoExisting = {}; protoEdit = null;
@@ -2092,13 +2160,13 @@ function renderProtoStepCard() {
         debut_seance: now.toISOString(), heure_seance: z(now.getHours()) + ':' + z(now.getMinutes()) };
       if (old && old.debut_seance) { data.debut_seance = old.debut_seance; data.heure_seance = old.heure_seance; }   // correction : heure de séance d'origine
       $('#protoQSave').disabled = true;
-      const { error } = await sb.from('protocol_test_results')
-        .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'questionnaire', data },
-          { onConflict: 'participant_id,point_de_test,test_type' });
+      const res = await saveOrQueue('protocol_test_results', { participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'questionnaire', data },
+        'participant_id,point_de_test,test_type', 'ptr:' + pointDeTest + ':questionnaire');
       $('#protoQSave').disabled = false;
+      const error = !res.ok;
       if (error) toast('Questionnaire non enregistré (le coach doit exécuter la migration 13) — on continue.');
-      else { protoExisting.questionnaire = data; markProtoDone('questionnaire'); }
-      if (protoEndEdit(error ? '' : 'Correction enregistrée ✔')) return;
+      else { protoExisting.questionnaire = data; markProtoDone('questionnaire'); if (res.queued) toast(QUEUED_MSG); }
+      if (protoEndEdit(error ? '' : res.queued ? QUEUED_MSG : 'Correction enregistrée ✔')) return;
       protoAdvance();
     });
     return;
@@ -2111,6 +2179,8 @@ function renderProtoStepCard() {
       '<button class="btn-primary" id="protoInfoNext">' + (step.isLast ? 'Terminer le protocole' : 'Continuer') + '</button>';
     $('#protoInfoNext').addEventListener('click', async () => {
       if (step.isLast) {
+        if (pendingList().length && !confirm('Des résultats sont encore dans le téléphone (pas de réseau).\n\nIls partiront tout seuls dès que le ' +
+          'réseau revient : garde l’app ouverte (ou rouvre-la plus tard avec du réseau). Terminer quand même ?')) return;
         stopProtoTimers();
         clearProtocolFlag();
         await stopHrSession(true);
@@ -2454,16 +2524,15 @@ function renderProtoStepCard() {
     const ecarts = ecartsProtocole(step, def, data);
     if (ecarts.length) data.ecart_protocole = ecarts.join(' ; ');
     $('#protoTestSave').disabled = true;
-    const { error } = await sb.from('protocol_test_results')
-      .upsert({ participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: step.key, data },
-        { onConflict: 'participant_id,point_de_test,test_type' });
+    const res = await saveOrQueue('protocol_test_results', { participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: step.key, data },
+      'participant_id,point_de_test,test_type', 'ptr:' + pointDeTest + ':' + step.key);
     $('#protoTestSave').disabled = false;
-    if (error) { toast('Erreur : ' + error.message); return; }
+    if (!res.ok) { toast('Erreur : ' + res.error.message); return; }
     protoExisting[step.key] = data;
     markProtoDone(step.key);
     clearInterval(protoSwTimer); protoSwTimer = null;   // chrono de l'atelier (minute, wall-sit) : plus utile
-    if (protoEndEdit('Correction enregistrée ✔')) return;
-    toast('Enregistré ✔');
+    if (protoEndEdit(res.queued ? QUEUED_MSG : 'Correction enregistrée ✔')) return;
+    toast(res.queued ? QUEUED_MSG : 'Enregistré ✔');
     if (step.restAfter) {
       protoPhase = 'resting'; protoRestTotal = step.restAfter; protoRestRemaining = step.restAfter;
       renderProtoStep();
