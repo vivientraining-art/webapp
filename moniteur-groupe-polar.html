@@ -296,6 +296,7 @@
 <div id="toast" role="status"></div>
 
 <!-- version figée (une mise à jour de la bibliothèque ne peut pas casser l'app du jour au lendemain) ; secours unpkg -->
+<script src="objectifs.js"></script>   <!-- hexagone des objectifs (calculs partagés avec l'espace adhérent) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
 <script>window.supabase || document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"><\/script>');</script>
 <script>
@@ -523,7 +524,8 @@ function hrSummary(list) {
   return { zones, n: list.length, minutes: Math.round(dur / 60), avg, peak: peaks.length ? Math.max(...peaks) : null, pctValide };
 }
 
-const PROTO_LABELS = { questionnaire: 'Questionnaire', grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'Récupération' };
+const PROTO_LABELS = { questionnaire: 'Questionnaire', grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP', rfc: 'Récupération', force_max: 'Force max' };
+const TRACTIONS_MODALITES = ['strictes', 'avec élastique', 'australiennes (corps incliné)'];
 const ATELIERS_AMRAP = [['Jumping jacks', 20], ['Squats', 10], ['Skatings', 10], ['Sprawls', 5], ['Burpee', 1], ['Pompes', 5], ['Supermans', 5],
   ['Mountain climbers', 20], ['Squat jumps', 5]];   // circuit C1-2026-10, tel que noté par l'adhérent
 const CIRCUIT_C1 = [['jacks', 20], ['squats', 10], ['skatings', 10], ['sprawls', 5], ['burpee', 1], ['pompes', 5], ['supermans', 5], ['climbers', 20], ['squat jumps', 5]];
@@ -558,6 +560,9 @@ function protoValue0(type, d) {
     case 'wallsit': return v(d.wallsit_secondes) + ' s' + (d.wallsit_plafond_atteint ? ' (plafond atteint)' : '');
     case 'rowing': return v(d.rowing_reps) + ' reps' + thirdsTxt(d, 'rowing_reps') + (d.rowing_charge_kg != null ? ' · ' + frNum(d.rowing_charge_kg) + ' kg' : '');
     case 'rdl': return v(d.rdl_reps) + ' reps' + thirdsTxt(d, 'rdl_reps') + (d.rdl_charge_kg != null ? ' · ' + frNum(d.rdl_charge_kg) + ' kg' : '');
+    case 'force_max': return [['squat', 'Squat'], ['dc', 'DC'], ['rdl', 'RDL']].filter(([k]) => d[k + '_charge_kg'] != null)
+      .map(([k, l]) => l + ' ' + frNum(d[k + '_charge_kg']) + ' kg × ' + v(d[k + '_reps']) + ' (1RM ≈ ' + v(d[k + '_1rm']) + ')')
+      .concat(d.tractions_reps != null ? ['tractions ' + d.tractions_reps + (d.tractions_modalite ? ' ' + d.tractions_modalite : '')] : []).join(' · ') || '—';
     case 'amrap_cardio': return (d.amrap_reps_totales != null ? v(d.amrap_reps_totales) + ' rép. (' + v(d.amrap_tours_complets) + ' tours + ' + v(d.amrap_reps_incomplet) +
         (d.amrap_atelier_arret ? ', arrêt ' + d.amrap_atelier_arret + ' : ' + v(d.amrap_reps_atelier_arret) : '') + ')'
       : v(d.amrap_tours_complets) + ' tours' + (d.amrap_derniere_station ? ' (' + d.amrap_derniere_station + ')' : '')) +
@@ -739,6 +744,10 @@ const EDIT_FIELDS = {   // [clé, libellé, type, options]
     ['no_impact', 'No impact (sans saut)', 'checkbox'], ['duree_min', 'Durée (min)', 'number'], ['rpe', 'Effort ressenti (0–10)', 'number'],
     ['fc_moy_amrap', 'FC moyenne', 'number'], ['fc_pic_amrap', 'FC pic', 'number']],
   rfc: [['fc_arret', 'FC à l’arrêt', 'number'], ['fc_60', 'FC à 60 s', 'number'], ['fc_120', 'FC à 120 s', 'number']],
+  force_max: [['squat_charge_kg', 'Squat — charge (kg)', 'number'], ['squat_reps', 'Squat — rép. (1 à 10)', 'number'],
+    ['dc_charge_kg', 'Développé couché — charge (kg)', 'number'], ['dc_reps', 'DC — rép. (1 à 10)', 'number'],
+    ['rdl_charge_kg', 'RDL — charge (kg)', 'number'], ['rdl_reps', 'RDL — rép. (1 à 10)', 'number'],
+    ['tractions_reps', 'Tractions — répétitions', 'number'], ['tractions_modalite', 'Tractions — modalité', 'select', TRACTIONS_MODALITES]],
 };
 // champs de l'ancien format, affichés seulement s'ils existent dans le résultat
 const LEGACY_FIELDS = { amrap_cardio: [['amrap_derniere_station', 'Dernière station (ancien format)', 'select', STATIONS]],
@@ -770,6 +779,11 @@ function normalizeTestData(type, d, uid, date) {
     }
     const fm = fcMaxRetenue(uid, date);
     if (d.fc_moy_amrap != null && fm) { d.fc_max_retenue = d.fc_max_retenue || fm.v; d.intensite_pct = Math.round(d.fc_moy_amrap / d.fc_max_retenue * 100); }
+  }
+  if (type === 'force_max') {   // 1RM estimé (Brzycki) recalculé à chaque correction
+    ['squat', 'dc', 'rdl'].forEach(k => { const v1 = OBJECTIFS.brzycki(d[k + '_charge_kg'], d[k + '_reps'] == null ? 5 : d[k + '_reps']);
+      if (v1) { d[k + '_1rm'] = v1; if (d[k + '_reps'] == null) d[k + '_reps'] = 5; } else delete d[k + '_1rm']; });
+    d.methode_1rm = 'Brzycki (5RM)';
   }
   if (type === 'rfc') {
     if (d.fc_arret != null) {
@@ -885,9 +899,9 @@ $('#dataView').addEventListener('click', (ev) => {
    seul formulaire. Les tests déjà enregistrés sont préremplis et complétés,
    les nouveaux sont créés.
    ===================================================================== */
-const SAISIE_ORDER = ['questionnaire', 'grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
+const SAISIE_ORDER = ['questionnaire', 'grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc', 'force_max'];
 const SAISIE_LABELS = { questionnaire: 'Questionnaire avant le test', grip: 'Force de préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing barre', rdl: 'RDL barre',
-  amrap_cardio: 'AMRAP Cardio', rfc: 'Récupération cardiaque (FC à l’arrêt, à 60 s, à 120 s)' };
+  amrap_cardio: 'AMRAP Cardio', rfc: 'Récupération cardiaque (FC à l’arrêt, à 60 s, à 120 s)', force_max: 'Tests de force max (5RM → 1RM estimé)' };
 
 function existingFor(uid, point) {
   const out = {};
@@ -1262,6 +1276,8 @@ function accountIssues() {
    ===================================================================== */
 let anomOk = lsGet('vs-anom-ok', {});   // anomalies validées par le coach (sur cet appareil)
 const ANOM_LIMITS = {   // [test, clé, libellé, min plausible, max plausible, unité]
+  force_max: [['squat_1rm', 'Squat — 1RM estimé', 10, 300, 'kg'], ['dc_1rm', 'Développé couché — 1RM estimé', 5, 250, 'kg'],
+    ['rdl_1rm', 'RDL — 1RM estimé', 10, 320, 'kg'], ['tractions_reps', 'Tractions', 0, 50, 'rép.']],
   grip: [['force_main_gauche_kg', 'Préhension gauche', 5, 90, 'kg'], ['force_main_droite_kg', 'Préhension droite', 5, 90, 'kg']],
   pompes: [['pompes_reps', 'Pompes', 1, 75, 'reps']],
   wallsit: [['wallsit_secondes', 'Wall-sit', 5, 300, 's']],
@@ -1579,6 +1595,11 @@ const EXPORT_COLUMNS = [
   ['amrap_tours_complets', 'amrap_cardio', 'amrap_tours_complets'], ['amrap_reps_tour_incomplet', 'amrap_cardio', 'amrap_reps_incomplet'],
   ['amrap_atelier_arret', 'amrap_cardio', 'amrap_atelier_arret'], ['amrap_reps_atelier_arret', 'amrap_cardio', 'amrap_reps_atelier_arret'],
   ['amrap_compteur_tours', 'amrap_cardio', 'compteur_tours'],
+  ['vo2max_estimee_amrap', 'amrap_cardio', (d) => OBJECTIFS.vo2FromAmrap(d)],
+  ['squat_charge_kg', 'force_max', 'squat_charge_kg'], ['squat_reps', 'force_max', 'squat_reps'], ['squat_1rm_estime_kg', 'force_max', 'squat_1rm'],
+  ['dc_charge_kg', 'force_max', 'dc_charge_kg'], ['dc_reps', 'force_max', 'dc_reps'], ['dc_1rm_estime_kg', 'force_max', 'dc_1rm'],
+  ['rdl5rm_charge_kg', 'force_max', 'rdl_charge_kg'], ['rdl5rm_reps', 'force_max', 'rdl_reps'], ['rdl_1rm_estime_kg', 'force_max', 'rdl_1rm'],
+  ['tractions_reps', 'force_max', 'tractions_reps'], ['tractions_modalite', 'force_max', 'tractions_modalite'],
   ['amrap_reps_totales', 'amrap_cardio', (d) => { const r = amrapReps(d); return r && !r.est ? r.v : null; }],
   ['amrap_reps_totales_estimees_ancien_format', 'amrap_cardio', (d) => { const r = amrapReps(d); return r && r.est ? r.v : null; }],
   ['amrap_circuit_version', 'amrap_cardio', 'circuit_version'], ['amrap_derniere_station', 'amrap_cardio', 'amrap_derniere_station'],
@@ -1709,6 +1730,7 @@ async function exportXlsx() {
   X.utils.book_append_sheet(wb, toSheet(X, inscritsTable(ins)), 'Inscrits');
   X.utils.book_append_sheet(wb, toSheet(X, miss), 'À vérifier');
   X.utils.book_append_sheet(wb, toSheet(X, progresTable(false)), 'Progrès');
+  X.utils.book_append_sheet(wb, toSheet(X, objectifsTable(false)), 'Objectifs');
   const info = [['Export', new Date().toLocaleString('fr-FR')], ['Cours', fCours || 'tous'], ['Genre', fGenre ? (fGenre === 'F' ? 'femmes' : 'hommes') : 'femmes et hommes'],
     ['Date', fDate ? dayLabel(fDate) : 'toutes les dates'], ['Lignes de résultats', res.length - 1], ['Inscrits', ins.length], ['Éléments à vérifier', miss.length - 1],
     [], ['Onglets', 'Résultats : une ligne par adhérent, date et point de test (valeurs brutes).'],
@@ -1732,6 +1754,7 @@ async function exportAnon() {
   X.utils.book_append_sheet(wb, toSheet(X, res), 'Résultats');
   X.utils.book_append_sheet(wb, toSheet(X, recapTableRows(recapGroups()).map((r, i) => i ? r.map(v => GROUP_IDS[v] || v) : r.map(h => h === 'cours' ? 'id_groupe' : h))), 'Récap groupes');
   X.utils.book_append_sheet(wb, toSheet(X, progresTable(true)), 'Progrès');
+  X.utils.book_append_sheet(wb, toSheet(X, objectifsTable(true)), 'Objectifs');
   const info = [['Export anonymisé', new Date().toLocaleString('fr-FR')], ['Groupe', fCours ? GROUP_IDS[fCours] || 'G0' : 'tous'],
     ['Date', fDate ? dayLabel(fDate) : 'toutes les dates'], ['Lignes de résultats', res.length - 1],
     ['Participants', new Set(res.slice(1).map(r => r[2])).size], [],
@@ -2015,6 +2038,11 @@ const PROGRES = [
     get: d => (d.duree_min || 10) === 20 && d.amrap_reps_totales != null ? num(d.amrap_reps_totales) : null,
     diff: (a, b) => !!a.no_impact !== !!b.no_impact ? 'option No impact différente' : '' },
   { key: 'hrr60', label: 'Récupération — HRR60', short: 'HRR60', type: 'rfc', unit: 'bpm', pct: 0, min: 8, get: d => d.valide === false ? null : num(d.hrr60) },
+  { key: 'squat1rm', label: 'Squat — 1RM estimé', short: 'Squat', type: 'force_max', unit: 'kg', pct: 10, min: 2.5, get: d => num(d.squat_1rm) },
+  { key: 'dc1rm', label: 'Développé couché — 1RM estimé', short: 'DC', type: 'force_max', unit: 'kg', pct: 10, min: 2.5, get: d => num(d.dc_1rm) },
+  { key: 'rdl1rm', label: 'RDL — 1RM estimé', short: 'RDL 1RM', type: 'force_max', unit: 'kg', pct: 10, min: 2.5, get: d => num(d.rdl_1rm) },
+  { key: 'tractions', label: 'Tractions', short: 'Tractions', type: 'force_max', unit: 'rép.', pct: 0, min: 2, get: d => num(d.tractions_reps),
+    diff: (a, b) => (a.tractions_modalite || '') !== (b.tractions_modalite || '') ? 'modalité différente (' + (a.tractions_modalite || '?') + ' → ' + (b.tractions_modalite || '?') + ')' : '' },
 ];
 const PG_LABEL = { up: 'progrès net', flat: 'stable', down: 'baisse nette', nc: 'non comparable' };
 let pgFrom = '', pgTo = '';
@@ -2022,7 +2050,8 @@ function protoByUid() {   // uid -> point -> test -> données (toutes dates), et
   const out = {}, dates = {};
   Object.values(protoRows).forEach(r => {
     ((out[r.participant_id] = out[r.participant_id] || {})[r.point_de_test] = out[r.participant_id][r.point_de_test] || {})[r.test_type] = r.data || {};
-    (dates[r.participant_id] = dates[r.participant_id] || {})[r.point_de_test] = r.date_test;
+    const dd = dates[r.participant_id] = dates[r.participant_id] || {};
+    if (r.test_type !== 'force_max' || !dd[r.point_de_test]) dd[r.point_de_test] = r.date_test;   // date du protocole, pas de la séance de force
   });
   return { out, dates };
 }
@@ -2032,7 +2061,7 @@ function progresOne(ind, byPt, from, to) {
   const p0 = from || pts[0], p1 = to || pts[pts.length - 1];
   if (!p0 || !p1 || p0 >= p1 || !pts.includes(p0) || !pts.includes(p1)) return null;
   const a = byPt[p0][ind.type], b = byPt[p1][ind.type], v0 = ind.get(a), v1 = ind.get(b);
-  const raison = (ind.diff && ind.diff(a, b)) || (b.ecart_protocole ? 'écart au protocole : ' + b.ecart_protocole : '');
+  const raison = (ind.diff && ind.diff(a, b)) || (b.ecart_protocole && ind.type !== 'force_max' ? 'écart au protocole : ' + b.ecart_protocole : '');   // force max : seul l'écart propre à l'exercice compte
   const seuil = Math.max(ind.min, Math.abs(v0) * ind.pct / 100), d = v1 - v0;
   return { p0, p1, v0, v1, d, pct: v0 ? d / Math.abs(v0) * 100 : null, seuil, raison,
     st: raison ? 'nc' : d >= seuil ? 'up' : d <= -seuil ? 'down' : 'flat' };
@@ -2098,6 +2127,20 @@ function renderProgres() {
   $('#summary').textContent = rows.length + ' adhérent' + (rows.length > 1 ? 's' : '') + ' comparé' + (rows.length > 1 ? 's' : '') + '.';
   $('#pgFrom').addEventListener('change', (e) => { pgFrom = e.target.value; renderProgres(); });
   $('#pgTo').addEventListener('change', (e) => { pgTo = e.target.value; renderProgres(); });
+}
+/* Feuille « Objectifs » des exports : départ, dernier test, objectifs 1 an et 3 ans par qualité. */
+function objectifsTable(anon) {
+  const head = (anon ? ['id_groupe', 'id_participant'] : ['cours', 'nom', 'prenom', 'id_participant'])
+    .concat(['qualite', 'unite', 'depart', 'point_depart', 'dernier', 'point_dernier', 'objectif_1an', 'objectif_3ans', 'age_depart', 'modalite']);
+  const lines = [head], { out, dates } = protoByUid();
+  progresUids().forEach(uid => {
+    const p = profiles[uid] || {};
+    OBJECTIFS.compute(out[uid], { sexe: p.sexe, naissance: p.date_naissance, dates: dates[uid] || {},
+      fcMax: (pt) => (fcMaxRetenue(uid, (dates[uid] || {})[pt] || dayKey(Date.now())) || {}).v }).filter(r => r.start != null).forEach(r =>
+      lines.push((anon ? [groupId(uid), participantId(uid)] : [coursOf(uid), p.nom, p.prenom, participantId(uid)])
+        .concat([r.ax.label, r.ax.unit, r.start, r.startPt, r.last, r.lastPt, r.y1, r.y3, r.age, r.modalite || ''])));
+  });
+  return lines;
 }
 /* Feuille « Progrès » des exports (nominatif ou anonymisé). */
 function progresTable(anon) {
@@ -2218,6 +2261,8 @@ function openFiche(uid) {
       '<th>Évolution</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
       '<p class="recapnote">' + pts.map(pt => '<b>' + pt + '</b> : ' + esc(detail(pt) || '—')).join('<br>') + '</p>' +
       '<p class="recapnote">Évolution : ▲ progrès net · ■ stable (variation dans la marge normale du test) · ▼ baisse nette · ≠ conditions différentes, pas comparable.</p>' +
+      '<h3>Objectifs (32 séances par an)</h3>' + OBJECTIFS.html(mine, { coach: true, sexe: p.sexe, naissance: p.date_naissance, dates: dates[uid] || {},
+        fcMax: (pt) => (fcMaxRetenue(uid, (dates[uid] || {})[pt] || today) || {}).v }) +
       '<div class="fichegrid"><div><h3>Profil</h3>' + radarSvg(uid, out) + '</div><div>' + ficheCurves(mine) + '</div></div>'
       : '<p class="empty">Aucun résultat de test pour l’instant.</p>') + '</article>';
   el.hidden = false; document.body.classList.add('fiche-open'); el.scrollTop = 0;

@@ -21,6 +21,7 @@ n'est pas déjà fait :
 10. `supabase-migration-12-saisie-suppression-coach.sql` — saisie de résultats et suppression de doublons par le coach.
 11. `supabase-migration-13-questionnaire-qualite.sql` — questionnaire avant test et qualité du signal des séances.
 12. `supabase-migration-14-protection-role-coach.sql` — sécurité : un adhérent ne peut pas se donner le rôle coach.
+13. `supabase-migration-15-force-max.sql` — tests de force max (5RM) pour l'hexagone des objectifs.
 
 ## Déroulé d'une passation (côté adhérent)
 
@@ -96,6 +97,36 @@ gardé dans le téléphone (bandeau « ⏳ résultats en attente d'envoi ») et 
 continue ; tout part automatiquement dès que le réseau revient (garder l'app
 ouverte, ou la rouvrir plus tard avec du réseau). Il faut du réseau pour
 ouvrir la page au départ.
+
+### Tests de force max et objectifs (hexagone)
+
+Séance à part, avec le coach (onglet **Protocole test**, encadré « Tests de
+force max », pour le point de test choisi) :
+- **squat, développé couché, RDL** : charge la plus lourde soulevée proprement
+  5 fois (5RM) ; de 1 à 10 répétitions acceptées, l'app estime le 1RM (formule
+  de Brzycki : charge × 36 ÷ (37 − répétitions)) ;
+- **tractions** : maximum de répétitions, avec la même modalité à chaque test
+  (strictes, avec élastique, australiennes) ; changer de modalité est signalé
+  comme écart au protocole.
+
+**Mes objectifs** (onglet Progression de l'adhérent, et fiche individuelle du
+coach) : un hexagone **VO2 max · préhension · squat · RDL · développé couché ·
+tractions**, avec le point de départ, le niveau actuel, l'objectif à 1 an et
+l'objectif à 3 ans, pour **32 séances par an**. Aucune donnée de poids : chacun
+est comparé à lui-même.
+- VO2 max **estimée depuis l'AMRAP** (indicative) : coût du circuit (8 MET à
+  24 rép./min, Compendium des activités physiques) × cadence réalisée, divisé
+  par la part de la VO2 max utilisée d'après la FC moyenne (%FC max = 0,64 ×
+  %VO2 max + 37, Swain et al. 1994).
+- Objectifs : progression de base d'un adulte peu entraîné (VO2 max +12 %/an,
+  préhension +8 %, 1RM +25 %, tractions +3 rép.), réduite pour 32 séances au
+  lieu de ~90 (× 0,6), un peu plus lente avec l'âge, déclin naturel compensé
+  après 40–50 ans, marge plus grande si le départ est bas pour l'âge et le sexe
+  (VO2 max : registre FRIEND ; préhension : normes de Dodds 2014) ; années 2 et
+  3 plus lentes. Jamais en dessous du départ. Ce sont des repères à ajuster.
+- Feuille « Objectifs » dans les exports ; VO2 max estimée et tests de force
+  dans les colonnes de résultats ; squat, DC, RDL 1RM et tractions dans
+  « Progrès » (±10 %, au moins 2,5 kg ; tractions ±2 rép., même modalité).
 
 ### Comparer T0 et T1 : mêmes conditions
 

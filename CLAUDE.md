@@ -43,7 +43,11 @@ Ne jamais copier de données d'adhérents vers Quarbon.
   `coach_delete_user`. Tables : `profiles`, `hr_sessions`,
   `protocol_test_results` (une ligne par participant × point de test × test,
   données en `jsonb`), `measurements` (ancien format).
-- Schéma : `supabase-schema.sql` puis migrations 2 à 13 dans l'ordre.
+- Schéma : `supabase-schema.sql` puis migrations 2 à 15 dans l'ordre (14 :
+  rôle coach protégé ; 15 : type de résultat `force_max`).
+- `objectifs.js` : module partagé par les deux pages (hexagone des objectifs,
+  VO2 max estimée depuis l'AMRAP, 1RM Brzycki, objectifs 1 an / 3 ans pour
+  32 séances par an). Toute règle de calcul des objectifs se change là.
 - SheetJS (xlsx 0.18.5) chargé à la demande pour l'export Excel.
 
 ## Protocole Force + Cardio (règles métier à respecter)
