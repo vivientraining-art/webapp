@@ -189,6 +189,9 @@
   .goalbox{background:#FBEDE7;border:1px solid #E6C3B5;border-left:4px solid var(--terra);border-radius:10px;
     padding:.7rem .85rem;margin:.8rem 0;font-size:.9rem;line-height:1.5;color:var(--ink)}
   .goalbox b{color:var(--terra-deep)}
+  .fmgrid{display:grid;grid-template-columns:1.3fr 1fr .8fr .9fr;gap:.4rem .6rem;align-items:center;font-size:.9rem}
+  .fmgrid .th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+  .fmgrid input{width:100%;max-width:none}.fm1rm{font-weight:700;color:var(--forest)}
   .refhint{background:#EEF4F0;border:1px solid #BFD0C5;border-radius:10px;padding:.6rem .8rem;font-size:.86rem;line-height:1.5;color:var(--pine);margin:.7rem 0}
   .asref{font-size:.7rem;font-weight:600;color:var(--pine);background:#EEF4F0;border-radius:6px;padding:.05rem .35rem;margin-left:.25rem;text-transform:none;letter-spacing:0}
   .noimpact{display:flex;gap:.6rem;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:10px;
@@ -419,6 +422,25 @@
           </div>
           <p class="sensorname" id="protoSensorHome" hidden></p>
         </div>
+        <div class="panel" id="fmPanel">
+          <h3>Tests de force max</h3>
+          <p class="note" style="margin-top:0">Séance à part, avec ton coach, pour l’hexagone de tes objectifs. Squat, développé couché, RDL :
+            la charge la plus lourde que tu soulèves <b>proprement 5 fois</b> (5RM). Échauffe-toi et monte la charge progressivement, avec
+            3 min de repos entre deux essais. Si tu fais entre 1 et 10 répétitions, l’app estime ta charge maximale sur une répétition (1RM).
+            Tractions : le maximum de répétitions propres, toujours avec la même modalité. Le point de test choisi plus haut s’applique.</p>
+          <div class="fmgrid">
+            <div class="th">Exercice</div><div class="th">Charge (kg)</div><div class="th">Répétitions</div><div class="th">1RM estimé</div>
+            <div>Squat</div><input type="number" id="fm_squat_kg" min="0" step="0.5" inputmode="decimal"><input type="number" id="fm_squat_reps" min="1" max="10" step="1" value="5"><div class="fm1rm" id="fm_squat_1rm">—</div>
+            <div>Développé couché</div><input type="number" id="fm_dc_kg" min="0" step="0.5" inputmode="decimal"><input type="number" id="fm_dc_reps" min="1" max="10" step="1" value="5"><div class="fm1rm" id="fm_dc_1rm">—</div>
+            <div>RDL</div><input type="number" id="fm_rdl_kg" min="0" step="0.5" inputmode="decimal"><input type="number" id="fm_rdl_reps" min="1" max="10" step="1" value="5"><div class="fm1rm" id="fm_rdl_1rm">—</div>
+          </div>
+          <div class="formrow" style="margin-top:.6rem">
+            <div class="field">Tractions (répétitions)<input type="number" id="fm_tr_reps" min="0" step="1" inputmode="numeric"></div>
+            <div class="field">Modalité<select id="fm_tr_mod"><option value="">—</option><option>strictes</option><option>avec élastique</option><option>australiennes (corps incliné)</option></select></div>
+          </div>
+          <p class="refhint" id="fmRef" hidden></p>
+          <div class="formrow" style="margin-top:.6rem"><button class="btn-primary" id="fmSave">Enregistrer les tests de force</button></div>
+        </div>
         <div class="panel">
           <h3>Ordre de passation</h3>
           <ol id="protoOrder" style="padding-left:1.2rem;font-size:.9rem;line-height:1.9"></ol>
@@ -451,6 +473,7 @@
     <!-- ---- Progression ---- -->
     <section data-panel="progression" hidden>
       <h2>Ma progression</h2>
+      <div class="panel"><h3>Mes objectifs</h3><div id="objectifs"><p class="muted">Chargement…</p></div></div>
       <p class="note" style="margin-top:0">Évolution de tes mesures dans le temps. Les courbes apparaissent dès que tu as au moins deux passations.</p>
       <div id="charts"><p class="muted">Chargement…</p></div>
     </section>
@@ -559,6 +582,7 @@
 <div id="toast" role="status"></div>
 
 <!-- version figée (une mise à jour de la bibliothèque ne peut pas casser l'app du jour au lendemain) ; secours unpkg -->
+<script src="objectifs.js"></script>   <!-- hexagone des objectifs (calculs partagés avec l'espace coach) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
 <script>window.supabase || document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"><\/script>');</script>
 <script>
@@ -922,7 +946,7 @@ async function onSignedIn(user) {
   ensureChannel();
   loadHistory();
   restoreLiveSession();
-  resumeProtocolIfAny().then(loadProtoRef);
+  resumeProtocolIfAny().then(loadProtoRef).then(loadForceMax);
 }
 
 /* FC max théorique — Tanaka H, Monahan KD, Seals DR. Age-predicted maximal heart
@@ -1740,7 +1764,65 @@ $('#ptPoint').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   $$('#ptPoint button').forEach(x => x.classList.toggle('sel', x === b));
   pointDeTest = b.dataset.p;
-  loadProtoRef();
+  loadProtoRef(); loadForceMax();
+});
+
+/* ---- Tests de force max (5RM → 1RM estimé, tractions) : un résultat « force_max » par point de test ---- */
+const FM_LIFTS = [['squat', 'Squat'], ['dc', 'Développé couché'], ['rdl', 'RDL']];
+let fmExisting = {}, fmRef = null;
+function fmUpdate() {
+  FM_LIFTS.forEach(([k]) => { const v = OBJECTIFS.brzycki($('#fm_' + k + '_kg').value, $('#fm_' + k + '_reps').value);
+    $('#fm_' + k + '_1rm').textContent = v ? String(v).replace('.', ',') + ' kg' : '—'; });
+  const w = $('#fmRef'); if (!w) return;
+  const d = fmRef && fmRef.data, bits = [];
+  if (d) {
+    FM_LIFTS.forEach(([k, l]) => { if (d[k + '_charge_kg'] != null) bits.push(l + ' ' + d[k + '_charge_kg'] + ' kg × ' + d[k + '_reps']); });
+    if (d.tractions_reps != null) bits.push('tractions ' + d.tractions_reps + (d.tractions_modalite ? ' (' + d.tractions_modalite + ')' : ''));
+  }
+  const autreMod = d && d.tractions_modalite && $('#fm_tr_mod').value && $('#fm_tr_mod').value !== d.tractions_modalite;
+  w.innerHTML = (bits.length ? 'Au ' + fmRef.point + ' : ' + escapeHtml(bits.join(' · ')) + '.' : '') +
+    (autreMod ? '<br><b>Attention : modalité de tractions différente du ' + fmRef.point + ', la comparaison ne sera pas valide.</b>' : '');
+  w.hidden = !w.innerHTML;
+}
+async function loadForceMax() {
+  if (!sb || !me || !$('#fmPanel')) return;
+  const { data } = await sb.from('protocol_test_results').select('point_de_test,data').eq('participant_id', me.id).eq('test_type', 'force_max');
+  const rows = (data || []).slice().sort((a, b) => a.point_de_test.localeCompare(b.point_de_test));
+  const cur = rows.find(r => r.point_de_test === pointDeTest), prev = rows.find(r => r.point_de_test < pointDeTest);
+  fmExisting = (cur && cur.data) || {}; fmRef = prev ? { point: prev.point_de_test, data: prev.data || {} } : null;
+  FM_LIFTS.forEach(([k]) => { $('#fm_' + k + '_kg').value = fmExisting[k + '_charge_kg'] ?? ''; $('#fm_' + k + '_reps').value = fmExisting[k + '_reps'] ?? 5; });
+  $('#fm_tr_reps').value = fmExisting.tractions_reps ?? '';
+  $('#fm_tr_mod').value = fmExisting.tractions_modalite || (fmRef && fmRef.data.tractions_modalite) || '';
+  fmUpdate();
+}
+$$('#fmPanel input, #fmPanel select').forEach(el => { el.addEventListener('input', fmUpdate); el.addEventListener('change', fmUpdate); });
+$('#fmSave').addEventListener('click', async () => {
+  if (!sb || !me) return;
+  const data = {};
+  for (const [k, l] of FM_LIFTS) {
+    const kg = parseFloat(($('#fm_' + k + '_kg').value || '').replace(',', '.')), reps = parseInt($('#fm_' + k + '_reps').value, 10);
+    if (!(kg > 0)) continue;
+    if (!(reps >= 1 && reps <= 10)) { toast(l + ' : entre 1 et 10 répétitions (au-delà, prends une charge plus lourde).'); return; }
+    Object.assign(data, { [k + '_charge_kg']: kg, [k + '_reps']: reps, [k + '_1rm']: OBJECTIFS.brzycki(kg, reps) });
+  }
+  const tr = $('#fm_tr_reps').value;
+  if (tr !== '') {
+    const n = parseInt(tr, 10);
+    if (!(n >= 0 && n <= 60)) { toast('Tractions : un nombre de répétitions entre 0 et 60.'); return; }
+    if (!$('#fm_tr_mod').value) { toast('Choisis la modalité des tractions.'); return; }
+    Object.assign(data, { tractions_reps: n, tractions_modalite: $('#fm_tr_mod').value });
+  }
+  if (!Object.keys(data).length) { toast('Note au moins un exercice.'); return; }
+  if (fmRef && fmRef.data.tractions_modalite && data.tractions_modalite && data.tractions_modalite !== fmRef.data.tractions_modalite)
+    data.ecart_protocole = 'Tractions : ' + fmRef.data.tractions_modalite + ' (' + fmRef.point + ') → ' + data.tractions_modalite;
+  data.methode_1rm = 'Brzycki (5RM)';
+  $('#fmSave').disabled = true;
+  const res = await saveOrQueue('protocol_test_results', { participant_id: me.id, point_de_test: pointDeTest, date_test: localDay(), test_type: 'force_max', data },
+    'participant_id,point_de_test,test_type', 'ptr:' + pointDeTest + ':force_max');
+  $('#fmSave').disabled = false;
+  if (!res.ok) { toast(/check|constraint|test_type/i.test(res.error.message || '') ? 'Enregistrement refusé : le coach doit exécuter la migration 15 dans Supabase.' : 'Erreur : ' + res.error.message); return; }
+  fmExisting = data;
+  toast(res.queued ? QUEUED_MSG : 'Tests de force enregistrés (' + pointDeTest + ') ✔');
 });
 
 let protoExisting = {};
@@ -2024,7 +2106,7 @@ async function beginProtocol() {
     protoStepIndex = saved.legacy || saved.v !== 2 ? firstIncompleteStepIndex(protoExisting)
       : Math.min(Math.max(0, saved.i | 0), PROTOCOL_STEPS.length - 1);
   } else {
-    if (data && data.length) {
+    if (data && data.some(r => r.test_type !== 'force_max')) {
       const last = data.map(r => r.date_test).filter(Boolean).sort().pop();
       const quand = last ? ' le ' + new Date(last + 'T12:00:00').toLocaleDateString('fr-FR') : '';
       if (!confirm('Tu as déjà passé le test ' + pointDeTest + quand + '.\n\n' +
@@ -2588,9 +2670,16 @@ function gripTrialsTxt(d) {   // nombre d'essais notés par main (3 prévus)
   const n = (m) => (d['essais_' + m + '_kg'] || []).filter(x => x != null).length, g = n('gauche'), dr = n('droite');
   return g === 3 && dr === 3 ? ' (meilleur de 3 essais)' : ' (essais notés : G ' + g + '/3, D ' + dr + '/3)';
 }
+function forceMaxTxt(d) {
+  const bits = [['squat', 'Squat'], ['dc', 'DC'], ['rdl', 'RDL']].filter(([k]) => d[k + '_charge_kg'] != null)
+    .map(([k, l]) => l + ' ' + d[k + '_charge_kg'] + ' kg × ' + d[k + '_reps'] + ' (1RM ≈ ' + String(d[k + '_1rm']).replace('.', ',') + ')');
+  if (d.tractions_reps != null) bits.push('tractions ' + d.tractions_reps + (d.tractions_modalite ? ' ' + d.tractions_modalite : ''));
+  return bits.join(' · ') || '—';
+}
 function formatProtoData(testType, data) {
   data = data || {};
   switch (testType) {
+    case 'force_max': return forceMaxTxt(data);
     case 'grip': return 'G ' + (data.force_main_gauche_kg ?? '—') + ' kg · D ' + (data.force_main_droite_kg ?? '—') + ' kg' + gripTrialsTxt(data);
     case 'pompes': return (data.pompes_reps ?? '—') + ' reps' + thirdsTxt(data, 'pompes_reps') + ' (' + (data.pompes_variante ?? '—') + ')';
     case 'wallsit': return (data.wallsit_secondes ?? '—') + ' s' + (data.wallsit_plafond_atteint ? ' (plafond atteint)' : '');
@@ -2611,8 +2700,8 @@ function formatProtoData(testType, data) {
     default: return '—';
   }
 }
-const PROTO_TEST_ORDER = ['questionnaire', 'grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc'];
-const PROTO_TEST_LABELS = { questionnaire: 'Questionnaire', grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP Cardio', rfc: 'Récupération' };
+const PROTO_TEST_ORDER = ['questionnaire', 'grip', 'pompes', 'wallsit', 'rowing', 'rdl', 'amrap_cardio', 'rfc', 'force_max'];
+const PROTO_TEST_LABELS = { questionnaire: 'Questionnaire', grip: 'Préhension', pompes: 'Pompes', wallsit: 'Wall-sit', rowing: 'Rowing', rdl: 'RDL', amrap_cardio: 'AMRAP Cardio', rfc: 'Récupération', force_max: 'Force max' };
 
 async function loadProtocolHistory() {
   if (!sb || !me) return '';
@@ -2676,7 +2765,18 @@ function lineChartSVG(series, color) {
     '<span>' + frDate(a.x) + ' · ' + a.y + '</span><span>' + frDate(b.x) + ' · <b>' + b.y + '</b></span></div>';
 }
 
+async function loadObjectifs() {
+  const el = $('#objectifs'); if (!el || !sb || !me) return;
+  const { data, error } = await sb.from('protocol_test_results').select('point_de_test,test_type,data,date_test').eq('participant_id', me.id);
+  if (error) { el.innerHTML = '<p class="muted">Objectifs indisponibles pour l’instant (réseau ?).</p>'; return; }
+  const byPt = {}, dates = {};
+  (data || []).forEach(r => { (byPt[r.point_de_test] = byPt[r.point_de_test] || {})[r.test_type] = r.data || {};
+    if (r.test_type !== 'force_max' || !dates[r.point_de_test]) dates[r.point_de_test] = r.date_test; });
+  el.innerHTML = OBJECTIFS.html(byPt, { sexe: profile && profile.sexe, naissance: profile && profile.date_naissance, dates,
+    fcMax: () => fcMaxInfo().v });
+}
 async function loadCharts() {
+  loadObjectifs();
   if (!sb || !me) return;
   const el = $('#charts'); el.innerHTML = '<p class="muted">Chargement…</p>';
   const [meas, hrs] = await Promise.all([
@@ -2698,7 +2798,9 @@ async function loadCharts() {
   Object.keys(byExo).forEach(e => { html += card('Force — 1RM estimée · ' + e + ' (kg)', lineChartSVG(byExo[e], '#B08A2E')); });
   html += card('Go/No-Go — temps de réaction (ms)',
     lineChartSVG(ser(M.filter(r => r.type === 'cognitif' && r.data.test === 'gng' && r.data.ms != null), r => r.data.ms, r => r.recorded_at), '#98547A'));
-  el.innerHTML = html;
+  // anciens graphiques (mesures saisies à la main) : affichés seulement s'ils ont des données
+  el.innerHTML = html.split('<div class="chartcard">').filter(c => c && !/Pas encore de donnée/.test(c)).map(c => '<div class="chartcard">' + c).join('');
+  const note = el.previousElementSibling; if (note && note.classList.contains('note')) note.hidden = !el.innerHTML;
 }
 
 /* =====================================================================
