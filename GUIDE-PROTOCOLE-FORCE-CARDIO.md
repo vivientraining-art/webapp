@@ -22,6 +22,7 @@ n'est pas déjà fait :
 11. `supabase-migration-13-questionnaire-qualite.sql` — questionnaire avant test et qualité du signal des séances.
 12. `supabase-migration-14-protection-role-coach.sql` — sécurité : un adhérent ne peut pas se donner le rôle coach.
 13. `supabase-migration-15-force-max.sql` — tests de force max (5RM) pour l'hexagone des objectifs.
+14. `supabase-migration-16-corbeille.sql` — corbeille : suppressions récupérables pendant 60 jours.
 
 ## Déroulé d'une passation (côté adhérent)
 
@@ -244,6 +245,11 @@ le filtre de cours.
   jour-là), ou sous la colonne T1 de la fiche individuelle (tout le T1, toutes
   dates, séance de force comprise). Confirmation obligatoire. Demander à
   l'adhérent de toucher « Arrêter le test » s'il l'a encore ouvert.
+- **Corbeille** (bouton à côté de « Modifier / supprimer ») : tout résultat de
+  test ou séance capteur supprimé, par le coach ou par l'adhérent, y reste
+  **60 jours** avec un bouton « Restaurer » (si un nouveau résultat existe déjà
+  pour ce point de test, l'app demande avant de le remplacer). La suppression
+  d'un compte reste immédiate et définitive (droit à l'effacement).
 - **Modifier / supprimer** : ✎ pour corriger un test ou un profil, ✕ pour
   supprimer un test ou un compte (doublon).
 - Filtres **cours**, **genre** et **date** ; exports **Excel (.xlsx)**

@@ -182,7 +182,7 @@
   .rtbl thead th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
   .rtbl td b{font-size:.98rem}
   .rtbl small{display:block;color:var(--muted);font-size:.72rem}
-  .rtbl .sd{color:var(--muted);font-weight:600;font-size:.85rem;white-space:nowrap}
+  .rtbl .sd{color:var(--ink);font-weight:600;font-size:.95rem;white-space:nowrap}
   .rtbl tr.count td{background:#F4EFE4;font-weight:600}
   .evo.up{color:#3E7D45;font-weight:700}
   .evo.down{color:var(--terra-deep);font-weight:700}
@@ -266,6 +266,7 @@
       <div class="spacer"></div>
       <button class="btn-soft" id="btnSaisie">+ Saisir des résultats</button>
       <button class="btn-soft" id="btnDelMode" aria-pressed="false">Modifier / supprimer</button>
+      <button class="btn-soft" id="btnCorbeille" title="Résultats et séances supprimés : restaurables pendant 60 jours">Corbeille</button>
       <button class="btn-soft" id="btnRefresh">Rafraîchir</button>
       <button class="btn-primary" id="btnXlsx">Exporter en Excel (.xlsx)</button>
       <button class="btn-soft" id="btnExport">CSV</button>
@@ -463,6 +464,12 @@ async function loadData() {
   profiles = {};
   profs.forEach(p => { profiles[p.id] = p; });
   // Tous les comptes, y compris sans profil ou e-mail non confirmé (fonction de la migration 11, facultative)
+  // corbeille (migration 16) : éléments supprimés, restaurables 60 jours
+  corbeille = null;
+  try {
+    const { data: cb, error: cerr } = await sb.from('corbeille').select('*').order('supprime_le', { ascending: false }).limit(1000);
+    if (!cerr && Array.isArray(cb)) corbeille = cb;
+  } catch (e) {}
   authUsers = null;
   try {
     const { data: users, error: uerr } = await sb.rpc('coach_list_users');
@@ -662,6 +669,7 @@ function render() {
   if (view === 'manquants') { renderManquants(); renderLive(); return; }
   if (view === 'courbes') { renderCourbes(); renderLive(); return; }
   if (view === 'progres') { renderProgres(); renderLive(); return; }
+  if (view === 'corbeille') { renderCorbeille(); renderLive(); return; }
   const list = selected();
   const nbAdh = new Set(list.map(e => e.uid)).size;
   const nbDays = new Set(list.map(e => e.date)).size;
@@ -709,6 +717,8 @@ $('#fView').addEventListener('click', (e) => {
    Suppression de tests — mode activé volontairement, confirmation à chaque fois
    ===================================================================== */
 let delMode = false;
+let corbeille = null;   // lignes de la corbeille (null : migration 16 absente)
+const DEL_SUITE = () => corbeille ? 'Récupérable pendant 60 jours dans la « Corbeille ».' : 'Cette action est irréversible.';
 $('#btnDelMode').addEventListener('click', () => {
   delMode = !delMode;
   $('#btnDelMode').classList.toggle('on', delMode);
@@ -719,7 +729,7 @@ $('#btnDelMode').addEventListener('click', () => {
 $('#dataView').addEventListener('click', async (ev) => {
   const b = ev.target.closest('button.del[data-table]'); if (!b) return;
   const ids = b.dataset.ids.split(',').map(Number).filter(Boolean);
-  if (!ids.length || !confirm('Supprimer définitivement ' + b.dataset.label + ' ?\n\nCette action est irréversible.' + (b.dataset.note ? '\n\n' + b.dataset.note : ''))) return;
+  if (!ids.length || !confirm('Supprimer ' + b.dataset.label + ' ?\n\n' + DEL_SUITE() + (b.dataset.note ? '\n\n' + b.dataset.note : ''))) return;
   b.disabled = true;
   const { data, error } = await sb.from(b.dataset.table).delete().in('id', ids).select('id');
   if (error) { b.disabled = false; toast('Erreur : ' + error.message); return; }
@@ -2024,6 +2034,61 @@ $('#dataView').addEventListener('click', (ev) => {
 });
 
 /* =====================================================================
+   Corbeille — résultats de test et séances capteur supprimés (par le coach ou
+   l'adhérent), restaurables pendant 60 jours (migration 16). Une suppression de
+   compte n'y laisse rien (droit à l'effacement).
+   ===================================================================== */
+$('#btnCorbeille').addEventListener('click', () => showView('corbeille'));
+function corbeilleItem(c) {
+  const l = c.ligne || {};
+  if (c.table_origine === 'protocol_test_results')
+    return { quoi: (PROTO_LABELS[l.test_type] || l.test_type) + ' — ' + l.point_de_test + ' du ' + frDay(l.date_test), val: protoValue(l.test_type, l.data || {}) };
+  if (c.table_origine === 'hr_sessions')
+    return { quoi: 'Séance capteur du ' + frDay(l.started_at), val: [l.duration_s ? Math.round(l.duration_s / 60) + ' min' : null, l.hr_avg ? 'FC moy ' + l.hr_avg : null, l.hr_peak ? 'pic ' + l.hr_peak : null].filter(Boolean).join(' · ') };
+  return { quoi: c.table_origine, val: '' };
+}
+function renderCorbeille() {
+  if (!corbeille) {
+    $('#dataView').innerHTML = '<section class="panel"><div class="recaphead"><h2>Corbeille</h2></div><p class="empty">Pour pouvoir récupérer une suppression faite ' +
+      'par erreur, exécute la <b>migration 16</b> (<code>supabase-migration-16-corbeille.sql</code>) dans Supabase. Les suppressions faites avant ne sont pas récupérables.</p></section>';
+    $('#summary').textContent = 'Corbeille non installée.'; return;
+  }
+  const list = corbeille.filter(c => (!fCours || coursOf(c.participant_id) === fCours) && genreOk(c.participant_id));
+  const par = (c) => !c.supprime_par ? '—' : profiles[c.supprime_par] && profiles[c.supprime_par].role === 'coach' ? 'coach' : c.supprime_par === c.participant_id ? 'l’adhérent' : nameOf(c.supprime_par);
+  $('#dataView').innerHTML = '<section class="panel"><div class="recaphead"><h2>Corbeille</h2><span class="muted">' + list.length + ' élément' + (list.length > 1 ? 's' : '') + '</span></div>' +
+    '<p class="recapnote">Résultats de test et séances capteur supprimés, par toi ou par un adhérent. Ils restent ici <b>60 jours</b>, puis sont effacés ' +
+    'définitivement. La suppression d’un compte, elle, est immédiate et définitive (droit à l’effacement).</p>' +
+    (list.length ? '<div class="rtbl-wrap"><table class="rtbl cbtbl"><thead><tr><th>Supprimé le</th><th>Adhérent</th><th>Élément</th><th>Valeurs</th><th>Par</th><th></th></tr></thead><tbody>' +
+      list.map(c => { const it = corbeilleItem(c), d = new Date(c.supprime_le);
+        return '<tr><td>' + esc(d.toLocaleDateString('fr-FR')) + '<small>' + esc(d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })) + '</small></td>' +
+          '<td><b>' + esc(nameOf(c.participant_id)) + '</b><small>' + esc(coursOf(c.participant_id)) + '</small></td><td>' + esc(it.quoi) + '</td><td>' + esc(it.val) + '</td>' +
+          '<td>' + esc(par(c)) + '</td><td><button type="button" class="btn-soft restbtn" data-id="' + c.id + '">Restaurer</button></td></tr>'; }).join('') +
+      '</tbody></table></div>' : '<p class="empty">La corbeille est vide.</p>') + '</section>';
+  $('#summary').textContent = list.length + ' élément' + (list.length > 1 ? 's' : '') + ' dans la corbeille.';
+}
+$('#dataView').addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button.restbtn'); if (!b) return;
+  const id = Number(b.dataset.id), c = (corbeille || []).find(x => x.id === id); if (!c) return;
+  const it = corbeilleItem(c);
+  if (!confirm('Restaurer « ' + it.quoi + ' » de ' + nameOf(c.participant_id) + ' ?')) return;
+  b.disabled = true;
+  let { error } = await sb.rpc('restaurer_corbeille', { cible: id, remplacer: false });
+  if (error && /existe_deja/.test(error.message)) {
+    if (!confirm('Un résultat « ' + it.quoi.split(' du ')[0] + ' » existe déjà pour ' + nameOf(c.participant_id) + '.\n\nLe remplacer par celui de la corbeille ? ' +
+      '(Le résultat actuel partira à son tour dans la corbeille.)')) { b.disabled = false; return; }
+    ({ error } = await sb.rpc('restaurer_corbeille', { cible: id, remplacer: true }));
+  }
+  if (error) {
+    b.disabled = false;
+    toast(/compte_supprime/.test(error.message) ? 'Restauration impossible : le compte de cet adhérent a été supprimé.'
+      : /restaurer_corbeille|function|schema cache/i.test(error.message) ? 'Restauration impossible — exécute la migration 16 dans Supabase.' : 'Erreur : ' + error.message);
+    return;
+  }
+  toast('Restauré ✔');
+  await loadData();
+});
+
+/* =====================================================================
    Vrai progrès — une variation ne compte comme progrès (ou comme baisse) que si elle dépasse
    la variabilité normale d'un jour à l'autre du test. Seuils prudents, ordres de grandeur des
    études de reproductibilité de ces tests, à affiner avec un test-retest sur tes groupes :
@@ -2287,7 +2352,7 @@ function closeFiche() { $('#fiche').hidden = true; document.body.classList.remov
 $('#fiche').addEventListener('click', async (ev) => {   // suppression d'un point de test depuis la fiche
   const b = ev.target.closest('button.fichedel'); if (!b) return;
   const ids = b.dataset.ids.split(',').map(Number).filter(Boolean);
-  if (!ids.length || !confirm('Supprimer définitivement ' + b.dataset.label + ' ?\n\nCette action est irréversible.\n\n' + b.dataset.note)) return;
+  if (!ids.length || !confirm('Supprimer ' + b.dataset.label + ' ?\n\n' + DEL_SUITE() + '\n\n' + b.dataset.note)) return;
   b.disabled = true;
   const { data, error } = await sb.from('protocol_test_results').delete().in('id', ids).select('id');
   if (error || !data || !data.length) { b.disabled = false; toast(error ? 'Erreur : ' + error.message : 'Suppression refusée — exécute la migration 8 dans Supabase.'); return; }
