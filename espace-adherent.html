@@ -474,6 +474,7 @@
     <section data-panel="progression" hidden>
       <h2>Ma progression</h2>
       <div class="panel"><h3>Mes objectifs</h3><div id="objectifs"><p class="muted">Chargement…</p></div></div>
+      <div class="panel" id="bilanPanel" hidden><h3>Le groupe</h3><div id="bilanGroupe"></div></div>
       <p class="note" style="margin-top:0">Évolution de tes mesures dans le temps. Les courbes apparaissent dès que tu as au moins deux passations.</p>
       <div id="charts"><p class="muted">Chargement…</p></div>
     </section>
@@ -582,7 +583,8 @@
 <div id="toast" role="status"></div>
 
 <!-- version figée (une mise à jour de la bibliothèque ne peut pas casser l'app du jour au lendemain) ; secours unpkg -->
-<script src="objectifs.js"></script>   <!-- hexagone des objectifs (calculs partagés avec l'espace coach) -->
+<script src="objectifs.js"></script>
+<script src="bilan-groupe.js"></script>   <!-- statistiques anonymes du groupe (migration 17) -->   <!-- hexagone des objectifs (calculs partagés avec l'espace coach) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
 <script>window.supabase || document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"><\/script>');</script>
 <script>
@@ -2775,8 +2777,16 @@ async function loadObjectifs() {
   el.innerHTML = OBJECTIFS.html(byPt, { sexe: profile && profile.sexe, naissance: profile && profile.date_naissance, dates,
     fcMax: () => fcMaxInfo().v });
 }
+/* Bilan du groupe : statistiques anonymes calculées par la base (rien si le coach l'a fermé ou si la migration 17 manque). */
+async function loadBilanGroupe() {
+  const panel = $('#bilanPanel'); if (!panel || !sb || !me) return;
+  let h = '';
+  try { const { data, error } = await sb.rpc('stats_groupe'); if (!error && data) h = BILAN_GROUPE.html(data); } catch (e) {}
+  panel.hidden = !h;
+  if (h) $('#bilanGroupe').innerHTML = h;
+}
 async function loadCharts() {
-  loadObjectifs();
+  loadObjectifs(); loadBilanGroupe();
   if (!sb || !me) return;
   const el = $('#charts'); el.innerHTML = '<p class="muted">Chargement…</p>';
   const [meas, hrs] = await Promise.all([
