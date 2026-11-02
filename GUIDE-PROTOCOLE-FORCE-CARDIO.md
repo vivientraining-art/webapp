@@ -239,6 +239,11 @@ le filtre de cours.
 - **+ Saisir des résultats** : tout le protocole d'un point de test sur un seul
   formulaire, pour n'importe quel adhérent (venu sans téléphone, valeur
   oubliée) ; meilleur essai, répétitions totales, HRR et validité calculés.
+- **Supprimer un point de test entier** (ex. un T1 lancé par erreur) : bouton
+  « ✕ supprimer » toujours visible à côté de « Protocole T1 » dans Détail (ce
+  jour-là), ou sous la colonne T1 de la fiche individuelle (tout le T1, toutes
+  dates, séance de force comprise). Confirmation obligatoire. Demander à
+  l'adhérent de toucher « Arrêter le test » s'il l'a encore ouvert.
 - **Modifier / supprimer** : ✎ pour corriger un test ou un profil, ✕ pour
   supprimer un test ou un compte (doublon).
 - Filtres **cours**, **genre** et **date** ; exports **Excel (.xlsx)**
