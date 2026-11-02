@@ -43,10 +43,13 @@ Ne jamais copier de données d'adhérents vers Quarbon.
   `coach_delete_user`. Tables : `profiles`, `hr_sessions`,
   `protocol_test_results` (une ligne par participant × point de test × test,
   données en `jsonb`), `measurements` (ancien format).
-- Schéma : `supabase-schema.sql` puis migrations 2 à 16 dans l'ordre (14 :
+- Schéma : `supabase-schema.sql` puis migrations 2 à 17 dans l'ordre (14 :
   rôle coach protégé ; 15 : type de résultat `force_max` ; 16 : corbeille,
   suppressions de résultats et de séances restaurables 60 jours, rien de gardé
-  quand un compte est supprimé).
+  quand un compte est supprimé ; 17 : bilan anonyme du groupe, fonction
+  `stats_groupe()` et table `reglages`, seuil de 5 personnes).
+- `bilan-groupe.js` : affichage partagé du bilan de groupe (adhérent + aperçu
+  coach). Jamais de valeur individuelle ni de classement côté adhérent.
 - `objectifs.js` : module partagé par les deux pages (hexagone des objectifs,
   VO2 max estimée depuis l'AMRAP, 1RM Brzycki, objectifs 1 an / 3 ans pour
   32 séances par an). Toute règle de calcul des objectifs se change là.

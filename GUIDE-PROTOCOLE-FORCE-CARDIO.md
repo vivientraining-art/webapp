@@ -23,6 +23,7 @@ n'est pas déjà fait :
 12. `supabase-migration-14-protection-role-coach.sql` — sécurité : un adhérent ne peut pas se donner le rôle coach.
 13. `supabase-migration-15-force-max.sql` — tests de force max (5RM) pour l'hexagone des objectifs.
 14. `supabase-migration-16-corbeille.sql` — corbeille : suppressions récupérables pendant 60 jours.
+15. `supabase-migration-17-bilan-groupe.sql` — bilan anonyme du groupe visible par les adhérents.
 
 ## Déroulé d'une passation (côté adhérent)
 
@@ -245,6 +246,13 @@ le filtre de cours.
   jour-là), ou sous la colonne T1 de la fiche individuelle (tout le T1, toutes
   dates, séance de force comprise). Confirmation obligatoire. Demander à
   l'adhérent de toucher « Arrêter le test » s'il l'a encore ouvert.
+- **Bilan du groupe pour les adhérents** (case dans « Récap des groupes », ouvert
+  par défaut, bouton « Aperçu ») : dans l'onglet Progression, chaque adhérent voit
+  pour son cours et pour l'association les moyennes ± écart-type par test et la
+  part de progrès net entre le premier et le dernier test. Calculé par la base
+  (fonction `stats_groupe`), anonyme, jamais de valeur individuelle ni de
+  classement, rien en dessous de 5 personnes. Présenté comme une idée générale,
+  pas comme une comparaison.
 - **Corbeille** (bouton à côté de « Modifier / supprimer ») : tout résultat de
   test ou séance capteur supprimé, par le coach ou par l'adhérent, y reste
   **60 jours** avec un bouton « Restaurer » (si un nouveau résultat existe déjà

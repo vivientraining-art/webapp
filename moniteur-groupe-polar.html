@@ -182,6 +182,8 @@
   .rtbl thead th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
   .rtbl td b{font-size:.98rem}
   .rtbl small{display:block;color:var(--muted);font-size:.72rem}
+  .bgctl{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;margin-top:.5rem;font-size:.88rem}
+  .bgctl input{width:18px;height:18px;vertical-align:-3px;accent-color:var(--forest)}
   .rtbl .sd{color:var(--ink);font-weight:600;font-size:.95rem;white-space:nowrap}
   .rtbl tr.count td{background:#F4EFE4;font-weight:600}
   .evo.up{color:#3E7D45;font-weight:700}
@@ -299,7 +301,8 @@
 <div id="toast" role="status"></div>
 
 <!-- version figée (une mise à jour de la bibliothèque ne peut pas casser l'app du jour au lendemain) ; secours unpkg -->
-<script src="objectifs.js"></script>   <!-- hexagone des objectifs (calculs partagés avec l'espace adhérent) -->
+<script src="objectifs.js"></script>
+<script src="bilan-groupe.js"></script>   <!-- aperçu du bilan de groupe vu par les adhérents -->   <!-- hexagone des objectifs (calculs partagés avec l'espace adhérent) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
 <script>window.supabase || document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"><\/script>');</script>
 <script>
@@ -464,6 +467,12 @@ async function loadData() {
   profiles = {};
   profs.forEach(p => { profiles[p.id] = p; });
   // Tous les comptes, y compris sans profil ou e-mail non confirmé (fonction de la migration 11, facultative)
+  // bilan du groupe visible par les adhérents (migration 17) : null = pas installé
+  bilanOuvert = null;
+  try {
+    const { data: rg, error: rerr } = await sb.from('reglages').select('cle,valeur').eq('cle', 'stats_groupe');
+    if (!rerr && Array.isArray(rg)) bilanOuvert = !(rg[0] && rg[0].valeur && rg[0].valeur.ouvert === false);
+  } catch (e) {}
   // corbeille (migration 16) : éléments supprimés, restaurables 60 jours
   corbeille = null;
   try {
@@ -718,6 +727,7 @@ $('#fView').addEventListener('click', (e) => {
    ===================================================================== */
 let delMode = false;
 let corbeille = null;   // lignes de la corbeille (null : migration 16 absente)
+let bilanOuvert = null; // bilan du groupe visible par les adhérents (null : migration 17 absente)
 const DEL_SUITE = () => corbeille ? 'Récupérable pendant 60 jours dans la « Corbeille ».' : 'Cette action est irréversible.';
 $('#btnDelMode').addEventListener('click', () => {
   delMode = !delMode;
@@ -1170,6 +1180,10 @@ function renderRecap() {
       '<button class="btn-soft noprint" id="btnRecapPrint">Imprimer / PDF</button>' +
       '<button class="btn-soft noprint" id="btnRecapCsv">CSV</button>' +
       '<button class="btn-primary noprint xlsxbtn">Excel (.xlsx)</button></div>' +
+      (bilanOuvert === null ? '<p class="recapnote noprint">Pour montrer aux adhérents un bilan anonyme du groupe (moyennes, progrès), exécute la migration 17 dans Supabase.</p>'
+        : '<div class="bgctl noprint"><label><input type="checkbox" id="bgOpen"' + (bilanOuvert ? ' checked' : '') + '> <b>Bilan du groupe visible par les adhérents</b> ' +
+          '<span class="muted">(onglet Progression : moyennes, écarts-types et progrès, anonymes, à partir de 5 personnes)</span></label>' +
+          '<button type="button" class="btn-soft" id="bgPreview">Aperçu</button></div>') +
       '<p class="recapnote">' + esc(scope.charAt(0).toUpperCase() + scope.slice(1)) + '. Chaque case : <b>moyenne</b> ± écart-type (dispersion autour de la moyenne : environ 2 adhérents sur 3 ' +
       'se situent dans cet intervalle), puis min–max et nombre d’adhérents. Évolution : écart moyen entre le premier et le dernier point de test, calculé uniquement sur les adhérents ' +
       'présents aux deux (vert = progrès, pour les indicateurs où plus haut est mieux ; la FC est neutre). Pompes : une ligne par ' +
@@ -1178,6 +1192,21 @@ function renderRecap() {
       'HRR60 / HRR120 (FC à l’arrêt − FC à 60 s / 120 s) ne sont pas comparables à l’ancien calcul de la RFC (pic − FC à 2 min).</p></div>' +
     (groups.map(g => recapTable(g.title, g.rec)).join('') || '<div class="panel empty">Aucun résultat de protocole pour cette sélection.</div>');
   const bp = $('#btnRecapPrint'); if (bp) bp.addEventListener('click', () => window.print());
+  const bo = $('#bgOpen'); if (bo) bo.addEventListener('change', async () => {
+    const { error } = await sb.from('reglages').upsert({ cle: 'stats_groupe', valeur: { ouvert: bo.checked }, maj: new Date().toISOString() }, { onConflict: 'cle' });
+    if (error) { bo.checked = !bo.checked; toast('Erreur : ' + error.message); return; }
+    bilanOuvert = bo.checked;
+    toast(bo.checked ? 'Bilan du groupe visible par les adhérents ✔' : 'Bilan du groupe masqué aux adhérents');
+    const pv = $('#bgPreviewPanel'); if (pv) pv.remove();
+  });
+  const bv = $('#bgPreview'); if (bv) bv.addEventListener('click', async () => {
+    const old = $('#bgPreviewPanel'); if (old) { old.remove(); return; }
+    const { data, error } = await sb.rpc('stats_groupe');
+    const body = error ? 'Aperçu impossible : ' + esc(error.message) : data && data.ouvert ? BILAN_GROUPE.html(data, { coach: true })
+      : '<p class="empty">Le bilan est masqué : les adhérents ne le voient pas.</p>';
+    $('#dataView').insertAdjacentHTML('afterbegin', '<section class="panel" id="bgPreviewPanel"><div class="recaphead"><h2>Aperçu — ce que voient les adhérents</h2></div>' + body + '</section>');
+    $('#bgPreviewPanel').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
   const bc = $('#btnRecapCsv'); if (bc) bc.addEventListener('click', () => {
     if (!groups.length) { toast('Aucun résultat à exporter.'); return; }
     download(buildRecapCsv(groups), 'recap_' + (fCours || 'tous-cours') + (fGenre ? '_' + fGenre : '') + '_' + (fDate || 'toutes-dates') + '_' + stamp() + '.csv');
