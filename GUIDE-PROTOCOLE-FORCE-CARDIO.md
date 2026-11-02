@@ -264,7 +264,10 @@ le filtre de cours.
   2 personnes sur 3), variation moyenne des mêmes personnes d'un test à l'autre
   et « x sur n en progrès net ». Le niveau affiché est celui du dernier point de
   test, sauf s'il est en cours (moins de 70 % de l'effectif testé) : on garde
-  alors le précédent. Mêmes données anonymes que l'encadré (seuil de 5
+  alors le précédent. Un test sans assez de résultats apparaît en carte
+  « À venir » (force max pas encore passée, moins de 5 mesures de FC valides,
+  variante de pompes faite par moins de 5 personnes). Au premier point de test,
+  la 4e tuile indique « premier bilan ». Mêmes données anonymes que l'encadré (seuil de 5
   personnes) ; masquée aussi quand le bilan est fermé. Effectif, femmes ·
   hommes et âge : rejouer la migration 17 (rejouable) pour les avoir.
 - **Corbeille** (bouton à côté de « Modifier / supprimer ») : tout résultat de
