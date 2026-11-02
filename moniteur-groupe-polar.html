@@ -181,6 +181,7 @@
   .rtbl thead th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
   .rtbl td b{font-size:.98rem}
   .rtbl small{display:block;color:var(--muted);font-size:.72rem}
+  .rtbl .sd{color:var(--muted);font-weight:600;font-size:.85rem;white-space:nowrap}
   .rtbl tr.count td{background:#F4EFE4;font-weight:600}
   .evo.up{color:#3E7D45;font-weight:700}
   .evo.down{color:var(--terra-deep);font-weight:700}
@@ -1109,6 +1110,8 @@ function evoHTML(ind, evo) {
     '<small>' + evo.from + ' → ' + evo.to + ' · n = ' + evo.n + '</small>';
 }
 
+/* Moyenne ± écart-type (l'écart-type n'a de sens qu'à partir de 2 valeurs). */
+const meanSd = (st) => '<b>' + frNum(r1(st.mean)) + '</b>' + (st.n > 1 ? ' <span class="sd">± ' + frNum(r1(st.sd)) + '</span>' : '');
 function recapTable(title, rec) {
   if (!rec.points.length) return '';
   const th = rec.points.map(p => '<th>' + p + '</th>').join('');
@@ -1117,11 +1120,11 @@ function recapTable(title, rec) {
     '<tr><td>Femmes · Hommes</td>' + rec.points.map(p => '<td>' + rec.demo[p].f + ' F · ' + rec.demo[p].h + ' H' +
       (rec.counts[p] - rec.demo[p].f - rec.demo[p].h ? '<small>' + (rec.counts[p] - rec.demo[p].f - rec.demo[p].h) + ' non renseigné</small>' : '') + '</td>').join('') + '<td></td></tr>' +
     '<tr><td>Âge <small>ans</small></td>' + rec.points.map(p => { const a = rec.demo[p].age;
-      return '<td>' + (a ? '<b>' + frNum(r1(a.mean)) + '</b><small>' + a.min + '–' + a.max + ' · n = ' + a.n + '</small>' : '—') + '</td>'; }).join('') + '<td></td></tr>' +
+      return '<td>' + (a ? meanSd(a) + '<small>' + a.min + '–' + a.max + ' · n = ' + a.n + '</small>' : '—') + '</td>'; }).join('') + '<td></td></tr>' +
     rec.lines.map(l => '<tr><td>' + esc(l.ind.label) + ' <small>' + esc(l.ind.unit) + '</small></td>' +
       rec.points.map(p => {
         const st = l.per[p];
-        return '<td>' + (st ? '<b>' + frNum(r1(st.mean)) + '</b><small>' + frNum(r1(st.min)) + '–' + frNum(r1(st.max)) + ' · n = ' + st.n + '</small>' : '—') + '</td>';
+        return '<td>' + (st ? meanSd(st) + '<small>' + frNum(r1(st.min)) + '–' + frNum(r1(st.max)) + ' · n = ' + st.n + '</small>' : '—') + '</td>';
       }).join('') + '<td>' + evoHTML(l.ind, l.evo) + '</td></tr>').join('') +
     '<tr><td>AMRAP en « no impact » <small>adhérents</small></td>' + rec.points.map(p => '<td>' + rec.noImpact[p] + '</td>').join('') + '<td></td></tr>' +
     '<tr><td>Malades le jour du test <small>adhérents</small></td>' + rec.points.map(p => '<td>' + rec.demo[p].malades + '</td>').join('') + '<td></td></tr>' +
@@ -1149,8 +1152,8 @@ function renderRecap() {
       '<button class="btn-soft noprint" id="btnRecapPrint">Imprimer / PDF</button>' +
       '<button class="btn-soft noprint" id="btnRecapCsv">CSV</button>' +
       '<button class="btn-primary noprint xlsxbtn">Excel (.xlsx)</button></div>' +
-      '<p class="recapnote">' + esc(scope.charAt(0).toUpperCase() + scope.slice(1)) + '. Chaque case : <b>moyenne</b>, puis min–max et nombre ' +
-      'd’adhérents. Évolution : écart moyen entre le premier et le dernier point de test, calculé uniquement sur les adhérents ' +
+      '<p class="recapnote">' + esc(scope.charAt(0).toUpperCase() + scope.slice(1)) + '. Chaque case : <b>moyenne</b> ± écart-type (dispersion autour de la moyenne : environ 2 adhérents sur 3 ' +
+      'se situent dans cet intervalle), puis min–max et nombre d’adhérents. Évolution : écart moyen entre le premier et le dernier point de test, calculé uniquement sur les adhérents ' +
       'présents aux deux (vert = progrès, pour les indicateurs où plus haut est mieux ; la FC est neutre). Pompes : une ligne par ' +
       'variante, pour ne comparer que des résultats comparables. Les mesures de FC invalides (artefacts, coupures, signal plat) ' +
       'sont exclues. AMRAP : répétitions exactes, ou estimées pour l’ancien format (tours × 81 + stations terminées, valeur basse). ' +
@@ -1529,7 +1532,7 @@ function renderInscrits() {
       const ag = stats(rows.map(x => x.age).filter(a => a != null));
       return '<section class="panel"><div class="recaphead"><h2>' + esc(g) + '</h2><span class="muted">' + rows.length + ' inscrit' + (rows.length > 1 ? 's' : '') +
         ' · ' + nf + ' femme' + (nf > 1 ? 's' : '') + ' · ' + nh + ' homme' + (nh > 1 ? 's' : '') +
-        (ag ? ' · âge moyen ' + Math.round(ag.mean) + ' ans (' + ag.min + '–' + ag.max + ')' : '') + '</span></div>' +
+        (ag ? ' · âge moyen ' + Math.round(ag.mean) + (ag.n > 1 ? ' ± ' + Math.round(ag.sd) : '') + ' ans (' + ag.min + '–' + ag.max + ')' : '') + '</span></div>' +
         '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Nom</th><th>E-mail</th><th>Genre · âge</th><th>Inscrit le</th><th>Tests passés</th><th>Séances capteur</th></tr></thead><tbody>' +
         rows.map(x => '<tr><td><b>' + esc(nameOf(x.p.id)) + '</b>' + editBtn('profile', x.p.id, 'Modifier le profil') +
           (x.p._noProfile ? '' : editBtn('add', x.p.id, 'Saisir des résultats', { point: x.pts.length ? '' : 'T0' })) +
