@@ -146,6 +146,7 @@
   .del{min-height:0;padding:.05rem .45rem;margin-left:.3rem;border-radius:7px;font-size:.78rem;line-height:1.5;
     background:#fff;color:var(--terra-deep);border:1px solid #E6C3B5;vertical-align:1px}
   .del:hover{background:#FBEDE7}
+  .fichedel{display:block;margin:.3rem 0 0 auto}
   #btnDelMode.on{background:var(--terra-deep);color:#fff;border-color:var(--terra-deep)}
   .edit{min-height:0;padding:.05rem .45rem;margin-left:.3rem;border-radius:7px;font-size:.78rem;line-height:1.5;
     background:#fff;color:var(--pine);border:1px solid #BFD0C5;vertical-align:1px}
@@ -608,6 +609,13 @@ function delBtn(table, ids, label, title) {
     '" data-label="' + esc(label) + '" title="' + esc(title) + '">✕' + (title.startsWith('Tout') ? ' tout' : '') + '</button>';
 }
 
+/* Supprimer tout un point de test (ex. un T1 lancé par erreur) : toujours visible, avec confirmation. */
+const PT_DEL_NOTE = 'Si l’adhérent a encore ce test ouvert sur son téléphone, demande-lui de toucher « Arrêter le test » : ' +
+  'sinon les étapes suivantes recréeront ce point de test.';
+function ptDelBtn(ids, label, cls) {
+  return ids.length ? '<button type="button" class="del noprint ' + (cls || '') + '" data-table="protocol_test_results" data-ids="' + ids.join(',') +
+    '" data-label="' + esc(label) + '" data-note="' + esc(PT_DEL_NOTE) + '" title="Supprimer tout ce point de test">✕ supprimer</button>' : '';
+}
 function editBtn(kind, id, title, extra) {
   if (!delMode) return '';
   return '<button type="button" class="edit' + (kind === 'add' ? ' add' : '') + '" data-edit="' + kind + '" data-id="' + esc(id) + '"' +
@@ -627,7 +635,7 @@ function rowHTML(e) {
     const tests = e.proto[pt], ids = e.protoIds[pt];
     const types = Object.keys(PROTO_LABELS).filter(t => tests[t]);
     lines.push('<b>Protocole ' + esc(pt) + '</b>' +
-      delBtn('protocol_test_results', types.map(t => ids[t]), 'tout le protocole ' + pt + ' de ' + who + ' du ' + when, 'Tout le protocole ' + pt) +
+      ptDelBtn(types.map(t => ids[t]), 'tout le protocole ' + pt + ' de ' + who + ' du ' + when + ' (' + types.map(t => PROTO_LABELS[t]).join(', ') + ')') +
       ' · ' + types.map(t => PROTO_LABELS[t] + ' ' + esc(protoValue(t, tests[t])) +
         editBtn('proto', ids[t], 'Modifier ce test') +
         delBtn('protocol_test_results', [ids[t]], 'le test ' + PROTO_LABELS[t] + ' (' + pt + ') de ' + who + ' du ' + when, 'Supprimer ce test')).join(' · '));
@@ -711,7 +719,7 @@ $('#btnDelMode').addEventListener('click', () => {
 $('#dataView').addEventListener('click', async (ev) => {
   const b = ev.target.closest('button.del[data-table]'); if (!b) return;
   const ids = b.dataset.ids.split(',').map(Number).filter(Boolean);
-  if (!ids.length || !confirm('Supprimer définitivement ' + b.dataset.label + ' ?\n\nCette action est irréversible.')) return;
+  if (!ids.length || !confirm('Supprimer définitivement ' + b.dataset.label + ' ?\n\nCette action est irréversible.' + (b.dataset.note ? '\n\n' + b.dataset.note : ''))) return;
   b.disabled = true;
   const { data, error } = await sb.from(b.dataset.table).delete().in('id', ids).select('id');
   if (error) { b.disabled = false; toast('Erreur : ' + error.message); return; }
@@ -2260,7 +2268,10 @@ function openFiche(uid) {
   el.innerHTML = '<div class="fichebar noprint"><button type="button" class="btn-primary" id="ficheprint">Imprimer / PDF</button><button type="button" class="btn-soft" id="ficheclose">Fermer</button></div>' +
     '<article class="fichepage"><div class="fichehead"><div><h2>' + esc(nameOf(uid)) + '</h2><p>' + esc([coursOf(uid), p.date_naissance ? GENRE_LABEL[p.sexe] : null, age != null ? age + ' ans' : null].filter(Boolean).join(' · ')) +
     '</p></div><p class="muted">Bilan des tests — ' + esc(new Date().toLocaleDateString('fr-FR')) + '</p></div>' +
-    (pts.length ? '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Test</th>' + pts.map(pt => '<th>' + pt + '<small>' + esc(dates[uid] && dates[uid][pt] ? frDay(dates[uid][pt]) : '') + '</small></th>').join('') +
+    (pts.length ? '<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th>Test</th>' + pts.map(pt => '<th>' + pt + '<small>' + esc(dates[uid] && dates[uid][pt] ? frDay(dates[uid][pt]) : '') + '</small>' +
+      ptDelBtn(Object.values(protoRows).filter(r => r.participant_id === uid && r.point_de_test === pt).map(r => r.id),
+        'tout le ' + pt + ' de ' + nameOf(uid) + ' (' + Object.values(protoRows).filter(r => r.participant_id === uid && r.point_de_test === pt)
+          .map(r => PROTO_LABELS[r.test_type] || r.test_type).join(', ') + ')', 'fichedel') + '</th>').join('') +
       '<th>Évolution</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
       '<p class="recapnote">' + pts.map(pt => '<b>' + pt + '</b> : ' + esc(detail(pt) || '—')).join('<br>') + '</p>' +
       '<p class="recapnote">Évolution : ▲ progrès net · ■ stable (variation dans la marge normale du test) · ▼ baisse nette · ≠ conditions différentes, pas comparable.</p>' +
@@ -2268,11 +2279,23 @@ function openFiche(uid) {
         fcMax: (pt) => (fcMaxRetenue(uid, (dates[uid] || {})[pt] || today) || {}).v }) +
       '<div class="fichegrid"><div><h3>Profil</h3>' + radarSvg(uid, out) + '</div><div>' + ficheCurves(mine) + '</div></div>'
       : '<p class="empty">Aucun résultat de test pour l’instant.</p>') + '</article>';
-  el.hidden = false; document.body.classList.add('fiche-open'); el.scrollTop = 0;
+  el.hidden = false; el.dataset.uid = uid; document.body.classList.add('fiche-open'); el.scrollTop = 0;
   $('#ficheclose').addEventListener('click', closeFiche);
   $('#ficheprint').addEventListener('click', () => window.print());
 }
 function closeFiche() { $('#fiche').hidden = true; document.body.classList.remove('fiche-open'); }
+$('#fiche').addEventListener('click', async (ev) => {   // suppression d'un point de test depuis la fiche
+  const b = ev.target.closest('button.fichedel'); if (!b) return;
+  const ids = b.dataset.ids.split(',').map(Number).filter(Boolean);
+  if (!ids.length || !confirm('Supprimer définitivement ' + b.dataset.label + ' ?\n\nCette action est irréversible.\n\n' + b.dataset.note)) return;
+  b.disabled = true;
+  const { data, error } = await sb.from('protocol_test_results').delete().in('id', ids).select('id');
+  if (error || !data || !data.length) { b.disabled = false; toast(error ? 'Erreur : ' + error.message : 'Suppression refusée — exécute la migration 8 dans Supabase.'); return; }
+  toast(data.length + ' résultat' + (data.length > 1 ? 's' : '') + ' supprimé' + (data.length > 1 ? 's' : '') + ' ✔');
+  const uid = $('#fiche').dataset.uid;
+  await loadData();
+  if (uid && !$('#fiche').hidden) openFiche(uid);
+});
 document.addEventListener('click', (ev) => { const b = ev.target.closest('button.fichebtn'); if (b) { ev.stopPropagation(); openFiche(b.dataset.uid); } }, true);
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('#fiche').hidden) closeFiche(); });
 
