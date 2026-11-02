@@ -1183,7 +1183,8 @@ function renderRecap() {
       (bilanOuvert === null ? '<p class="recapnote noprint">Pour montrer aux adhérents un bilan anonyme du groupe (moyennes, progrès), exécute la migration 17 dans Supabase.</p>'
         : '<div class="bgctl noprint"><label><input type="checkbox" id="bgOpen"' + (bilanOuvert ? ' checked' : '') + '> <b>Bilan du groupe visible par les adhérents</b> ' +
           '<span class="muted">(onglet Progression : moyennes, écarts-types et progrès, anonymes, à partir de 5 personnes)</span></label>' +
-          '<button type="button" class="btn-soft" id="bgPreview">Aperçu</button></div>') +
+          '<button type="button" class="btn-soft" id="bgPreview">Aperçu</button>' +
+          '<button type="button" class="btn-soft" id="bgAsso" title="Une page visuelle, anonyme, imprimable en A4">Bilan de l’asso (une page)</button></div>') +
       '<p class="recapnote">' + esc(scope.charAt(0).toUpperCase() + scope.slice(1)) + '. Chaque case : <b>moyenne</b> ± écart-type (dispersion autour de la moyenne : environ 2 adhérents sur 3 ' +
       'se situent dans cet intervalle), puis min–max et nombre d’adhérents. Évolution : écart moyen entre le premier et le dernier point de test, calculé uniquement sur les adhérents ' +
       'présents aux deux (vert = progrès, pour les indicateurs où plus haut est mieux ; la FC est neutre). Pompes : une ligne par ' +
@@ -1199,6 +1200,7 @@ function renderRecap() {
     toast(bo.checked ? 'Bilan du groupe visible par les adhérents ✔' : 'Bilan du groupe masqué aux adhérents');
     const pv = $('#bgPreviewPanel'); if (pv) pv.remove();
   });
+  const ba = $('#bgAsso'); if (ba) ba.addEventListener('click', () => window.open('bilan-asso.html', '_blank'));
   const bv = $('#bgPreview'); if (bv) bv.addEventListener('click', async () => {
     const old = $('#bgPreviewPanel'); if (old) { old.remove(); return; }
     const { data, error } = await sb.rpc('stats_groupe');

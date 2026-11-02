@@ -8,6 +8,8 @@
 --  pour toute l'association, sans jamais renvoyer de valeur individuelle, et
 --  seulement à partir de 5 personnes (sinon on devinerait qui a fait quoi).
 --  Le coach peut ouvrir ou fermer ce bilan (table « reglages »).
+--  Renvoie aussi effectif, femmes · hommes et âge moyen (page bilan-asso.html) :
+--  si tu l'avais déjà exécutée, relance-la pour les avoir.
 --  Sans risque, peut être relancée.
 -- =====================================================================
 
@@ -59,7 +61,8 @@ begin
   select cours into mon_cours from public.profiles where id = auth.uid();
 
   with v as (   -- une valeur par adhérent, point de test et indicateur
-    select r.participant_id as uid, p.cours, r.point_de_test as pt, i.cle, i.val, i.cond
+    select r.participant_id as uid, p.cours, p.sexe, date_part('year', age(current_date, p.date_naissance))::int as age,
+           r.point_de_test as pt, i.cle, i.val, i.cond
     from public.protocol_test_results r
     join public.profiles p on p.id = r.participant_id and p.role <> 'coach'
     cross join lateral (
@@ -94,6 +97,12 @@ begin
     union all
     select 'cours', v.* from v where mon_cours is not null and v.cours = mon_cours
   ),
+  gens as (select distinct scope, uid, sexe, age from portee),
+  profil as (   -- qui a été testé : effectif, femmes / hommes, âge (à partir de 5 personnes)
+    select scope, count(*) as personnes, count(*) filter (where sexe = 'F') as femmes, count(*) filter (where sexe = 'H') as hommes,
+           round(avg(age)) as age_moyen, round(stddev_samp(age)) as age_ecart_type
+    from gens group by scope having count(*) >= k_min
+  ),
   stats as (
     select scope, cle, pt, count(*) as n, round(avg(val), 1) as moyenne, round(stddev_samp(val), 1) as ecart_type
     from portee group by scope, cle, pt having count(*) >= k_min
@@ -124,6 +133,7 @@ begin
   )
   select jsonb_build_object(
     'ouvert', true, 'mon_cours', mon_cours, 'k_min', k_min, 'calcule_le', now(),
+    'profil', coalesce((select jsonb_agg(to_jsonb(g) order by g.scope) from profil g), '[]'::jsonb),
     'stats', coalesce((select jsonb_agg(to_jsonb(s) order by s.scope, s.cle, s.pt) from stats s), '[]'::jsonb),
     'evolution', coalesce((select jsonb_agg(to_jsonb(e) order by e.scope, e.cle) from evo_agg e), '[]'::jsonb)
   ) into res;

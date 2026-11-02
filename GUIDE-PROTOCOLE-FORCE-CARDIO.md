@@ -253,6 +253,20 @@ le filtre de cours.
   (fonction `stats_groupe`), anonyme, jamais de valeur individuelle ni de
   classement, rien en dessous de 5 personnes. Présenté comme une idée générale,
   pas comme une comparaison.
+- **Le niveau de l'association en une page** (`bilan-asso.html` : lien dans
+  l'encadré « Le groupe » de l'adhérent, bouton « Bilan de l'asso (une page) »
+  dans « Récap des groupes ») : une page visuelle, imprimable sur une feuille A4,
+  pour toute l'association. En tête : nombre d'adhérents testés, femmes ·
+  hommes, âge moyen, part des résultats en progrès net. Puis une carte par test
+  (Cardio : AMRAP, intensité, récupération ; Force : préhension, squat,
+  développé couché, RDL ; Endurance de force : pompes par variante, wall-sit) :
+  moyenne ± écart-type, jauge sur une échelle fixe (la bande couvre environ
+  2 personnes sur 3), variation moyenne des mêmes personnes d'un test à l'autre
+  et « x sur n en progrès net ». Le niveau affiché est celui du dernier point de
+  test, sauf s'il est en cours (moins de 70 % de l'effectif testé) : on garde
+  alors le précédent. Mêmes données anonymes que l'encadré (seuil de 5
+  personnes) ; masquée aussi quand le bilan est fermé. Effectif, femmes ·
+  hommes et âge : rejouer la migration 17 (rejouable) pour les avoir.
 - **Corbeille** (bouton à côté de « Modifier / supprimer ») : tout résultat de
   test ou séance capteur supprimé, par le coach ou par l'adhérent, y reste
   **60 jours** avec un bouton « Restaurer » (si un nouveau résultat existe déjà

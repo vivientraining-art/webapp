@@ -37,6 +37,8 @@ Ne jamais copier de données d'adhérents vers Quarbon.
   - `moniteur-groupe-polar.html` : espace coach (détail par date et groupe,
     récap des groupes, inscrits, « À vérifier », lancement synchronisé de
     l'AMRAP, saisie et correction, exports Excel / CSV / anonymisé) ;
+  - `bilan-asso.html` : le niveau de toute l'association en une page
+    (statistiques anonymes de `stats_groupe()`, imprimable en A4) ;
   - `politique-confidentialite.html` : politique de l'association.
 - Supabase : Auth, RLS (`public.is_coach()`), Realtime broadcast `live-coach`
   (statut des téléphones, départ / STOP de l'AMRAP), RPC `coach_list_users`,
@@ -47,7 +49,8 @@ Ne jamais copier de données d'adhérents vers Quarbon.
   rôle coach protégé ; 15 : type de résultat `force_max` ; 16 : corbeille,
   suppressions de résultats et de séances restaurables 60 jours, rien de gardé
   quand un compte est supprimé ; 17 : bilan anonyme du groupe, fonction
-  `stats_groupe()` et table `reglages`, seuil de 5 personnes).
+  `stats_groupe()` et table `reglages`, seuil de 5 personnes, plus effectif,
+  femmes · hommes et âge moyen dans `profil`).
 - `bilan-groupe.js` : affichage partagé du bilan de groupe (adhérent + aperçu
   coach). Jamais de valeur individuelle ni de classement côté adhérent.
 - `objectifs.js` : module partagé par les deux pages (hexagone des objectifs,
