@@ -54,7 +54,8 @@
     parts.push(scopeHtml(d, 'asso', 'Toute l’association'));
     return '<p class="bgintro">' + (opts.coach ? 'Ce que voient les adhérents : pour' : 'Pour') + ' te faire une idée générale — <b>pas pour se comparer</b> : ' +
       'chacun part de son niveau et progresse à son rythme. Chiffres anonymes : moyenne ± écart-type (environ 2 personnes sur 3 se situent dans cet ' +
-      'intervalle), affichés seulement à partir de ' + (d.k_min || 5) + ' personnes.</p>' + parts.join('') +
+      'intervalle), affichés seulement à partir de ' + (d.k_min || 5) + ' personnes.</p>' +
+      '<p class="bglink"><a href="bilan-asso.html">Voir le niveau de toute l’association en une page →</a></p>' + parts.join('') +
       '<p class="bgnote">« Ont progressé » : progrès au-delà de la variabilité normale du test d’un jour à l’autre, entre le premier et le dernier test ' +
       'de chacun, dans les mêmes conditions. Pompes : chaque variante à part.</p>';
   }
@@ -64,7 +65,7 @@
     '.bgtbl th,.bgtbl td{padding:.4rem .35rem;border-bottom:1px solid #DDD4C3;text-align:right;vertical-align:top}.bgtbl th:first-child,.bgtbl td:first-child{text-align:left}' +
     '.bgtbl thead th{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:#6E7B73}.bgtbl small{display:block;color:#6E7B73;font-size:.7rem}' +
     '.bgv{white-space:nowrap}.bgu{color:#6E7B73;font-size:.72rem}.bgevo{margin:.5rem 0 0 1.1rem;font-size:.86rem;line-height:1.6}.bgup{color:#2F7D3D;font-weight:600}' +
-    '.bgvide{font-size:.85rem;color:#6E7B73}.bgnote{font-size:.76rem;color:#6E7B73;line-height:1.5;margin-top:.6rem}';
+    '.bglink{margin:0 0 .4rem;font-size:.9rem}.bglink a{color:#C26B4A;font-weight:600;text-decoration:none}.bgvide{font-size:.85rem;color:#6E7B73}.bgnote{font-size:.76rem;color:#6E7B73;line-height:1.5;margin-top:.6rem}';
   if (typeof document !== 'undefined') { const s = document.createElement('style'); s.textContent = CSS; document.head.appendChild(s); }
 
   global.BILAN_GROUPE = { html };
